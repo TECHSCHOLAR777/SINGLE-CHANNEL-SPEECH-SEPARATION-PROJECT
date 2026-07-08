@@ -1,0 +1,14 @@
+# Pinned core dependencies for reproducible installs.
+# Generated from pyproject.toml; use: pip install -r requirements.txt
+
+numpy>=1.24
+scipy>=1.11
+torch>=2.1
+torchaudio>=2.1
+speechbrain>=1.0
+asteroid>=0.7
+pyyaml>=6.0
+soundfile>=0.12
+tqdm>=4.66
+
+# Dev tools (optional): pip install -r requirements-dev.txt

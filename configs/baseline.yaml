@@ -1,0 +1,19 @@
+# Phase 0 baseline configuration (Dev B)
+# Update data_root to your local Libri3Mix path before running.
+
+data_root: "data/raw/LibriMix"   # TODO: set after Dev A downloads Libri3Mix
+subset: "test"
+max_samples: 50
+sample_rate: 16000
+
+device: "cuda"   # falls back to cpu if CUDA unavailable
+
+output_dir: "outputs/baseline"
+
+experts:
+  - sepformer
+  - srcorrnet
+
+# SR-CorrNet: clone https://github.com/dmlguq456/SR_CorrNet
+srcorrnet_repo: null            # e.g. "external/SR_CorrNet"
+srcorrnet_checkpoint: null       # e.g. "checkpoints/srcorrnet_b3.pt"

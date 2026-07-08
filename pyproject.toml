@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ca-mose"
+version = "0.1.0"
+description = "Condition-Aware Mixture-of-Separation-Experts for multi-speaker speech separation"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = [
+    "numpy>=1.24",
+    "scipy>=1.11",
+    "torch>=2.1",
+    "torchaudio>=2.1",
+    "speechbrain>=1.0",
+    "asteroid>=0.7",
+    "pyyaml>=6.0",
+    "soundfile>=0.12",
+    "tqdm>=4.66",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4",
+    "pytest-cov>=4.1",
+    "ruff>=0.4",
+    "black>=24.0",
+    "pre-commit>=3.6",
+]
+
+[project.scripts]
+ca-mose-baseline = "scripts.run_baseline:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["data*", "models*", "eval*", "train*", "align*", "demo*", "schemas*", "scripts*"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W", "UP", "B"]
+ignore = ["B008"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
