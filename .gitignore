@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+.venv/
+venv/
+env/
+
+# Tooling
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# Data and checkpoints (large files)
+data/raw/
+data/processed/
+data/cache/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.wav
+*.flac
+
+# Environment secrets
+.env
+.env.*
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Baseline outputs
+outputs/
+results/

@@ -1,0 +1,6 @@
+# Shared default configuration placeholder.
+# Dev C owns the config loader; this file documents expected top-level keys.
+
+project_name: ca-mose
+sample_rate: 16000
+seed: 42
