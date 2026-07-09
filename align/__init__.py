@@ -1,1 +1,1 @@
-"""Stream alignment and cross-chunk identity lock (Dev C)."""
+"""Stream alignment and cross-chunk identity tracking (Dev C)."""

@@ -20,7 +20,7 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from models.baseline_runner import BaselineConfig, run_baseline
+from models.baseline_runner import BaselineConfig, run_baseline  # noqa: E402
 
 
 def load_config(path: str | Path) -> dict:
