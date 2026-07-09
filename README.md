@@ -1,6 +1,6 @@
 # CA-MoSE: Condition-Aware Mixture-of-Separation-Experts
 
-Multi-speaker blind speech separation for three or more concurrent speakers using conditional cascade routing between MossFormer2 and SR-CorrNet.
+Multi-speaker blind speech separation for three or more than three concurrent speakers using conditional cascade routing between MossFormer2 and SR-CorrNet.
 
 See [MASTER_PROJECT.md](MASTER_PROJECT.md) for architecture and [DEVELOPMENT_PLAN.md](DEVELOPMENT_PLAN.md) for team workflow.
 
