@@ -1,0 +1,35 @@
+# Dev C configuration: eval harness, alignment, counting, demo.
+# Layered over configs/default.yaml via utils.config.load_config.
+
+eval:
+  scoring:
+    missing_policy: mixture_fallback   # or: silence_floor
+    silence_floor_db: -30.0
+  counting:
+    count_range: [2, 5]
+  run_log: outputs/run_log.jsonl
+  calibration_bins: 10
+
+align:
+  match_threshold: 0.35      # max cosine cost to join an existing track
+  ema: 0.7                   # track-embedding moving average
+  chunk_sec: 4.0
+  overlap_sec: 1.0
+
+router:
+  feature_dim: 64
+  num_experts: 3             # [TD, TF, NULL]
+  hidden_dim: 384
+  null_index: 2
+
+stop_classifier:
+  hidden_dims: [448, 448]
+  dropout: 0.1
+  epochs: 40
+  lr: 0.001
+  batch_size: 256
+  val_fraction: 0.2
+
+demo:
+  max_display_streams: 5
+  port: 7860
