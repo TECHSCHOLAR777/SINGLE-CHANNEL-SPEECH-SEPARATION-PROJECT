@@ -13,19 +13,13 @@ import argparse
 import sys
 from pathlib import Path
 
-import yaml
-
 # Ensure project root is on sys.path when invoked as a script.
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from models.baseline_runner import BaselineConfig, run_baseline
-
-
-def load_config(path: str | Path) -> dict:
-    with open(path, encoding="utf-8") as f:
-        return yaml.safe_load(f)
+from models.baseline_runner import BaselineConfig, run_baseline  # noqa: E402
+from utils.config import load_config  # noqa: E402
 
 
 def main() -> None:
@@ -35,6 +29,12 @@ def main() -> None:
         type=str,
         default="configs/baseline.yaml",
         help="Path to baseline YAML config",
+    )
+    parser.add_argument(
+        "--defaults",
+        type=str,
+        default="configs/default.yaml",
+        help="Optional shared defaults YAML layered under --config",
     )
     parser.add_argument(
         "--max-samples",
@@ -56,13 +56,21 @@ def main() -> None:
     )
     args = parser.parse_args()
 
-    cfg_dict = load_config(args.config)
+    defaults_path = Path(args.defaults)
+    config_paths = [args.config]
+    if defaults_path.exists():
+        config_paths = [defaults_path, args.config]
+
+    cfg_dict = load_config(*config_paths)
+    overrides: dict = {}
     if args.max_samples is not None:
-        cfg_dict["max_samples"] = args.max_samples
+        overrides["max_samples"] = args.max_samples
     if args.data_root is not None:
-        cfg_dict["data_root"] = args.data_root
+        overrides["data_root"] = args.data_root
     if args.device is not None:
-        cfg_dict["device"] = args.device
+        overrides["device"] = args.device
+    if overrides:
+        cfg_dict = load_config(*config_paths, overrides=overrides)
 
     config = BaselineConfig.from_dict(cfg_dict)
     run_baseline(config)

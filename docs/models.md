@@ -29,8 +29,10 @@ result: SeparationResult = expert.separate(mixture, sample_rate)
 
 ## Phase 1 additions (planned)
 
-- `MossFormer2Expert` wrapper (ClearerVoice-Studio)
-- `REALMQualityEstimator` for cascade gate
+- `MossFormer2Expert` wrapper (`models/experts/mossformer2.py`) — ClearVoice / MossFormer2_SS_16K
+- `REALMQualityEstimator` for cascade gate (`models/realm_quality.py`)
+- `preprocess.py` — resample 16 kHz, -26 dBFS peak norm, STFT branch
+- `TFGridNetExpert` fallback when SR-CorrNet unavailable (`models/experts/tfgridnet.py`)
 - Hungarian alignment consumes expert outputs (owned by Dev C in `align/`)
 
 ## Hardware notes

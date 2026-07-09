@@ -10,5 +10,9 @@ asteroid>=0.7
 pyyaml>=6.0
 soundfile>=0.12
 tqdm>=4.66
+pyroomacoustics>=0.7
+
+# Optional Phase 1 expert (MossFormer2 via ClearerVoice-Studio):
+# pip install clearvoice
 
 # Dev tools (optional): pip install -r requirements-dev.txt

@@ -18,6 +18,7 @@ from pathlib import Path
 import numpy as np
 import torch
 
+from models.preprocess import preprocess
 from schemas.separation_result import SeparationResult, StreamMetadata
 
 
@@ -119,26 +120,24 @@ class SRCorrNetExpert:
         self._load_model()
         assert self._model is not None
 
-        if sample_rate != self.SAMPLE_RATE:
-            mixture = SepFormerExpertResample.resample(mixture, sample_rate, self.SAMPLE_RATE)
-            sample_rate = self.SAMPLE_RATE
-
-        if isinstance(mixture, np.ndarray):
-            wav = torch.from_numpy(mixture.astype(np.float32))
-        else:
-            wav = mixture.float()
-        wav = wav.squeeze().to(self.device)
+        pre = preprocess(mixture, sample_rate)
+        wav = pre.waveform
+        wav_t = torch.from_numpy(wav).to(self.device)
 
         with torch.no_grad():
-            output = self._model(wav.unsqueeze(0))
-            streams, confidences = self._parse_output(output, wav.shape[0])
+            output = self._model(wav_t.unsqueeze(0))
+            streams, confidences, attractors, stop_logit = self._parse_output(output, wav.shape[0])
 
-        mixture_np = wav.detach().cpu().numpy()
+        mixture_np = wav
         metadata = [
             StreamMetadata(
                 expert_source=self.EXPERT_NAME,
                 confidence=float(confidences[i]) if i < len(confidences) else 1.0,
-                extra={"attractor_index": i},
+                extra={
+                    "attractor_index": i,
+                    "attractor": attractors[i] if i < len(attractors) else None,
+                    "stop_logit": stop_logit,
+                },
             )
             for i in range(streams.shape[0])
         ]
@@ -155,21 +154,58 @@ class SRCorrNetExpert:
 
     def _parse_output(
         self, output: torch.Tensor | tuple | dict, time_len: int
-    ) -> tuple[np.ndarray, list[float]]:
-        """Normalize SR-CorrNet forward output to [K, T] numpy and confidence list."""
+    ) -> tuple[np.ndarray, list[float], list[np.ndarray | None], float | None]:
+        """
+        Normalize SR-CorrNet forward output to [K, T] numpy, confidences,
+        per-stream attractor vectors, and optional TDA stop logit.
+        """
+        attractors: list[np.ndarray | None] = []
+        stop_logit: float | None = None
+
         if isinstance(output, dict):
-            est = output.get("est_sources") or output.get("sources") or output["wav"]
+            est = output.get("est_sources")
+            if est is None:
+                est = output.get("sources")
+            if est is None:
+                est = output["wav"]
             conf = output.get("confidence", output.get("confidences", []))
+            raw_attractors = output.get("attractors")
+            if raw_attractors is None:
+                raw_attractors = output.get("attractor_vectors")
+            stop = output.get("stop_logit")
+            if stop is None:
+                stop = output.get("stop_token")
         elif isinstance(output, tuple):
-            est, *rest = output
-            conf = rest[0] if rest else []
+            est = output[0]
+            conf = output[1] if len(output) > 1 else []
+            raw_attractors = output[2] if len(output) > 2 else None
+            stop = output[3] if len(output) > 3 else None
         else:
             est = output
             conf = []
+            raw_attractors = None
+            stop = None
+
+        if isinstance(raw_attractors, torch.Tensor):
+            att_arr = raw_attractors.detach().cpu().numpy()
+            if att_arr.ndim == 2:
+                attractors = [att_arr[i].astype(np.float32) for i in range(att_arr.shape[0])]
+            elif att_arr.ndim == 1:
+                attractors = [att_arr.astype(np.float32)]
+        elif isinstance(raw_attractors, np.ndarray):
+            if raw_attractors.ndim == 2:
+                attractors = [raw_attractors[i].astype(np.float32) for i in range(raw_attractors.shape[0])]
+        elif isinstance(raw_attractors, (list, tuple)):
+            attractors = [
+                np.asarray(a, dtype=np.float32) if a is not None else None for a in raw_attractors
+            ]
+
+        if stop is not None:
+            stop_logit = float(stop.item() if isinstance(stop, torch.Tensor) else stop)
 
         est = est.squeeze(0)
         if est.ndim == 2 and est.shape[0] != time_len and est.shape[1] == time_len:
-            est = est  # [K, T]
+            pass  # [K, T]
         elif est.ndim == 2 and est.shape[0] == time_len:
             est = est.T
 
@@ -181,7 +217,10 @@ class SRCorrNetExpert:
         else:
             confidences = [1.0] * streams.shape[0]
 
-        return streams, confidences
+        while len(attractors) < streams.shape[0]:
+            attractors.append(None)
+
+        return streams, confidences, attractors, stop_logit
 
 
 class SepFormerExpertResample:
