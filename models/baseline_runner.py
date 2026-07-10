@@ -17,6 +17,7 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from data.dynamic_mix_dataset import DynamicMixDataset
 from data.mixer_stub import MixtureSample, discover_librimix_samples
 from models.experts.sepformer import SepFormerExpert
 from models.experts.srcorrnet import SRCorrNetExpert
@@ -27,7 +28,7 @@ from schemas.separation_result import SeparationResult
 class BaselineConfig:
     """Configuration for a baseline evaluation run."""
 
-    data_root: str
+    data_root: str = ""
     subset: str = "test"
     max_samples: int | None = 50
     device: str = "cuda"
@@ -36,11 +37,16 @@ class BaselineConfig:
     srcorrnet_repo: str | None = None
     srcorrnet_checkpoint: str | None = None
     sample_rate: int = 16000
+    # Dynamic mixing via DynamicMixer — alternative to static Libri3Mix on disk.
+    # When source_files is non-empty, data_root is ignored.
+    source_files: list[str] = field(default_factory=list)
+    n_dynamic: int = 50
+    allowed_n: list[int] = field(default_factory=lambda: [2, 3])
 
     @classmethod
     def from_dict(cls, cfg: dict[str, Any]) -> BaselineConfig:
         return cls(
-            data_root=cfg["data_root"],
+            data_root=cfg.get("data_root", ""),
             subset=cfg.get("subset", "test"),
             max_samples=cfg.get("max_samples"),
             device=cfg.get("device", "cuda" if torch.cuda.is_available() else "cpu"),
@@ -49,6 +55,9 @@ class BaselineConfig:
             srcorrnet_repo=cfg.get("srcorrnet_repo"),
             srcorrnet_checkpoint=cfg.get("srcorrnet_checkpoint"),
             sample_rate=cfg.get("sample_rate", 16000),
+            source_files=cfg.get("source_files", []),
+            n_dynamic=cfg.get("n_dynamic", 50),
+            allowed_n=cfg.get("allowed_n", [2, 3]),
         )
 
 
@@ -148,20 +157,45 @@ def evaluate_expert_on_sample(
     return compute_sisdri(result.streams, sample.references, sample.mixture)
 
 
+def _samples_from_dynamic(config: BaselineConfig) -> list[MixtureSample]:
+    """Generate on-the-fly mixtures from clean source files via DynamicMixer."""
+    cap = config.max_samples
+    n = config.n_dynamic if cap is None else min(config.n_dynamic, cap)
+    ds = DynamicMixDataset(
+        source_files=[Path(f) for f in config.source_files],
+        n_samples=n,
+        allowed_n=config.allowed_n,
+        seed=0,
+    )
+    return [ds[i] for i in range(len(ds))]
+
+
 def run_baseline(config: BaselineConfig) -> dict[str, ExpertBaselineResult]:
     """
     Run baseline evaluation for all configured experts.
 
+    Data source resolution:
+      - If ``config.source_files`` is non-empty, mixes are generated on-the-fly
+        from clean single-speaker files using DynamicMixer (no pre-mixed dataset
+        required).
+      - Otherwise, ``config.data_root`` must point to a Libri3Mix directory and
+        ``discover_librimix_samples`` is used (original behaviour).
+
     Returns:
         Mapping from expert name to aggregated results.
     """
-    samples = discover_librimix_samples(
-        config.data_root,
-        subset=config.subset,
-        max_samples=config.max_samples,
-    )
+    if config.source_files:
+        samples = _samples_from_dynamic(config)
+    else:
+        samples = discover_librimix_samples(
+            config.data_root,
+            subset=config.subset,
+            max_samples=config.max_samples,
+        )
     if not samples:
-        raise RuntimeError(f"No samples found under {config.data_root}")
+        raise RuntimeError(
+            "No samples found. Provide source_files (dynamic mode) or a valid data_root."
+        )
 
     device = config.device
     if device == "cuda" and not torch.cuda.is_available():
