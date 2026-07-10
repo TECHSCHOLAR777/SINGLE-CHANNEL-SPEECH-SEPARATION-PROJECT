@@ -100,7 +100,7 @@ P0 Eval (C) ──┘                                                          �
 - [x] Every module: header docstring (purpose, inputs, outputs) — confirmed across all modules
 - [x] Each owner maintains one-page design note in `docs/` — `docs/models.md`, `docs/DEVC_DESIGN.md` done
 - [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason) — done 2026-07-09
-- [x] Unit tests for every data and metric function — 173 tests passing as of 2026-07-10
+- [x] Unit tests for every data and metric function — 244 tests passing as of 2026-07-11 (1 env-specific torchaudio failure on Windows/Python 3.13)
 - [ ] One shared end-to-end integration test — must pass before every gate
 
 ### Data split discipline (mandatory, all phases)
@@ -303,12 +303,12 @@ P0 Eval (C) ──┘                                                          �
 |----|------|------------|-------|-------------|--------|
 | P2-A1 | Scene Analyzer (~1.5M params): log-mel + handcrafted features → reverb proxy, noise floor, overlap density, spectral flatness, modulation rate, K_coarse | M1 | A | `models/scene_analyzer.py` | [ ] |
 | P2-C1 | Two-level Adaptive Router (~0.5M params): sequence gate + segment gate (1–2s windows), sigmoid (not softmax), w_TF/w_TD/w_NULL | P2-A1 | C | `models/router.py` | [~] — code shipped early 2026-07-09, PR #2; wire-up to Scene Analyzer (P2-A1) pending |
-| P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | [~] — code shipped early 2026-07-09, PR #2; active in training loop pending P2-B5 |
-| P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | [~] — code shipped early 2026-07-09, PR #2; active in training loop pending P2-B5 |
-| P2-B1 | Cascade gate: compare REAL-M score to threshold `tau`; escalate if below | P1-B4 | B | Cascade controller | [ ] — blocked on P1-B4 (REAL-M) |
+| P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
+| P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
+| P2-B1 | Cascade gate: compare REAL-M score to threshold `tau`; escalate if below | P1-B4 | B | Cascade controller | [x] — done 2026-07-11, `models/cascade_gate.py` |
 | P2-B2 | Escalation-rate instrumentation | P2-B1 | C | Dashboard / logging | [~] — `escalation_rate` query in `eval/reporting.py`; runtime logging pending P2-B1 |
-| P2-B3 | Fusion head CRRR (~1M params): `s_fused_k = s_SR_k + alpha_k(t) * R_theta`; alpha from confidence, mask entropy, local SI-SDRi proxy, scene weights | M1 alignment | B | `models/fusion.py` | [ ] — blocked on M1 |
-| P2-B4 | Residual regularization loss (L2 on fusion correction) | P2-B3 | B | Loss term | [ ] — blocked on P2-B3 |
+| P2-B3 | Fusion head CRRR (~1M params): `s_fused_k = s_SR_k + alpha_k(t) * R_theta`; alpha from confidence, mask entropy, local SI-SDRi proxy, scene weights | M1 alignment | B | `models/fusion.py` | [x] — done 2026-07-11, `models/fusion.py` |
+| P2-B4 | Residual regularization loss (L2 on fusion correction) | P2-B3 | B | Loss term | [x] — done 2026-07-11, `train/losses.py` |
 
 **Router design (MASTER §4.4):**
 - Sigmoid gating (multiple experts can be active)
@@ -323,10 +323,10 @@ P0 Eval (C) ──┘                                                          �
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P2-B5 | Composite loss assembly (all 7 terms) | P2-A1, P2-C1, P2-B3 | B | `train/losses.py` | [ ] |
-| P2-B6 | Training loop | P2-B5, all P2 components | B (leads) | `train/trainer.py` | [ ] |
-| P2-B7 | Multi-resolution STFT loss | P2-B5 | B | Loss term (lambda=0.5) | [ ] |
-| P2-B8 | Speaker-consistency loss (ArcFace-style) | P2-B5 | B | Loss term (lambda=0.1) | [ ] |
+| P2-B5 | Composite loss assembly (all 7 terms) | P2-A1, P2-C1, P2-B3 | B | `train/losses.py` | [x] — done 2026-07-11 |
+| P2-B6 | Training loop | P2-B5, all P2 components | B (leads) | `train/trainer.py` | [x] — done 2026-07-11 |
+| P2-B7 | Multi-resolution STFT loss | P2-B5 | B | Loss term (lambda=0.5) | [x] — done 2026-07-11, `train/losses.py` |
+| P2-B8 | Speaker-consistency loss (ArcFace-style) | P2-B5 | B | Loss term (lambda=0.1) | [x] — done 2026-07-11, `train/losses.py` |
 | P2-INT1 | **Whole-team review of training-loop PR** | P2-B6 | All | Approved PR | [ ] |
 | P2-INT2 | End-to-end forward pass integration test | P2-B6 | All | E2E test | [ ] |
 | P2-INT3 | Short training run (few epochs) on mixed conditions | P2-INT2 | B | Checkpoint + logs | [ ] |
@@ -337,7 +337,7 @@ P0 Eval (C) ──┘                                                          �
 ```
 L_total = L_SI-SDR-uPIT (1.0)
         + 0.5 * L_multi-res-STFT
-        + 0.3 * L_count-BCE        [placeholder until P3]
+        + 0.3 * L_count-BCE
         + 0.1 * L_load-balance
         + 0.1 * L_null-sparsity
         + 0.1 * L_residual-reg

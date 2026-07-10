@@ -35,6 +35,14 @@ result: SeparationResult = expert.separate(mixture, sample_rate)
 - `TFGridNetExpert` fallback when SR-CorrNet unavailable (`models/experts/tfgridnet.py`)
 - Hungarian alignment consumes expert outputs (owned by Dev C in `align/`)
 
+## Phase 2 additions (Dev B)
+
+- `CascadeGate` (`models/cascade_gate.py`) — REAL-M score vs tau, escalate if below
+- `CRRRFusionHead` (`models/fusion.py`) — Confidence-Routed Residual Refinement (~1M params)
+- `SceneAnalyzer` stub (`models/scene_analyzer.py`) — interim until Dev A full analyzer
+- `CompositeLoss` (`train/losses.py`) — all seven MASTER §7.2 terms
+- `CAMoSETrainer` (`train/trainer.py`) — trains scene/router/fusion heads; experts frozen
+
 ## Hardware notes
 
 - Target: Kaggle T4 16 GB.

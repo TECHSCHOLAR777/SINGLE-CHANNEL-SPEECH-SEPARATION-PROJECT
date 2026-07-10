@@ -18,3 +18,8 @@
 | 2026-07-10 | Baseline runner imports SI-SDRi from `eval/metrics.py` | P0-INT1: single canonical metric implementation |
 | 2026-07-10 | TF-GridNet fallback with SepFormer last resort | P1-B3: graceful degradation when SR-CorrNet repo unavailable |
 | 2026-07-10 | Preprocessing: -26 dBFS peak, STFT 512/128 | MASTER §4.2 Stage 0 spec |
+| 2026-07-11 | Cascade gate uses REAL-M `min_sisnr_db` vs tau (strict `<`) | Conservative escalation per MASTER §4.3; borderline inputs escalate |
+| 2026-07-11 | CRRR fusion: `s_fused = s_SR + alpha * R_theta` with ~1M conv residual net | MASTER §4.2 fusion formula; alpha from confidence, entropy, SI-SDR proxy, scene weights |
+| 2026-07-11 | Composite loss in `train/losses.py` with MASTER §7.2 lambdas | Single assembly point for all seven training terms |
+| 2026-07-11 | `models/scene_analyzer.py` interim stub until Dev A P2-A1 | Unblocks P2 trainer; smaller than full 1.5M spec |
+| 2026-07-11 | Trainer self-test mode with synthetic batches (no expert downloads) | CI verifies training mechanics before real LibriMix runs |
