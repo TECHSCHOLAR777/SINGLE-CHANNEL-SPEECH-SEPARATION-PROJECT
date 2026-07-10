@@ -1,4 +1,4 @@
-# CA-MoSE Project TODO — Single Source of Truth
+# CA-MoSE Project TODO - Single Source of Truth
 
 > **Derived from:** `MASTER_PROJECT.md` (v1.2) + `DEVELOPMENT_PLAN.md`  
 > **Purpose:** Living task tracker for the full 10–12 week project. Edit checkboxes as work completes.  
