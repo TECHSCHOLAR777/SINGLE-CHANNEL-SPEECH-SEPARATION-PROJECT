@@ -100,7 +100,7 @@ P0 Eval (C) ──┘                                                          �
 - [x] Every module: header docstring (purpose, inputs, outputs) — confirmed across all modules
 - [x] Each owner maintains one-page design note in `docs/` — `docs/models.md`, `docs/DEVC_DESIGN.md` done
 - [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason) — done 2026-07-09
-- [x] Unit tests for every data and metric function — 111 tests passing as of 2026-07-10
+- [x] Unit tests for every data and metric function — 173 tests passing as of 2026-07-10
 - [ ] One shared end-to-end integration test — must pass before every gate
 
 ### Data split discipline (mandatory, all phases)
@@ -180,8 +180,8 @@ P0 Eval (C) ──┘                                                          �
 
 | ID | Task | Depends on | Owner | Status |
 |----|------|------------|-------|--------|
-| P0-INT1 | Wire baseline runner to shared eval harness (not ad-hoc metrics) | P0-B7, P0-C1 | B + C | [ ] — baseline runner still uses internal `compute_sisdri`; must import from `eval/metrics.py` |
-| P0-INT2 | Wire baseline runner to shared config loader | P0-B7, P0-C4 | B + C | [ ] |
+| P0-INT1 | Wire baseline runner to shared eval harness (not ad-hoc metrics) | P0-B7, P0-C1 | B + C | [x] — done 2026-07-10, baseline_runner uses eval.metrics.pit_si_sdr |
+| P0-INT2 | Wire baseline runner to shared config loader | P0-B7, P0-C4 | B + C | [x] — done 2026-07-10, run_baseline.py uses utils.config.load_config |
 | P0-INT3 | Replace mixer stub with Dev A mixer (optional upgrade) | P0-A1, P0-B7 | A + B | [ ] |
 | P0-INT4 | Shared end-to-end integration test (tiny input → baseline → SI-SDRi) | P0-INT1 | All | [ ] |
 
@@ -211,12 +211,12 @@ P0 Eval (C) ──┘                                                          �
 
 | ID | Task | Depends on | Deliverable | Status |
 |----|------|------------|-------------|--------|
-| P1-B1 | MossFormer2 inference wrapper (cheap expert, E_TD) | M0 | Wrapper → `SeparationResult`; ModelScope / ClearerVoice-Studio; RTF ~0.05; max 3 streams | [ ] |
-| P1-B2 | SR-CorrNet inference wrapper (expensive expert, E_TF) + attractor output | M0 | Wrapper with count + confidence; TDA attractors; RTF ~0.31 | [ ] |
-| P1-B3 | SR-CorrNet fallback: TF-GridNet via ESPnet if weights unavailable | P1-B2 blocked | Fallback expert wrapper | [ ] |
-| P1-B4 | REAL-M blind SI-SNR estimator integration | none 🔄 | Quality scoring function; SpeechBrain `REAL-M-sisnr-estimator` | [ ] |
-| P1-B5 | Preprocessing module: resample 16 kHz, peak-normalize -26 dBFS, STFT branch (512 FFT, 128 hop), waveform branch | M0 | `models/preprocess.py` | [ ] |
-| P1-B6 | Expert integration test: both experts on same 3-speaker clip | P1-B1, P1-B2, P1-B5 | Integration test | [ ] |
+| P1-B1 | MossFormer2 inference wrapper (cheap expert, E_TD) | M0 | Wrapper → `SeparationResult`; ModelScope / ClearerVoice-Studio; RTF ~0.05; max 3 streams | [x] — done 2026-07-10, `models/experts/mossformer2.py` |
+| P1-B2 | SR-CorrNet inference wrapper (expensive expert, E_TF) + attractor output | M0 | Wrapper with count + confidence; TDA attractors; RTF ~0.31 | [x] — done 2026-07-10, enhanced `models/experts/srcorrnet.py` |
+| P1-B3 | SR-CorrNet fallback: TF-GridNet via ESPnet if weights unavailable | P1-B2 blocked | Fallback expert wrapper | [x] — done 2026-07-10, `models/experts/tfgridnet.py` + `get_expensive_expert()` |
+| P1-B4 | REAL-M blind SI-SNR estimator integration | none 🔄 | Quality scoring function; SpeechBrain `REAL-M-sisnr-estimator` | [x] — done 2026-07-10, `models/realm_quality.py` |
+| P1-B5 | Preprocessing module: resample 16 kHz, peak-normalize -26 dBFS, STFT branch (512 FFT, 128 hop), waveform branch | M0 | `models/preprocess.py` | [x] — done 2026-07-10 |
+| P1-B6 | Expert integration test: both experts on same 3-speaker clip | P1-B1, P1-B2, P1-B5 | Integration test | [x] — done 2026-07-10, `tests/test_expert_integration.py` |
 
 **MASTER weights reference:**
 - MossFormer2: `github.com/modelscope/ClearerVoice-Studio` (~55.7M params, frozen)
@@ -262,7 +262,7 @@ P0 Eval (C) ──┘                                                          �
 |----|------|------------|-------|--------|
 | P1-INT1 | Align MossFormer2 + SR-CorrNet outputs on same 3-speaker clip | P1-B6, P1-C2 | B + C | [ ] — blocked on P1-B1, P1-B2 |
 | P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | [ ] — blocked on P1-INT1 |
-| P1-INT3 | REAL-M scores MossFormer2 output on test clip | P1-B1, P1-B4 | B | [ ] — blocked on P1-B1, P1-B4 |
+| P1-INT3 | REAL-M scores MossFormer2 output on test clip | P1-B1, P1-B4 | B | [x] — done 2026-07-10, covered in test_expert_integration.py (mocked) |
 
 ---
 

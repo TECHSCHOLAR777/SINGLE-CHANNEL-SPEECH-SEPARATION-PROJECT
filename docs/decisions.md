@@ -14,3 +14,7 @@
 | 2026-07-09 | Stop-classifier calibrated by temperature scaling, loaded with `weights_only=True` | Honest confidence badge; safe checkpoint loading (contrast srcorrnet.py `weights_only=False`) |
 | 2026-07-09 | Demo engine injected as a callable; `MockEngine` is weight-free | Demo UI buildable before any model is ready; real experts drop in without touching demo code |
 | 2026-07-09 | `utils` added to pyproject packages include | Was missing; `pip install -e .` would not have shipped the config loader |
+| 2026-07-10 | MossFormer2 via optional `clearvoice` package; ECAPA embeddings attached in-wrapper | M1 gate requires streams + embeddings; avoids blocking on Dev C ECAPA wrapper |
+| 2026-07-10 | Baseline runner imports SI-SDRi from `eval/metrics.py` | P0-INT1: single canonical metric implementation |
+| 2026-07-10 | TF-GridNet fallback with SepFormer last resort | P1-B3: graceful degradation when SR-CorrNet repo unavailable |
+| 2026-07-10 | Preprocessing: -26 dBFS peak, STFT 512/128 | MASTER §4.2 Stage 0 spec |
