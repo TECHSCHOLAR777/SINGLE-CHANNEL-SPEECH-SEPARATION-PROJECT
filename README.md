@@ -379,7 +379,7 @@ L_total = L_SI-SDR-uPIT (1.0)
 | P3-C3 | Count confusion matrix report generator | P0-C6, P3-C1 | C | `eval/counting_report.py` | [~] — code shipped early 2026-07-09, PR #2; needs real classifier outputs to produce results |
 | P3-C4 | Calibration curve report (estimated prob vs actual accuracy) | P3-C3 | C | Calibration plot + metrics | [~] — code shipped early 2026-07-09, PR #2; needs real classifier run to produce calibration data |
 | P3-A1 | Mixer support for N=2..5 (Libri2Mix–Libri5Mix) | P0-A1, P1-A5 | A | On-the-fly 2–5 speaker mixtures | [~] — DynamicMixer supports arbitrary N; Libri4/5Mix download scripts (P1-A5) pending |
-| P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | [ ] |
+| P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | [x] — done 2026-07-10, `data/prepare_sparselibrimix.py` + `tests/test_prepare_sparselibrimix.py`, PR #7 |
 | P3-C5 | Stop-classifier training on Libri2–5Mix | P3-C1, P3-A1 | C | Trained classifier checkpoint | [~] — training script shipped 2026-07-09, PR #2 (self-test passes); real training run on Libri2–5Mix pending data + M2 |
 | P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | [ ] — blocked on P3-B1, P1-B2 |
 | P3-INT2 | Unknown-N evaluation across N=2,3,4,5 | P3-INT1, P3-C3 | C | Count accuracy results | [ ] — blocked on P3-INT1 |
@@ -596,7 +596,7 @@ Track at M6; start collecting artifacts from M0.
 | LibriSpeech | Source audio for mixer | P0-A | [~] — `prepare_librimix.py` download script ready; not yet run on this machine |
 | Libri2Mix / Libri3Mix | Primary train/eval | P0-A | [~] — generation script ready; not yet run on this machine |
 | Libri4Mix / Libri5Mix | N=4,5 training | P1-A | [ ] — P1-A5 script not yet written |
-| SparseLibriMix | L2 overlap eval (test only) | P3-A | [ ] |
+| SparseLibriMix | L2 overlap eval (test only) | P3-A | [~] — prep script ready (`data/prepare_sparselibrimix.py`, PR #7); generation requires LibriSpeech test-clean at runtime |
 | WHAM! | Noise augmentation | P1-A | [ ] |
 | WHAMR! | Reverb eval + RIR source | P1-A | [ ] |
 | VCTK | Accent diversity | P0-A | [ ] — P0-A4 not started |
