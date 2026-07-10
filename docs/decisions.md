@@ -23,3 +23,4 @@
 | 2026-07-11 | Composite loss in `train/losses.py` with MASTER §7.2 lambdas | Single assembly point for all seven training terms |
 | 2026-07-11 | `models/scene_analyzer.py` interim stub until Dev A P2-A1 | Unblocks P2 trainer; smaller than full 1.5M spec |
 | 2026-07-11 | Trainer self-test mode with synthetic batches (no expert downloads) | CI verifies training mechanics before real LibriMix runs |
+| 2026-07-11 | Stop-classifier features in `models/counting_features.py` (P3-B1) | Dev B owns extractors; energy VAD default (CI-safe), optional Silero; ECAPA via existing embedder |
