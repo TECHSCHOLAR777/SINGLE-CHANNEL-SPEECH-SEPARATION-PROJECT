@@ -373,7 +373,7 @@ L_total = L_SI-SDR-uPIT (1.0)
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P3-B1 | Feature extractors for stop-classifier: (1) residual energy ratio, (2) VAD prob on residual, (3) ECAPA embedding distance to prior stems, (4) mixture-consistency error | M2 | B | `models/counting_features.py` | [ ] — blocked on M2 |
+| P3-B1 | Feature extractors for stop-classifier: (1) residual energy ratio, (2) VAD prob on residual, (3) ECAPA embedding distance to prior stems, (4) mixture-consistency error | M2 | B | `models/counting_features.py` | [x] — done 2026-07-11, `CountingFeatureExtractor` + unit tests |
 | P3-C1 | Learned stop-classifier MLP (~0.3M params): 4 features + attractor stop logit → P(more speakers) | M2 | C | `models/stop_classifier.py` | [~] — code shipped early 2026-07-09, PR #2; real training on Libri2–5Mix pending M2 gate |
 | P3-C2 | Count BCE loss integration into trainer | P3-C1 | C | `L_count-BCE` active in trainer | [~] — code shipped early 2026-07-09, PR #2; wired into trainer pending P2-B6 |
 | P3-C3 | Count confusion matrix report generator | P0-C6, P3-C1 | C | `eval/counting_report.py` | [~] — code shipped early 2026-07-09, PR #2; needs real classifier outputs to produce results |
@@ -381,7 +381,7 @@ L_total = L_SI-SDR-uPIT (1.0)
 | P3-A1 | Mixer support for N=2..5 (Libri2Mix–Libri5Mix) | P0-A1, P1-A5 | A | On-the-fly 2–5 speaker mixtures | [~] — DynamicMixer supports arbitrary N; Libri4/5Mix download scripts (P1-A5) pending |
 | P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | [ ] |
 | P3-C5 | Stop-classifier training on Libri2–5Mix | P3-C1, P3-A1 | C | Trained classifier checkpoint | [~] — training script shipped 2026-07-09, PR #2 (self-test passes); real training run on Libri2–5Mix pending data + M2 |
-| P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | [ ] — blocked on P3-B1, P1-B2 |
+| P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | [ ] — blocked on P3-C1 real training, P1-B2 attractor logits |
 | P3-INT2 | Unknown-N evaluation across N=2,3,4,5 | P3-INT1, P3-C3 | C | Count accuracy results | [ ] — blocked on P3-INT1 |
 
 **MASTER §4.5:** Stop when P(more speakers) falls below calibrated threshold. Report full confusion matrix (which mistakes: merge vs split).

@@ -8,82 +8,24 @@ the newest stem to accepted stems, and mixture-consistency reconstruction
 error. After training, temperature scaling calibrates the probabilities so
 the demo's confidence badge and the calibration curve are honest.
 
-compute_stop_features is the reference (numpy) feature implementation; the
-Dev B feature module may supersede it, but the ordering and semantics defined
-here are the frozen interface the trained classifier depends on.
+Feature extraction lives in ``models/counting_features.py`` (P3-B1); this
+module owns the MLP, calibration, and checkpoint contract.
 """
 
 from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import torch
 import torch.nn as nn
 
-_EPS = 1e-8
+from models.counting_features import FEATURE_NAMES, _EPS, compute_stop_features
 
-FEATURE_NAMES: tuple[str, ...] = (
-    "residual_energy_ratio",
-    "vad_speech_prob",
-    "min_embedding_distance",
-    "mixture_consistency_error",
-    "attractor_stop_logit",
-)
-"""Frozen feature order. Index positions are part of the checkpoint contract."""
-
-
-def compute_stop_features(
-    mixture: np.ndarray,
-    accepted_stems: np.ndarray,
-    candidate_stem: np.ndarray,
-    vad_speech_prob: float,
-    min_embedding_distance: float,
-    attractor_stop_logit: float = 0.0,
-) -> np.ndarray:
-    """
-    Build the feature vector for one stop decision.
-
-    Args:
-        mixture: [T] original mixture waveform.
-        accepted_stems: [K, T] stems accepted so far (K may be 0).
-        candidate_stem: [T] the newly extracted stem under consideration.
-        vad_speech_prob: Speech probability of the residual after removing
-            accepted stems plus the candidate, from the VAD adapter, in [0, 1].
-        min_embedding_distance: Minimum cosine distance between the candidate
-            stem's speaker embedding and all accepted stems' embeddings
-            (1.0 when no stems are accepted yet).
-        attractor_stop_logit: Raw stop logit from the attractor-based expert
-            when available; 0.0 otherwise.
-
-    Returns:
-        Feature vector [len(FEATURE_NAMES)] float32, in FEATURE_NAMES order.
-    """
-    mix = np.asarray(mixture, dtype=np.float64)
-    stems = np.atleast_2d(np.asarray(accepted_stems, dtype=np.float64))
-    if stems.size == 0:
-        stems = np.zeros((0, mix.shape[0]))
-    cand = np.asarray(candidate_stem, dtype=np.float64)
-
-    explained = stems.sum(axis=0) + cand
-    residual = mix - explained
-    mix_energy = float(np.dot(mix, mix)) + _EPS
-
-    residual_energy_ratio = float(np.dot(residual, residual)) / mix_energy
-    mixture_consistency_error = float(np.linalg.norm(residual)) / (
-        float(np.linalg.norm(mix)) + _EPS
-    )
-
-    return np.asarray(
-        [
-            residual_energy_ratio,
-            float(vad_speech_prob),
-            float(min_embedding_distance),
-            mixture_consistency_error,
-            float(attractor_stop_logit),
-        ],
-        dtype=np.float32,
-    )
+__all__ = [
+    "FEATURE_NAMES",
+    "StopClassifier",
+    "compute_stop_features",
+]
 
 
 class StopClassifier(nn.Module):

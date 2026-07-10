@@ -43,6 +43,15 @@ result: SeparationResult = expert.separate(mixture, sample_rate)
 - `CompositeLoss` (`train/losses.py`) — all seven MASTER §7.2 terms
 - `CAMoSETrainer` (`train/trainer.py`) — trains scene/router/fusion heads; experts frozen
 
+## Phase 3 additions (Dev B, P3-B1)
+
+- `CountingFeatureExtractor` (`models/counting_features.py`) — four stop-classifier signals:
+  - Residual energy ratio and mixture-consistency error from waveform math
+  - VAD speech probability on the residual (`VADAdapter`, energy default, Silero optional)
+  - Minimum ECAPA cosine distance to prior stems (reuses `ECAPAEmbedder`)
+- Feature vector order frozen in `FEATURE_NAMES`; consumed by Dev C's `StopClassifier`
+- `compute_stop_features()` accepts precomputed VAD/embedding or computes them end-to-end
+
 ## Hardware notes
 
 - Target: Kaggle T4 16 GB.
