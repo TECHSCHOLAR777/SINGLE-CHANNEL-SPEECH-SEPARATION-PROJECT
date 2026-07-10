@@ -4,3 +4,14 @@
 project_name: ca-mose
 sample_rate: 16000
 seed: 42
+
+# Overlap curriculum hook (P0-A6, consumed by data/overlap_scheduler.py).
+# phases: [progress_fraction, overlap_ratio] breakpoints; first fraction must be 0.0.
+# The training loop calls OverlapScheduler(**overlap_schedule).ratio_at(progress)
+# each step and feeds the ratio to data.overlap_scheduler.apply_overlap.
+# overlap_schedule:
+#   interpolate: false      # false = hold each stage (step); true = linear ramp
+#   phases:
+#     - [0.0, 1.0]          # 100% overlap early
+#     - [0.34, 0.4]         # -> 40%
+#     - [0.67, 0.2]         # -> 20% sparse
