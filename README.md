@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-11** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-68-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-70-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-31-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-32-yellow?style=for-the-badge)
 &nbsp;
-![Not done yet](https://img.shields.io/badge/❌_not_done_yet-148-red?style=for-the-badge)
+![Not done yet](https://img.shields.io/badge/❌_not_done_yet-145-red?style=for-the-badge)
 
-**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **28%** &nbsp;·&nbsp; 68 done &nbsp;·&nbsp; 31 in flight &nbsp;·&nbsp; 148 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **28%** &nbsp;·&nbsp; 70 done &nbsp;·&nbsp; 32 in flight &nbsp;·&nbsp; 145 to go &nbsp;·&nbsp; **247 tasks**
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -167,9 +167,9 @@ P0 Eval (C) ──┘                                                          �
 | P0-A1 | Dynamic mixer: sample N∈{2,3,4,5} speakers, per-speaker level offsets 0–5 dB, output mixture + clean stems | none | `data/mixer.py` + unit tests | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, PR #3 |
 | P0-A2 | LibriMix + Libri3Mix download and preparation scripts | none | Reproducible data-prep script | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `data/prepare_librimix.py`, PR #3 |
 | P0-A3 | LibriSpeech source setup (`openslr.org/12`) | none | Clean speaker pool for mixer | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, integrated in `prepare_librimix.py` |
-| P0-A4 | VCTK accent diversity pool (`openslr.org`) | none | Extended speaker pool | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — in MASTER_PROJECT.md architecture (data source) but not a DEVELOPMENT_PLAN.md P0 task; not an M0/M1 blocker |
+| P0-A4 | VCTK accent diversity pool (`openslr.org`) | none | Extended speaker pool | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/prepare_vctk.py` + tests: download + 16 kHz resample + LibriSpeech-style rename so it drops into DynamicMixer with speaker-disjoint splits (via Edinburgh DataShare; not yet run on this machine) |
 | P0-A5 | Enforce speaker-disjoint train/val/test splits | P0-A2 | Split manifest / validation script | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — functionally enforced by DynamicMixer (`train_speaker_ids`/`test_speaker_ids`); no separate deliverable in either doc, so no standalone script required |
-| P0-A6 | Overlap scheduler stub (100% → 40% → 20% curriculum placeholder) | P0-A1 | `data/overlap_scheduler.py` or config hook | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — in MASTER_PROJECT.md architecture (overlap scheduler) but not a DEVELOPMENT_PLAN.md P0 task; scheduled for a later phase |
+| P0-A6 | Overlap scheduler stub (100% → 40% → 20% curriculum placeholder) | P0-A1 | `data/overlap_scheduler.py` or config hook | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/overlap_scheduler.py` (OverlapScheduler curriculum + `apply_overlap`) + config hook in `configs/default.yaml`; opt-in DynamicMixer wiring follow-up on `rishi` |
 
 **MASTER spec for mixer:** On-the-fly mixing at each training step; new unique mix every step; ground truth = clean stems before augmentation.
 
@@ -631,7 +631,7 @@ Track at M6; start collecting artifacts from M0.
 | SparseLibriMix | L2 overlap eval (test only) | P3-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep script ready (`data/prepare_sparselibrimix.py`, PR #7); generation requires LibriSpeech test-clean at runtime |
 | WHAM! | Noise augmentation | P1-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep script ready (`data/prepare_wham.py`, P1-A3); not yet run on this machine |
 | WHAMR! | Reverb eval + RIR source | P1-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — license-free reverb-noisy eval ready (`data/make_reverb_eval.py`); real WHAMR! gated on WSJ0/LDC (`data/prepare_whamr.py`) |
-| VCTK | Accent diversity | P0-A | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — P0-A4 not started |
+| VCTK | Accent diversity | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep script ready (`data/prepare_vctk.py`, P0-A4); not yet run on this machine |
 | WSJ0-*Mix | Literature comparison (LDC license) | Optional | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 | LibriheavyMix | Large-scale reverb (if compute) | Optional | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 | REAL-M | Real 2-speaker, no reference | P1-C | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
