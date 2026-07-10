@@ -168,7 +168,7 @@ P0 Eval (C) ──┘                                                          �
 | P0-C2 | Permutation-invariant matching (uPIT / PIT) | P0-C1 | PIT matching in harness | [x] — done 2026-07-09, `scipy.optimize.linear_sum_assignment` in `eval/metrics.py` |
 | P0-C3 | Per-tier reporting (L0–L5 tier labels) | P0-C1 | Tier-aware metric reporting | [x] — done 2026-07-09, `eval/reporting.py` |
 | P0-C4 | Shared YAML config loader + logging | P0-B1 (repo skeleton) | Config loader used by all modules | [x] — done 2026-07-09, `utils/config.py` |
-| P0-C5 | DNSMOS integration stub (for L5 / no-reference cases) | P0-C1 | Reference-free quality metric hook | [ ] |
+| P0-C5 | DNSMOS integration stub (for L5 / no-reference cases) | P0-C1 | Reference-free quality metric hook | [x] — done 2026-07-10, `eval/dnsmos.py`, PR #5 (interface frozen, availability-gated; ONNX activation pending model file) |
 | P0-C6 | Count accuracy + confusion matrix reporting stubs | P0-C1 | `eval/counting.py` or equivalent | [x] — done 2026-07-09, `count_accuracy` + `count_confusion_matrix` in `eval/metrics.py` + `eval/reporting.py` |
 | P0-C7 | Eval area design note | P0-C1 | `docs/eval.md` | [x] — done 2026-07-09, `docs/DEVC_DESIGN.md` |
 
@@ -229,10 +229,10 @@ P0 Eval (C) ──┘                                                          �
 
 | ID | Task | Depends on | Deliverable | Status |
 |----|------|------------|-------------|--------|
-| P1-C1 | ECAPA-TDNN embedding wrapper | none | SpeechBrain `spkrec-ecapa-voxceleb` | [ ] — hungarian.py uses embeddings from metadata but standalone wrapper not yet implemented |
-| P1-C2 | Hungarian stream alignment via ECAPA embeddings | P1-C1 | `align/hungarian.py` — cost = 1 − cosine sim | [~] — code shipped 2026-07-09, PR #2; fully activates when P1-C1 (ECAPA wrapper) is complete |
-| P1-C3 | Cross-chunk identity lock (4s chunks, 1s overlap) | P1-C2 | Chunk-stitching module in `align/` | [~] — code shipped 2026-07-09, PR #2; real long-audio validation pending P1-INT2 |
-| P1-C4 | Alignment unit tests including same-gender stress case | P1-C2 | Tests in `tests/` | [~] — code shipped 2026-07-09, PR #2; same-gender stress test needs ECAPA wrapper (P1-C1) to be meaningful |
+| P1-C1 | ECAPA-TDNN embedding wrapper | none | SpeechBrain `spkrec-ecapa-voxceleb` | [x] — done 2026-07-10, `align/embeddings.py`, PR #5 |
+| P1-C2 | Hungarian stream alignment via ECAPA embeddings | P1-C1 | `align/hungarian.py` — cost = 1 − cosine sim | [x] — done 2026-07-09 (PR #2), fully active now that P1-C1 (ECAPA wrapper) is complete |
+| P1-C3 | Cross-chunk identity lock (4s chunks, 1s overlap) | P1-C2 | Chunk-stitching module in `align/` | [~] — code shipped 2026-07-09 (PR #2), unit-tested with real embeddings since P1-C1 landed; real long-audio (>4s) validation still pending P1-INT2 |
+| P1-C4 | Alignment unit tests including same-gender stress case | P1-C2 | Tests in `tests/` | [x] — done 2026-07-10, `tests/test_align_same_gender.py`, PR #5 |
 
 ---
 
