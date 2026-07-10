@@ -1,4 +1,4 @@
-# CA-MoSE Project TODO — Single Source of Truth
+# CA-MoSE Project TODO - Single Source of Truth
 
 > **Derived from:** `MASTER_PROJECT.md` (v1.2) + `DEVELOPMENT_PLAN.md`  
 > **Purpose:** Living task tracker for the full 10–12 week project. Edit checkboxes as work completes.  
@@ -100,7 +100,7 @@ P0 Eval (C) ──┘                                                          �
 - [x] Every module: header docstring (purpose, inputs, outputs) — confirmed across all modules
 - [x] Each owner maintains one-page design note in `docs/` — `docs/models.md`, `docs/DEVC_DESIGN.md` done
 - [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason) — done 2026-07-09
-- [x] Unit tests for every data and metric function — 173 tests passing as of 2026-07-10
+- [x] Unit tests for every data and metric function — 244 tests passing as of 2026-07-11 (1 env-specific torchaudio failure on Windows/Python 3.13)
 - [ ] One shared end-to-end integration test — must pass before every gate
 
 ### Data split discipline (mandatory, all phases)
@@ -261,7 +261,7 @@ P0 Eval (C) ──┘                                                          �
 | ID | Task | Depends on | Owner | Status |
 |----|------|------------|-------|--------|
 | P1-INT1 | Align MossFormer2 + SR-CorrNet outputs on same 3-speaker clip | P1-B6, P1-C2 | B + C | [x] — done 2026-07-11, `align/integration.py` + `tests/test_m1_real_experts.py`; verified on real experts (MossFormer2 + TF-GridNet fallback + real ECAPA), mean matched distance 0.57 |
-| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | [~] — orchestration + test done 2026-07-11 (`run_and_align_long`); identity-lock assertion skips until a real Libri3Mix clip supplied (synthetic noise has no speaker identity for ECAPA) |
+| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | [~] — orchestration + test done 2026-07-11 (`run_and_align_long`); identity-lock assertion skips until a real Libri3Mix clip supplied (synthetic noise has no speaker identity for ECAPA). Planned: run on Kaggle with real clip |
 | P1-INT3 | REAL-M scores MossFormer2 output on test clip | P1-B1, P1-B4 | B | [x] — done 2026-07-10, covered in test_expert_integration.py (mocked) |
 
 ---
@@ -273,7 +273,7 @@ P0 Eval (C) ──┘                                                          �
 - [ ] REAL-M produces per-stream SI-SNRi estimates without reference
 - [x] Hungarian alignment matches streams to consistent speaker order — verified on real experts 2026-07-11 (P1-INT1)
 - [ ] Cross-chunk identity lock works on long audio
-- [~] **Shared integration test: one 3-speaker clip, both experts, aligned output** — passes on real experts (`test_m1_real_experts.py`); long-form identity-lock leg awaits a real speech clip
+- [~] **Shared integration test: one 3-speaker clip, both experts, aligned output** — passes on real experts (`test_m1_real_experts.py`); long-form identity-lock leg awaits a real speech clip (Kaggle run planned)
 - [ ] Joint integration session completed
 
 ---
@@ -303,12 +303,12 @@ P0 Eval (C) ──┘                                                          �
 |----|------|------------|-------|-------------|--------|
 | P2-A1 | Scene Analyzer (~1.5M params): log-mel + handcrafted features → reverb proxy, noise floor, overlap density, spectral flatness, modulation rate, K_coarse | M1 | A | `models/scene_analyzer.py` | [ ] |
 | P2-C1 | Two-level Adaptive Router (~0.5M params): sequence gate + segment gate (1–2s windows), sigmoid (not softmax), w_TF/w_TD/w_NULL | P2-A1 | C | `models/router.py` | [~] — code shipped early 2026-07-09, PR #2; wire-up to Scene Analyzer (P2-A1) pending |
-| P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | [~] — code shipped early 2026-07-09, PR #2; active in training loop pending P2-B5 |
-| P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | [~] — code shipped early 2026-07-09, PR #2; active in training loop pending P2-B5 |
-| P2-B1 | Cascade gate: compare REAL-M score to threshold `tau`; escalate if below | P1-B4 | B | Cascade controller | [ ] — blocked on P1-B4 (REAL-M) |
+| P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
+| P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
+| P2-B1 | Cascade gate: compare REAL-M score to threshold `tau`; escalate if below | P1-B4 | B | Cascade controller | [x] — done 2026-07-11, `models/cascade_gate.py` |
 | P2-B2 | Escalation-rate instrumentation | P2-B1 | C | Dashboard / logging | [~] — `escalation_rate` query in `eval/reporting.py`; runtime logging pending P2-B1 |
-| P2-B3 | Fusion head CRRR (~1M params): `s_fused_k = s_SR_k + alpha_k(t) * R_theta`; alpha from confidence, mask entropy, local SI-SDRi proxy, scene weights | M1 alignment | B | `models/fusion.py` | [ ] — blocked on M1 |
-| P2-B4 | Residual regularization loss (L2 on fusion correction) | P2-B3 | B | Loss term | [ ] — blocked on P2-B3 |
+| P2-B3 | Fusion head CRRR (~1M params): `s_fused_k = s_SR_k + alpha_k(t) * R_theta`; alpha from confidence, mask entropy, local SI-SDRi proxy, scene weights | M1 alignment | B | `models/fusion.py` | [x] — done 2026-07-11, `models/fusion.py` |
+| P2-B4 | Residual regularization loss (L2 on fusion correction) | P2-B3 | B | Loss term | [x] — done 2026-07-11, `train/losses.py` |
 
 **Router design (MASTER §4.4):**
 - Sigmoid gating (multiple experts can be active)
@@ -323,10 +323,10 @@ P0 Eval (C) ──┘                                                          �
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P2-B5 | Composite loss assembly (all 7 terms) | P2-A1, P2-C1, P2-B3 | B | `train/losses.py` | [ ] |
-| P2-B6 | Training loop | P2-B5, all P2 components | B (leads) | `train/trainer.py` | [ ] |
-| P2-B7 | Multi-resolution STFT loss | P2-B5 | B | Loss term (lambda=0.5) | [ ] |
-| P2-B8 | Speaker-consistency loss (ArcFace-style) | P2-B5 | B | Loss term (lambda=0.1) | [ ] |
+| P2-B5 | Composite loss assembly (all 7 terms) | P2-A1, P2-C1, P2-B3 | B | `train/losses.py` | [x] — done 2026-07-11 |
+| P2-B6 | Training loop | P2-B5, all P2 components | B (leads) | `train/trainer.py` | [x] — done 2026-07-11 |
+| P2-B7 | Multi-resolution STFT loss | P2-B5 | B | Loss term (lambda=0.5) | [x] — done 2026-07-11, `train/losses.py` |
+| P2-B8 | Speaker-consistency loss (ArcFace-style) | P2-B5 | B | Loss term (lambda=0.1) | [x] — done 2026-07-11, `train/losses.py` |
 | P2-INT1 | **Whole-team review of training-loop PR** | P2-B6 | All | Approved PR | [ ] |
 | P2-INT2 | End-to-end forward pass integration test | P2-B6 | All | E2E test | [ ] |
 | P2-INT3 | Short training run (few epochs) on mixed conditions | P2-INT2 | B | Checkpoint + logs | [ ] |
@@ -337,7 +337,7 @@ P0 Eval (C) ──┘                                                          �
 ```
 L_total = L_SI-SDR-uPIT (1.0)
         + 0.5 * L_multi-res-STFT
-        + 0.3 * L_count-BCE        [placeholder until P3]
+        + 0.3 * L_count-BCE
         + 0.1 * L_load-balance
         + 0.1 * L_null-sparsity
         + 0.1 * L_residual-reg
@@ -379,7 +379,7 @@ L_total = L_SI-SDR-uPIT (1.0)
 | P3-C3 | Count confusion matrix report generator | P0-C6, P3-C1 | C | `eval/counting_report.py` | [~] — code shipped early 2026-07-09, PR #2; needs real classifier outputs to produce results |
 | P3-C4 | Calibration curve report (estimated prob vs actual accuracy) | P3-C3 | C | Calibration plot + metrics | [~] — code shipped early 2026-07-09, PR #2; needs real classifier run to produce calibration data |
 | P3-A1 | Mixer support for N=2..5 (Libri2Mix–Libri5Mix) | P0-A1, P1-A5 | A | On-the-fly 2–5 speaker mixtures | [~] — DynamicMixer supports arbitrary N; Libri4/5Mix download scripts (P1-A5) pending |
-| P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | [ ] |
+| P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | [x] — done 2026-07-10, `data/prepare_sparselibrimix.py` + `tests/test_prepare_sparselibrimix.py`, PR #7 |
 | P3-C5 | Stop-classifier training on Libri2–5Mix | P3-C1, P3-A1 | C | Trained classifier checkpoint | [~] — training script shipped 2026-07-09, PR #2 (self-test passes); real training run on Libri2–5Mix pending data + M2 |
 | P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | [ ] — blocked on P3-B1, P1-B2 |
 | P3-INT2 | Unknown-N evaluation across N=2,3,4,5 | P3-INT1, P3-C3 | C | Count accuracy results | [ ] — blocked on P3-INT1 |
@@ -596,7 +596,7 @@ Track at M6; start collecting artifacts from M0.
 | LibriSpeech | Source audio for mixer | P0-A | [~] — `prepare_librimix.py` download script ready; not yet run on this machine |
 | Libri2Mix / Libri3Mix | Primary train/eval | P0-A | [~] — generation script ready; not yet run on this machine |
 | Libri4Mix / Libri5Mix | N=4,5 training | P1-A | [ ] — P1-A5 script not yet written |
-| SparseLibriMix | L2 overlap eval (test only) | P3-A | [ ] |
+| SparseLibriMix | L2 overlap eval (test only) | P3-A | [~] — prep script ready (`data/prepare_sparselibrimix.py`, PR #7); generation requires LibriSpeech test-clean at runtime |
 | WHAM! | Noise augmentation | P1-A | [ ] |
 | WHAMR! | Reverb eval + RIR source | P1-A | [ ] |
 | VCTK | Accent diversity | P0-A | [ ] — P0-A4 not started |
