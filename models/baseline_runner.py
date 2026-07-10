@@ -172,7 +172,9 @@ def _write_results(config: BaselineConfig, results: dict[str, ExpertBaselineResu
         "|--------|-------------------|----------|---|",
     ]
     for name, r in results.items():
-        lines.append(f"| {name} | {r.mean_sisdri_db:.2f} | {r.std_sisdri_db:.2f} | {r.num_samples} |")
+        lines.append(
+            f"| {name} | {r.mean_sisdri_db:.2f} | {r.std_sisdri_db:.2f} | {r.num_samples} |"
+        )
     lines.append("")
 
     with open(md_path, "w", encoding="utf-8") as f:
@@ -180,4 +182,7 @@ def _write_results(config: BaselineConfig, results: dict[str, ExpertBaselineResu
 
     print(f"\nBaseline results written to {json_path} and {md_path}")
     for name, r in results.items():
-        print(f"  {name}: {r.mean_sisdri_db:.2f} +/- {r.std_sisdri_db:.2f} dB SI-SDRi ({r.num_samples} samples)")
+        print(
+            f"  {name}: {r.mean_sisdri_db:.2f} +/- {r.std_sisdri_db:.2f} dB SI-SDRi "
+            f"({r.num_samples} samples)"
+        )
