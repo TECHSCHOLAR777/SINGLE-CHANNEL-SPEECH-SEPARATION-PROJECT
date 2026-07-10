@@ -2,6 +2,8 @@
 # Layered over configs/default.yaml via utils.config.load_config.
 
 eval:
+  dnsmos:
+    model_path: null    # set to local sig_bak_ovrl.onnx to activate L5 scoring
   scoring:
     missing_policy: mixture_fallback   # or: silence_floor
     silence_floor_db: -30.0
@@ -11,6 +13,9 @@ eval:
   calibration_bins: 10
 
 align:
+  embedder:
+    source: speechbrain/spkrec-ecapa-voxceleb
+    device: cpu
   match_threshold: 0.35      # max cosine cost to join an existing track
   ema: 0.7                   # track-embedding moving average
   chunk_sec: 4.0
