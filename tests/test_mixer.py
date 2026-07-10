@@ -116,7 +116,9 @@ def test_references_shape_equals_n_for_each_allowed_n(tmp_path: Path) -> None:
     for n in [2, 3, 4, 5]:
         mixer = DynamicMixer(files, allowed_n=[n])
         sample = mixer.mix()
-        assert sample.references.shape[0] == n, f"expected {n} references, got {sample.references.shape[0]}"
+        assert (
+            sample.references.shape[0] == n
+        ), f"expected {n} references, got {sample.references.shape[0]}"
 
 
 def test_mixture_is_1d_float32(tmp_path: Path) -> None:
@@ -182,9 +184,9 @@ def test_no_speaker_file_repeated_in_one_mix(tmp_path: Path) -> None:
     for _ in range(30):
         sample = mixer.mix()
         first_samples = [float(ref[0]) for ref in sample.references]
-        assert len(first_samples) == len(set(first_samples)), (
-            f"Speaker repeated in one mix: values={first_samples}"
-        )
+        assert len(first_samples) == len(
+            set(first_samples)
+        ), f"Speaker repeated in one mix: values={first_samples}"
 
 
 # ── Volume offsets within requested dB range ─────────────────────────────────
@@ -212,9 +214,9 @@ def test_volume_offsets_within_db_range(tmp_path: Path) -> None:
         sample = mixer.mix()
         for ref in sample.references:
             gain = float(ref[0])  # original audio is 1.0, so ref[0] == gain
-            assert gain_min - 1e-6 <= gain <= gain_max + 1e-6, (
-                f"gain {gain:.6f} outside [{gain_min:.6f}, {gain_max:.6f}]"
-            )
+            assert (
+                gain_min - 1e-6 <= gain <= gain_max + 1e-6
+            ), f"gain {gain:.6f} outside [{gain_min:.6f}, {gain_max:.6f}]"
 
 
 def test_zero_db_offset_leaves_amplitude_unchanged(tmp_path: Path) -> None:
@@ -253,9 +255,9 @@ def test_test_speaker_never_in_train_mix(tmp_path: Path) -> None:
     for _ in range(100):
         sample = mixer.mix(split="train")
         for ref in sample.references:
-            assert float(ref[0]) not in test_values, (
-                f"Test speaker (value={ref[0]}) leaked into training mix."
-            )
+            assert (
+                float(ref[0]) not in test_values
+            ), f"Test speaker (value={ref[0]}) leaked into training mix."
 
 
 def test_test_split_draws_only_test_speakers(tmp_path: Path) -> None:
@@ -274,9 +276,9 @@ def test_test_split_draws_only_test_speakers(tmp_path: Path) -> None:
     for _ in range(50):
         sample = mixer.mix(split="test")
         for ref in sample.references:
-            assert float(ref[0]) not in train_values, (
-                f"Train speaker (value={ref[0]}) appeared in test mix."
-            )
+            assert (
+                float(ref[0]) not in train_values
+            ), f"Train speaker (value={ref[0]}) appeared in test mix."
 
 
 def test_train_speaker_ids_further_restricts_pool(tmp_path: Path) -> None:
@@ -295,9 +297,9 @@ def test_train_speaker_ids_further_restricts_pool(tmp_path: Path) -> None:
     for _ in range(50):
         sample = mixer.mix(split="train")
         for ref in sample.references:
-            assert float(ref[0]) in allowed_values, (
-                f"Unexpected speaker value {ref[0]} in restricted train mix."
-            )
+            assert (
+                float(ref[0]) in allowed_values
+            ), f"Unexpected speaker value {ref[0]} in restricted train mix."
 
 
 # ── Zero-padding of mismatched lengths ───────────────────────────────────────
@@ -391,3 +393,83 @@ def test_seeded_rng_produces_identical_mixes(tmp_path: Path) -> None:
     sample_b = mixer_b.mix()
     np.testing.assert_array_equal(sample_a.mixture, sample_b.mixture)
     np.testing.assert_array_equal(sample_a.references, sample_b.references)
+
+
+# ── Overlap wiring (P0-A6 integration) ────────────────────────────────────────
+
+
+def test_default_mix_is_full_overlap_unchanged(tmp_path: Path) -> None:
+    # No overlap args -> current behaviour: all stems start at 0, equal length.
+    files = _write_speakers(tmp_path, 3)
+    mixer = DynamicMixer(files, allowed_n=[3], rng=np.random.default_rng(0))
+    sample = mixer.mix(n=3)
+    assert sample.references.shape == (3, SR)
+    np.testing.assert_allclose(sample.mixture, sample.references.sum(axis=0), atol=1e-5)
+
+
+def test_explicit_zero_overlap_is_sequential(tmp_path: Path) -> None:
+    files = _write_speakers(tmp_path, 3)
+    mixer = DynamicMixer(files, allowed_n=[3], rng=np.random.default_rng(0))
+    sample = mixer.mix(n=3, overlap_ratio=0.0)
+    # Laid end to end: total length == sum of stem lengths.
+    assert sample.references.shape[1] == 3 * SR
+    active = (np.abs(sample.references) > 1e-6).sum(axis=0)
+    assert active.max() <= 1  # never two speakers at once
+
+
+def test_explicit_partial_overlap_length(tmp_path: Path) -> None:
+    files = _write_speakers(tmp_path, 2)
+    mixer = DynamicMixer(files, allowed_n=[2], rng=np.random.default_rng(0))
+    sample = mixer.mix(n=2, overlap_ratio=0.5)
+    # Second stem starts at (1 - 0.5) * SR -> total length 1.5 * SR.
+    assert sample.references.shape[1] == int(1.5 * SR)
+    # Mixture is still exactly the sum of the (offset) references.
+    np.testing.assert_allclose(sample.mixture, sample.references.sum(axis=0), atol=1e-5)
+
+
+def test_scheduler_drives_overlap_via_progress(tmp_path: Path) -> None:
+    from data.overlap_scheduler import OverlapScheduler
+
+    files = _write_speakers(tmp_path, 3)
+    sched = OverlapScheduler()  # 100% -> 40% -> 20%
+    mixer = DynamicMixer(
+        files, allowed_n=[3], rng=np.random.default_rng(0), overlap_scheduler=sched
+    )
+    # Early progress -> full overlap (length SR); late progress -> sparse (longer).
+    early = mixer.mix(n=3, progress=0.0)
+    late = mixer.mix(n=3, progress=0.9)
+    assert early.references.shape[1] == SR
+    assert late.references.shape[1] > SR
+
+
+def test_explicit_ratio_overrides_scheduler(tmp_path: Path) -> None:
+    from data.overlap_scheduler import OverlapScheduler
+
+    files = _write_speakers(tmp_path, 2)
+    sched = OverlapScheduler(phases=[(0.0, 1.0)])  # scheduler would say full overlap
+    mixer = DynamicMixer(
+        files, allowed_n=[2], rng=np.random.default_rng(0), overlap_scheduler=sched
+    )
+    sample = mixer.mix(n=2, overlap_ratio=0.0, progress=0.0)
+    # Explicit 0.0 wins over the scheduler's 1.0 -> sequential, length 2*SR.
+    assert sample.references.shape[1] == 2 * SR
+
+
+def test_no_scheduler_ignores_progress(tmp_path: Path) -> None:
+    # progress without a scheduler must not change the default full-overlap mix.
+    files = _write_speakers(tmp_path, 2)
+    mixer = DynamicMixer(files, allowed_n=[2], rng=np.random.default_rng(0))
+    sample = mixer.mix(n=2, progress=0.9)
+    assert sample.references.shape[1] == SR
+
+
+def test_overlap_mix_is_reproducible(tmp_path: Path) -> None:
+    files = _write_speakers(tmp_path, 4)
+    a = DynamicMixer(files, allowed_n=[3], rng=np.random.default_rng(11)).mix(
+        n=3, overlap_ratio=0.4
+    )
+    b = DynamicMixer(files, allowed_n=[3], rng=np.random.default_rng(11)).mix(
+        n=3, overlap_ratio=0.4
+    )
+    np.testing.assert_array_equal(a.mixture, b.mixture)
+    np.testing.assert_array_equal(a.references, b.references)

@@ -15,12 +15,13 @@ object.
 from __future__ import annotations
 
 import uuid
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Sequence
 
 import numpy as np
 
 from data.mixer_stub import MixtureSample, _load_wav
+from data.overlap_scheduler import OverlapScheduler, apply_overlap
 
 _DEFAULT_ALLOWED_N: list[int] = [2, 3, 4, 5]
 _PROJECT_SAMPLE_RATE: int = 16_000
@@ -73,6 +74,11 @@ class DynamicMixer:
     rng:
         NumPy random generator.  Pass a seeded generator for reproducible
         mixes.  Defaults to numpy.random.default_rng() (non-deterministic).
+    overlap_scheduler:
+        Optional OverlapScheduler.  When set, ``mix(progress=...)`` maps the
+        training progress to a target overlap ratio and applies it (see
+        data/overlap_scheduler.py).  When None, mixes are full-overlap unless
+        ``mix(overlap_ratio=...)`` is passed explicitly.
     """
 
     def __init__(
@@ -85,6 +91,7 @@ class DynamicMixer:
         test_speaker_ids: set[str] | None = None,
         sample_rate: int = _PROJECT_SAMPLE_RATE,
         rng: np.random.Generator | None = None,
+        overlap_scheduler: OverlapScheduler | None = None,
     ) -> None:
         if db_min > db_max:
             raise ValueError(f"db_min ({db_min}) must be <= db_max ({db_max}).")
@@ -97,6 +104,7 @@ class DynamicMixer:
         self._db_max = float(db_max)
         self._sample_rate = sample_rate
         self._rng = rng if rng is not None else np.random.default_rng()
+        self._overlap_scheduler = overlap_scheduler
 
         all_files = [Path(f) for f in source_files]
 
@@ -105,9 +113,7 @@ class DynamicMixer:
             self._test_files: list[Path] = [
                 f for f in all_files if _speaker_id(f) in test_speaker_ids
             ]
-            train_candidates = [
-                f for f in all_files if _speaker_id(f) not in test_speaker_ids
-            ]
+            train_candidates = [f for f in all_files if _speaker_id(f) not in test_speaker_ids]
         else:
             self._test_files = []
             train_candidates = list(all_files)
@@ -124,7 +130,13 @@ class DynamicMixer:
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def mix(self, split: str = "train", n: int | None = None) -> MixtureSample:
+    def mix(
+        self,
+        split: str = "train",
+        n: int | None = None,
+        overlap_ratio: float | None = None,
+        progress: float | None = None,
+    ) -> MixtureSample:
         """
         Produce one random mixture.
 
@@ -138,13 +150,24 @@ class DynamicMixer:
             Override the speaker count for this mix.  Must be a member of
             ``allowed_n``.  If None, a value is drawn uniformly from
             ``allowed_n``.
+        overlap_ratio:
+            Target temporal overlap in [0, 1] for this mix (1.0 = full overlap,
+            0.0 = sequential).  Takes precedence over the scheduler.
+        progress:
+            Training progress in [0, 1].  Used only when an ``overlap_scheduler``
+            was supplied and ``overlap_ratio`` is None: the scheduler maps it to
+            a target ratio.
+
+        Overlap resolution precedence: explicit ``overlap_ratio`` > scheduler
+        (with ``progress``) > None.  When the resolved ratio is None the stems
+        are summed at full overlap (the default, unchanged behaviour).
 
         Returns
         -------
         MixtureSample
             mixture    : float32 ndarray, shape [T] — sum of gain-scaled stems
-            references : float32 ndarray, shape [N, T] — gain-scaled stems,
-                         zero-padded to the length of the longest stem
+            references : float32 ndarray, shape [N, T] — gain-scaled stems
+                         (zero-padded, or offset to the target overlap)
             sample_rate: always ``self._sample_rate``
             utterance_id: unique string for this mix
         """
@@ -172,7 +195,12 @@ class DynamicMixer:
             gain = 10.0 ** (db / 20.0)
             waveforms.append((audio * gain).astype(np.float32))
 
-        refs, mixture = self._pad_and_sum(waveforms)
+        ratio = self._resolve_overlap(overlap_ratio, progress)
+        if ratio is None:
+            refs, mixture = self._pad_and_sum(waveforms)
+        else:
+            stacked, _ = self._pad_and_sum(waveforms)
+            mixture, refs = apply_overlap(stacked, ratio, rng=self._rng)
         uid = f"dyn_{chosen_n}spk_{uuid.uuid4().hex[:8]}"
 
         return MixtureSample(
@@ -191,6 +219,14 @@ class DynamicMixer:
             raise ValueError(f"n={n} is not in allowed_n={self._allowed_n}.")
         return n
 
+    def _resolve_overlap(self, overlap_ratio: float | None, progress: float | None) -> float | None:
+        """Resolve the overlap ratio: explicit > scheduler(progress) > None."""
+        if overlap_ratio is not None:
+            return float(overlap_ratio)
+        if self._overlap_scheduler is not None and progress is not None:
+            return self._overlap_scheduler.ratio_at(progress)
+        return None
+
     def _select_pool(self, split: str) -> list[Path]:
         if split == "test":
             return self._test_files
@@ -204,9 +240,7 @@ class DynamicMixer:
     ) -> tuple[np.ndarray, np.ndarray]:
         """Zero-pad all waveforms to max length, stack into [N, T], sum to [T]."""
         max_len = max(w.shape[0] for w in waveforms)
-        padded = [
-            np.pad(w, (0, max_len - w.shape[0])).astype(np.float32) for w in waveforms
-        ]
+        padded = [np.pad(w, (0, max_len - w.shape[0])).astype(np.float32) for w in waveforms]
         refs = np.stack(padded, axis=0)  # [N, T]
         mixture = refs.sum(axis=0)  # [T]
         return refs, mixture
