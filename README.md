@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-11** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-73-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-74-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-31-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-30-yellow?style=for-the-badge)
 &nbsp;
 ![Not done yet](https://img.shields.io/badge/❌_not_done_yet-143-red?style=for-the-badge)
 
-**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **30%** &nbsp;·&nbsp; 73 done &nbsp;·&nbsp; 31 in flight &nbsp;·&nbsp; 143 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **30%** &nbsp;·&nbsp; 74 done &nbsp;·&nbsp; 30 in flight &nbsp;·&nbsp; 143 to go &nbsp;·&nbsp; **247 tasks**
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -274,7 +274,7 @@ P0 Eval (C) ──┘                                                          �
 |----|------|------------|-------------|--------|
 | P1-A1 | Augmentation stage 1: RIR reverb (pyroomacoustics / FAST-RIR) | P0-A1 (mixer) | `data/augmentation/rir.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, Stage 1 in `data/augmentation.py`, PR #4 |
 | P1-A2 | Augmentation stage 2: WHAM! noise | P0-A1 | `data/augmentation/noise.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, Stage 2 in `data/augmentation.py`, PR #4 |
-| P1-A3 | WHAM! + WHAMR! dataset download | none | Data prep scripts | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — WHAM! noise done 2026-07-11 (`data/prepare_wham.py`); WHAMR! addressed via license-free reverb-noisy eval (`data/make_reverb_eval.py`) + gated real-WHAMR! generator (`data/prepare_whamr.py`, needs WSJ0/LDC); all tested |
+| P1-A3 | WHAM! + WHAMR! dataset download | none | Data prep scripts | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/prepare_wham.py` (WHAM! download + verify) + `data/make_reverb_eval.py` (Tier 1 license-free reverb-noisy eval) + `data/prepare_whamr.py` (Tier 2 gated real-WHAMR!, gracefully deferred without WSJ0/LDC); all tested |
 | P1-A4 | Codec augmentation prototype (Opus, AAC low bitrate) | none | `data/augmentation/codec.py` prototype | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `data/codec_augmentation.py`, PR #4 |
 | P1-A5 | Libri4Mix + Libri5Mix extension scripts | P0-A2 | `github.com/shakeddovrat/librimix` integration | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/prepare_librimix_highn.py` + tests (N-aware disk loader is the P3-A1 follow-up) |
 
