@@ -50,6 +50,16 @@ class ChunkStitcher:
             stream to join an existing track; above it a new track spawns.
         ema: Exponential moving average factor for track embeddings; higher
             trusts history more.
+        max_tracks: Hard cap on the persistent track bank, normally the
+            expected speaker count. Without a cap, any chunk whose embedding
+            drifts past match_threshold spawns a brand-new track, so a single
+            unstable output slot mints one phantom track per chunk (each alive
+            in one chunk and silent elsewhere, which then corrupts every
+            downstream alignment metric). At the cap, a stream that clears no
+            threshold is force-assigned to its best Hungarian partner instead
+            of spawning. Its embedding is deliberately NOT folded into that
+            track's EMA, since a match that failed the threshold is suspect and
+            would poison the bank. None restores the old uncapped behaviour.
     """
 
     def __init__(
@@ -59,18 +69,23 @@ class ChunkStitcher:
         overlap_sec: float,
         match_threshold: float = 0.35,
         ema: float = 0.7,
+        max_tracks: int | None = None,
     ) -> None:
         if overlap_sec >= chunk_sec:
             raise ValueError("overlap_sec must be smaller than chunk_sec")
         if not 0.0 <= ema <= 1.0:
             raise ValueError("ema must lie in [0, 1]")
+        if max_tracks is not None and max_tracks < 1:
+            raise ValueError(f"max_tracks must be >= 1 or None, got {max_tracks}")
         self.sample_rate = sample_rate
         self.chunk_sec = chunk_sec
         self.overlap_sec = overlap_sec
         self.match_threshold = match_threshold
         self.ema = ema
+        self.max_tracks = max_tracks
         self._tracks: list[_Track] = []
         self._chunk_index = 0
+        self._forced_matches = 0
 
     @property
     def hop_samples(self) -> int:
@@ -79,6 +94,18 @@ class ChunkStitcher:
     @property
     def num_tracks(self) -> int:
         return len(self._tracks)
+
+    @property
+    def forced_matches(self) -> int:
+        """Streams assigned above match_threshold because the bank was at cap.
+
+        A non-zero count is a health signal, not an error: it means the
+        embeddings are noisier than match_threshold assumes (common for ECAPA
+        on separated-but-still-contaminated overlapping speech). A count near
+        the total stream count means the threshold is doing no work and the
+        cap is carrying the whole assignment.
+        """
+        return self._forced_matches
 
     def add_chunk(self, streams: np.ndarray, embeddings: np.ndarray) -> list[int]:
         """
@@ -101,23 +128,39 @@ class ChunkStitcher:
 
         start = self._chunk_index * self.hop_samples
         assigned: dict[int, int] = {}
+        partner: dict[int, int] = {}
 
         if self._tracks:
             bank = np.stack([t.embedding for t in self._tracks], axis=0)
             cost = cosine_cost_matrix(embeddings, bank)
             rows, cols = linear_sum_assignment(cost)
             for i, j in zip(rows.tolist(), cols.tolist(), strict=True):
+                # Hungarian is one-to-one, so partner[] can never collide two
+                # streams of this chunk onto the same track.
+                partner[i] = j
                 if cost[i, j] <= self.match_threshold:
                     assigned[i] = j
 
         track_ids: list[int] = []
         for i in range(streams.shape[0]):
+            at_cap = self.max_tracks is not None and len(self._tracks) >= self.max_tracks
             if i in assigned:
                 tid = assigned[i]
                 track = self._tracks[tid]
                 track.embedding = self.ema * track.embedding + (1.0 - self.ema) * embeddings[i]
                 track.embedding /= max(float(np.linalg.norm(track.embedding)), _EPS)
+            elif at_cap and i in partner:
+                # Bank is full and this stream cleared no threshold. Spawning
+                # would mint a phantom track, so take the best partner instead.
+                # No EMA update: the match failed the threshold, so folding its
+                # embedding in would drag the track toward a suspect identity.
+                tid = partner[i]
+                self._forced_matches += 1
             else:
+                # Genuinely new voice, or no partner available (K > num_tracks).
+                # Audio is never dropped, so a stream with no partner spawns
+                # even at cap; that only happens if the expert emits more
+                # streams than max_tracks, which is a caller error worth seeing.
                 emb = embeddings[i] / max(float(np.linalg.norm(embeddings[i])), _EPS)
                 self._tracks.append(_Track(embedding=emb, last_seen_chunk=self._chunk_index))
                 tid = len(self._tracks) - 1
