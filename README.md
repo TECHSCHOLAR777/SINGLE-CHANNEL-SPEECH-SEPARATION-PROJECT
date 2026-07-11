@@ -214,7 +214,7 @@ P0 Eval (C) ──┘                                                          �
 |----|------|------------|-------|--------|
 | P0-INT1 | Wire baseline runner to shared eval harness (not ad-hoc metrics) | P0-B7, P0-C1 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, baseline_runner uses eval.metrics.pit_si_sdr |
 | P0-INT2 | Wire baseline runner to shared config loader | P0-B7, P0-C4 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, run_baseline.py uses utils.config.load_config |
-| P0-INT3 | Replace mixer stub with Dev A mixer (optional upgrade) | P0-A1, P0-B7 | A + B | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-INT3 | Replace mixer stub with Dev A mixer (optional upgrade) | P0-A1, P0-B7 | A + B | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/dynamic_mix_dataset.py` (DynamicMixDataset + collate); `baseline_runner.py` gains dynamic path via `source_files`; `--source-files/--n-dynamic/--allowed-n` CLI flags |
 | P0-INT4 | Shared end-to-end integration test (tiny input → baseline → SI-SDRi) | P0-INT1 | All | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
 ---
