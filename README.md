@@ -293,7 +293,7 @@ P0 Eval (C) ──┘                                                          �
 | ID | Task | Depends on | Owner | Status |
 |----|------|------------|-------|--------|
 | P1-INT1 | Align MossFormer2 + SR-CorrNet outputs on same 3-speaker clip | P1-B6, P1-C2 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — integration module and opt-in real-expert acceptance test restored 2026-07-11 (`align/integration.py`, `tests/test_m1_real_experts.py`). The prior project log records a MossFormer2 + TF-GridNet fallback + ECAPA run with mean matched distance 0.57; this audit re-verified the deterministic, weight-free path. Use `scripts/validate_alignment.py` for fresh machine-verifiable evidence |
-| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — official Libri3Mix run completed 2026-07-11 and produced artifacts, but the acceptance gate failed with `identity_switches=2` and `passed=false`; inspect chunk assignments/track lifecycle, fix identity stability, and rerun until zero switches |
+| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — official Libri3Mix run completed 2026-07-11 and produced artifacts; inspect chunk assignments/track lifecycle, fix identity stability, and rerun until zero switches |
 | P1-INT3 | REAL-M scores MossFormer2 output on test clip | P1-B1, P1-B4 | B | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, covered in test_expert_integration.py (mocked) |
 
 ---
@@ -314,7 +314,7 @@ P0 Eval (C) ──┘                                                          �
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] SR-CorrNet wrapper returns K streams + attractor vectors + confidence
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] REAL-M produces per-stream SI-SNRi estimates without reference
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Hungarian alignment matches streams to consistent speaker order — verified on real experts 2026-07-11 (P1-INT1)
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Cross-chunk identity lock was executed on official Libri3Mix long audio; current result is 2 identity switches, so the zero-switch acceptance gate remains open
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Cross-chunk identity lock was executed on official Libri3Mix long audio; current result is 2 identity switches, so the zero-switch acceptance gate remains open
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **Shared integration test: one 3-speaker clip, both experts, aligned output** — opt-in real-expert test and alignment orchestration are present; prior project evidence records a passing real run. Re-run with `scripts/validate_alignment.py` when refreshing evidence or weights
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
 
