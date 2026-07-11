@@ -116,7 +116,7 @@ class SceneAnalyzer(nn.Module):
 
     def __init__(
         self,
-        feature_dim: int = 256,
+        feature_dim: int = 64,
         n_mels: int = 80,
         n_fft: int = 512,
         hop: int = 128,

@@ -86,6 +86,10 @@ class CAMoSETrainable(nn.Module):
         super().__init__()
         self.scene_analyzer = SceneAnalyzer(feature_dim=feature_dim)
         self.router = TwoLevelRouter(feature_dim=feature_dim, num_experts=num_experts, null_index=null_index)
+        assert self.scene_analyzer.feature_dim == self.router.feature_dim, (
+            f"feature_dim mismatch: SceneAnalyzer={self.scene_analyzer.feature_dim}, "
+            f"TwoLevelRouter={self.router.feature_dim}"
+        )
         self.fusion = CRRRFusionHead(hidden_channels=fusion_hidden)
         self.null_index = null_index
 

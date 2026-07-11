@@ -43,6 +43,7 @@ class TwoLevelRouter(nn.Module):
         super().__init__()
         if not 0 <= null_index < num_experts:
             raise ValueError("null_index must be a valid expert index")
+        self.feature_dim = feature_dim
         self.num_experts = num_experts
         self.null_index = null_index
 
