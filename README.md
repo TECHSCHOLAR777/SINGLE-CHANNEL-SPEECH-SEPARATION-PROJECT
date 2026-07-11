@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-11** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-75-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-76-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-30-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-29-yellow?style=for-the-badge)
 &nbsp;
 ![Not done yet](https://img.shields.io/badge/❌_not_done_yet-142-red?style=for-the-badge)
 
-**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **30%** &nbsp;·&nbsp; 75 done &nbsp;·&nbsp; 30 in flight &nbsp;·&nbsp; 142 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **31%** &nbsp;·&nbsp; 76 done &nbsp;·&nbsp; 29 in flight &nbsp;·&nbsp; 142 to go &nbsp;·&nbsp; **247 tasks**
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -132,7 +132,7 @@ P0 Eval (C) ──┘                                                          �
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every module: header docstring (purpose, inputs, outputs) — confirmed across all modules
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Each owner maintains one-page design note in `docs/` — `docs/models.md`, `docs/DEVC_DESIGN.md` done
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason) — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unit tests for every data and metric function — 412 tests passing as of 2026-07-11
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unit tests for every data and metric function — 416 tests passing as of 2026-07-11
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] One shared end-to-end integration test — must pass before every gate
 
 ### Data split discipline (mandatory, all phases)
@@ -410,7 +410,7 @@ L_total = L_SI-SDR-uPIT (1.0)
 | P3-C2 | Count BCE loss integration into trainer | P3-C1 | C | `L_count-BCE` active in trainer | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — code shipped early 2026-07-09, PR #2; wired into trainer pending P2-B6 |
 | P3-C3 | Count confusion matrix report generator | P0-C6, P3-C1 | C | `eval/counting_report.py` | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — code shipped early 2026-07-09, PR #2; needs real classifier outputs to produce results |
 | P3-C4 | Calibration curve report (estimated prob vs actual accuracy) | P3-C3 | C | Calibration plot + metrics | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — code shipped early 2026-07-09, PR #2; needs real classifier run to produce calibration data |
-| P3-A1 | Mixer support for N=2..5 (Libri2Mix–Libri5Mix) | P0-A1, P1-A5 | A | On-the-fly 2–5 speaker mixtures | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — DynamicMixer supports arbitrary N; Libri4/5Mix prep scripts done (P1-A5); N-aware disk loader (`discover_librimix_samples`) still 3-speaker only |
+| P3-A1 | Mixer support for N=2..5 (Libri2Mix–Libri5Mix) | P0-A1, P1-A5 | A | On-the-fly 2–5 speaker mixtures | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11; DynamicMixer supports arbitrary N (P0-A1); `discover_librimix_samples` now auto-detects N from sN/ dirs (N=2..5), 5 new tests, 416 passing |
 | P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `data/prepare_sparselibrimix.py` + `tests/test_prepare_sparselibrimix.py`, PR #7 |
 | P3-C5 | Stop-classifier training on Libri2–5Mix | P3-C1, P3-A1 | C | Trained classifier checkpoint | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — training script shipped 2026-07-09, PR #2 (self-test passes); real training run on Libri2–5Mix pending data + M2 |
 | P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/count_coordinator.py` (`SpeakerCountCoordinator.decide()` fusing attractor logits + stop-classifier; graceful fallback when weights absent), PR `c81449b` |
