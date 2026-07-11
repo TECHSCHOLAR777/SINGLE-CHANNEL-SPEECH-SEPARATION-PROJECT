@@ -88,10 +88,6 @@ def main() -> None:
     if defaults_path.exists():
         config_paths = [defaults_path, args.config]
 
-<<<<<<< HEAD
-=======
-    cfg_dict = load_config(*config_paths)
->>>>>>> origin/master
     overrides: dict = {}
     if args.max_samples is not None:
         overrides["max_samples"] = args.max_samples
@@ -99,7 +95,6 @@ def main() -> None:
         overrides["data_root"] = args.data_root
     if args.device is not None:
         overrides["device"] = args.device
-<<<<<<< HEAD
     if args.source_files is not None:
         overrides["source_files"] = args.source_files
     if args.n_dynamic is not None:
@@ -108,10 +103,6 @@ def main() -> None:
         overrides["allowed_n"] = args.allowed_n
 
     cfg_dict = load_config(*config_paths, overrides=overrides) if overrides else load_config(*config_paths)
-=======
-    if overrides:
-        cfg_dict = load_config(*config_paths, overrides=overrides)
->>>>>>> origin/master
 
     config = BaselineConfig.from_dict(cfg_dict)
     run_baseline(config)
