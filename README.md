@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-11** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-87-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-88-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-26-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-25-yellow?style=for-the-badge)
 &nbsp;
 ![Not done yet](https://img.shields.io/badge/❌_not_done_yet-134-red?style=for-the-badge)
 
-**Overall** `███████████░░░░░░░░░░░░░░░░░░░` **35%** &nbsp;·&nbsp; 87 done &nbsp;·&nbsp; 26 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `███████████░░░░░░░░░░░░░░░░░░░` **36%** &nbsp;·&nbsp; 88 done &nbsp;·&nbsp; 25 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **247 tasks**
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -343,7 +343,7 @@ P0 Eval (C) ──┘                                                          �
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P2-A1 | Scene Analyzer (~1.5M params): log-mel + handcrafted features → reverb proxy, noise floor, overlap density, spectral flatness, modulation rate, K_coarse | M1 | A | `models/scene_analyzer.py` | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — an explicit Dev B interim analyzer exists and is wired for P2 integration, but it is smaller than the ~1.5M spec and omits the full handcrafted-feature set; Dev A replacement/expansion is still required |
+| P2-A1 | Scene Analyzer (~1.5M params): log-mel + handcrafted features → reverb proxy, noise floor, overlap density, spectral flatness, modulation rate, K_coarse | M1 | A | `models/scene_analyzer.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11; full ~1.55M-param implementation replacing Dev B stub: pure-PyTorch log-mel (no torchaudio), BiGRU, all 5 handcrafted features, count head, scene-weight head; 26 tests passing; feature_dim default aligned to 64 across SceneAnalyzer + TwoLevelRouter |
 | P2-C1 | Two-level Adaptive Router (~0.5M params): sequence gate + segment gate (1–2s windows), sigmoid (not softmax), w_TF/w_TD/w_NULL | P2-A1 | C | `models/router.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — router implementation is wired to `SceneAnalyzer.segment_features` in `train/trainer.py`; forward, loss, gradient, and inference composition are covered by `tests/test_e2e_forward.py` |
 | P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
 | P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
