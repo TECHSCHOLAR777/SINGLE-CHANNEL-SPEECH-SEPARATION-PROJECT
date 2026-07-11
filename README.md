@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-11** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-74-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-75-brightgreen?style=for-the-badge)
 &nbsp;
 ![In progress](https://img.shields.io/badge/🚧_in_progress-30-yellow?style=for-the-badge)
 &nbsp;
-![Not done yet](https://img.shields.io/badge/❌_not_done_yet-143-red?style=for-the-badge)
+![Not done yet](https://img.shields.io/badge/❌_not_done_yet-142-red?style=for-the-badge)
 
-**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **30%** &nbsp;·&nbsp; 74 done &nbsp;·&nbsp; 30 in flight &nbsp;·&nbsp; 143 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **30%** &nbsp;·&nbsp; 75 done &nbsp;·&nbsp; 30 in flight &nbsp;·&nbsp; 142 to go &nbsp;·&nbsp; **247 tasks**
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -132,7 +132,7 @@ P0 Eval (C) ──┘                                                          �
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every module: header docstring (purpose, inputs, outputs) — confirmed across all modules
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Each owner maintains one-page design note in `docs/` — `docs/models.md`, `docs/DEVC_DESIGN.md` done
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason) — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unit tests for every data and metric function — 386 tests passing as of 2026-07-11
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unit tests for every data and metric function — 412 tests passing as of 2026-07-11
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] One shared end-to-end integration test — must pass before every gate
 
 ### Data split discipline (mandatory, all phases)
@@ -333,7 +333,7 @@ P0 Eval (C) ──┘                                                          �
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P2-A1 | Scene Analyzer (~1.5M params): log-mel + handcrafted features → reverb proxy, noise floor, overlap density, spectral flatness, modulation rate, K_coarse | M1 | A | `models/scene_analyzer.py` | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-A1 | Scene Analyzer (~1.5M params): log-mel + handcrafted features → reverb proxy, noise floor, overlap density, spectral flatness, modulation rate, K_coarse | M1 | A | `models/scene_analyzer.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/scene_analyzer.py` (~1.55M params, pure-PyTorch log-mel + BiGRU + 5 handcrafted features), 26 tests passing |
 | P2-C1 | Two-level Adaptive Router (~0.5M params): sequence gate + segment gate (1–2s windows), sigmoid (not softmax), w_TF/w_TD/w_NULL | P2-A1 | C | `models/router.py` | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — code shipped early 2026-07-09, PR #2; wire-up to Scene Analyzer (P2-A1) pending |
 | P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
 | P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
