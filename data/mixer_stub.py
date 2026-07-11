@@ -42,13 +42,19 @@ def discover_librimix_samples(
     max_samples: int | None = None,
 ) -> list[MixtureSample]:
     """
-    Discover Libri3Mix samples from a standard LibriMix directory layout.
+    Discover LibriNMix samples (N=2..5) from a standard LibriMix directory layout.
 
-    Expected layout (Libri3Mix, 16 kHz, max):
-        {data_root}/wav16k/max/{subset}/mix_both/
-        {data_root}/wav16k/max/{subset}/s1/
-        {data_root}/wav16k/max/{subset}/s2/
-        {data_root}/wav16k/max/{subset}/s3/
+    The number of speakers is detected automatically by probing which sN/
+    directories exist under the subset folder, so the same function works for
+    Libri2Mix, Libri3Mix, Libri4Mix, and Libri5Mix without any extra arguments.
+
+    Expected layout (16 kHz, max mode):
+        {data_root}/wav16k/max/{subset}/mix_both/   # always present
+        {data_root}/wav16k/max/{subset}/s1/         # N >= 1
+        {data_root}/wav16k/max/{subset}/s2/         # N >= 2
+        {data_root}/wav16k/max/{subset}/s3/         # N >= 3
+        {data_root}/wav16k/max/{subset}/s4/         # N >= 4
+        {data_root}/wav16k/max/{subset}/s5/         # N == 5
 
     Args:
         data_root: Root of the LibriMix dataset.
@@ -59,24 +65,33 @@ def discover_librimix_samples(
         List of MixtureSample objects.
     """
     root = Path(data_root)
-    mix_dir = root / "wav16k" / "max" / subset / "mix_both"
+    subset_dir = root / "wav16k" / "max" / subset
+    mix_dir = subset_dir / "mix_both"
     if not mix_dir.exists():
         raise FileNotFoundError(
-            f"Libri3Mix mix directory not found: {mix_dir}\n"
-            "Download Libri3Mix and set data_root in configs/baseline.yaml."
+            f"LibriMix mix directory not found: {mix_dir}\n"
+            "Download LibriNMix and set data_root in configs/baseline.yaml."
         )
 
     mix_files = sorted(mix_dir.glob("*.wav"))
     if max_samples is not None:
         mix_files = mix_files[:max_samples]
 
+    # Auto-detect speaker count from which sN/ dirs exist (N=1..5).
+    # Only raise if there are mix files but no stem dirs (corrupted dataset).
+    max_n = sum(1 for i in range(1, 6) if (subset_dir / f"s{i}").is_dir())
+    if mix_files and max_n < 1:
+        raise FileNotFoundError(
+            f"No speaker stem directories (s1/..s5/) found under {subset_dir}"
+        )
+
     samples: list[MixtureSample] = []
     for mix_path in mix_files:
         uid = mix_path.stem
         refs: list[np.ndarray] = []
         sr: int | None = None
-        for spk_idx in (1, 2, 3):
-            ref_path = root / "wav16k" / "max" / subset / f"s{spk_idx}" / f"{uid}.wav"
+        for spk_idx in range(1, max_n + 1):
+            ref_path = subset_dir / f"s{spk_idx}" / f"{uid}.wav"
             if not ref_path.exists():
                 break
             ref, ref_sr = _load_wav(ref_path)
