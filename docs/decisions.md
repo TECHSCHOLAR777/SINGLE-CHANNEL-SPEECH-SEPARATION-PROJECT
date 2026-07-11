@@ -24,3 +24,8 @@
 | 2026-07-11 | `models/scene_analyzer.py` interim stub until Dev A P2-A1 | Unblocks P2 trainer; smaller than full 1.5M spec |
 | 2026-07-11 | Trainer self-test mode with synthetic batches (no expert downloads) | CI verifies training mechanics before real LibriMix runs |
 | 2026-07-11 | Stop-classifier features in `models/counting_features.py` (P3-B1) | Dev B owns extractors; energy VAD default (CI-safe), optional Silero; ECAPA via existing embedder |
+| 2026-07-11 | `align/integration.py` owns expert-pair and long-form alignment orchestration behind small protocols | Keeps real wrappers swappable while deterministic fake engines cover the integration seam in CI |
+| 2026-07-11 | Silent, near-zero, extreme, or non-finite rows map to neutral finite alignment cost | Prevents BLAS-specific divide/overflow warnings and keeps NaN/Inf out of the Hungarian solver |
+| 2026-07-11 | P0 end-to-end coverage uses a deterministic injected fake expert | Proves config, runner, PIT SI-SDRi, and reporting compose without downloading weights or datasets |
+| 2026-07-11 | Counting report artifacts are generated from canonical `RunLog` records | One source produces confusion/calibration JSON, CSV, Markdown, and SVG without notebook-only state |
+| 2026-07-11 | Real M1 acceptance tests are opt-in with `RUN_REAL_EXPERTS=1` | Default CI stays reproducible; RunPod/Kaggle can execute the same assertions with real speech and weights |
