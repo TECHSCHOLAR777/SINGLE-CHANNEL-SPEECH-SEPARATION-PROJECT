@@ -73,3 +73,28 @@ def test_xcorr_cost_shape_and_range() -> None:
     cost = xcorr_cost_matrix(RNG.standard_normal((2, 3000)), RNG.standard_normal((4, 3000)))
     assert cost.shape == (2, 4)
     assert np.all(cost >= 0.0) and np.all(cost <= 1.0 + 1e-9)
+
+
+def test_silent_rows_have_finite_neutral_cost() -> None:
+    silent = np.zeros((1, 512), dtype=np.float64)
+    voiced = RNG.standard_normal((2, 512))
+    cost = xcorr_cost_matrix(silent, voiced)
+    assert np.isfinite(cost).all()
+    assert np.allclose(cost, 1.0)
+
+
+def test_extreme_waveforms_do_not_overflow() -> None:
+    a = np.array([[1e300, -1e300, 1e300, -1e300]], dtype=np.float64)
+    b = np.array([[1e300, -1e300, 1e300, -1e300]], dtype=np.float64)
+    with np.errstate(over="raise", invalid="raise", divide="raise"):
+        cost = xcorr_cost_matrix(a, b)
+    assert np.isfinite(cost).all()
+    assert cost[0, 0] == 0.0
+
+
+def test_nonfinite_embeddings_are_contained() -> None:
+    a = np.array([[np.nan, 1.0], [1.0, 0.0]])
+    b = np.array([[1.0, 0.0], [0.0, 1.0]])
+    cost = cosine_cost_matrix(a, b)
+    assert np.isfinite(cost).all()
+    assert np.allclose(cost[0], 1.0)

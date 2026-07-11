@@ -42,41 +42,61 @@ class AlignmentResult:
     unmatched_b: list[int]
 
 
-def cosine_cost_matrix(emb_a: np.ndarray, emb_b: np.ndarray) -> np.ndarray:
+def _safe_row_normalize(rows: np.ndarray, *, center: bool = False) -> np.ndarray:
+    """Normalize rows without magnifying silent, invalid, or extreme inputs.
+
+    Each row is first scaled by its largest finite absolute value. This avoids
+    overflow when squaring values near the float64 limit. Rows that are empty,
+    non-finite, or effectively silent become all zeros; their dot products are
+    therefore neutral rather than NaN/Inf.
     """
-    Cost = 1 - cosine similarity between embedding rows.
+    arr = np.atleast_2d(np.asarray(rows, dtype=np.float64)).copy()
+    if arr.shape[1] == 0:
+        raise ValueError("rows must contain at least one feature/sample")
 
-    Args:
-        emb_a: [K_a, D] embeddings.
-        emb_b: [K_b, D] embeddings.
+    finite_rows = np.isfinite(arr).all(axis=1)
+    arr[~np.isfinite(arr)] = 0.0
+    if center:
+        arr -= arr.mean(axis=1, keepdims=True)
 
-    Returns:
-        [K_a, K_b] cost matrix in [0, 2].
+    peak = np.max(np.abs(arr), axis=1, keepdims=True)
+    valid_peak = finite_rows[:, None] & np.isfinite(peak) & (peak > _EPS)
+    scaled = np.divide(arr, peak, out=np.zeros_like(arr), where=valid_peak)
+    norm = np.linalg.norm(scaled, axis=1, keepdims=True)
+    valid_norm = valid_peak & np.isfinite(norm) & (norm > _EPS)
+    return np.divide(scaled, norm, out=np.zeros_like(scaled), where=valid_norm)
+
+
+def cosine_cost_matrix(emb_a: np.ndarray, emb_b: np.ndarray) -> np.ndarray:
+    """Cost = 1 - cosine similarity between embedding rows.
+
+    Invalid or near-zero rows receive neutral cost 1.0 against every row.
     """
     a = np.asarray(emb_a, dtype=np.float64)
     b = np.asarray(emb_b, dtype=np.float64)
     if a.ndim != 2 or b.ndim != 2 or a.shape[1] != b.shape[1]:
         raise ValueError(f"embedding shapes incompatible: {a.shape} vs {b.shape}")
-    a_n = a / np.maximum(np.linalg.norm(a, axis=1, keepdims=True), _EPS)
-    b_n = b / np.maximum(np.linalg.norm(b, axis=1, keepdims=True), _EPS)
-    return 1.0 - a_n @ b_n.T
+    a_n = _safe_row_normalize(a)
+    b_n = _safe_row_normalize(b)
+    similarity = np.einsum("id,jd->ij", a_n, b_n, optimize=True)
+    return np.clip(1.0 - similarity, 0.0, 2.0)
 
 
 def xcorr_cost_matrix(streams_a: np.ndarray, streams_b: np.ndarray) -> np.ndarray:
-    """
-    Cost = 1 - |normalized zero-lag cross-correlation| between waveforms.
+    """Cost = 1 - absolute normalized zero-lag cross-correlation.
 
-    Fallback signal when embeddings are unavailable. Zero-lag suffices because
-    both stream sets come from the same mixture timeline.
+    Zero-lag suffices because both stream sets come from the same mixture
+    timeline. Silent, invalid, and extreme rows produce finite neutral cost.
     """
     a = np.atleast_2d(np.asarray(streams_a, dtype=np.float64))
     b = np.atleast_2d(np.asarray(streams_b, dtype=np.float64))
     t = min(a.shape[1], b.shape[1])
-    a = a[:, :t] - a[:, :t].mean(axis=1, keepdims=True)
-    b = b[:, :t] - b[:, :t].mean(axis=1, keepdims=True)
-    a_n = a / np.maximum(np.linalg.norm(a, axis=1, keepdims=True), _EPS)
-    b_n = b / np.maximum(np.linalg.norm(b, axis=1, keepdims=True), _EPS)
-    return 1.0 - np.abs(a_n @ b_n.T)
+    if t == 0:
+        raise ValueError("waveforms must contain at least one sample")
+    a_n = _safe_row_normalize(a[:, :t], center=True)
+    b_n = _safe_row_normalize(b[:, :t], center=True)
+    similarity = np.abs(np.einsum("it,jt->ij", a_n, b_n, optimize=True))
+    return np.clip(1.0 - similarity, 0.0, 1.0)
 
 
 def _embeddings_of(result: SeparationResult) -> np.ndarray | None:
@@ -87,20 +107,7 @@ def _embeddings_of(result: SeparationResult) -> np.ndarray | None:
 
 
 def align_results(a: SeparationResult, b: SeparationResult) -> AlignmentResult:
-    """
-    Align streams of result B onto the speaker order of result A.
-
-    Uses embedding cosine cost when both results carry embeddings for every
-    stream, otherwise waveform cross-correlation. Rectangular cases are
-    handled by the Hungarian solver; unmatched indices are reported.
-
-    Args:
-        a: Reference-order result (e.g. the cheap expert's output).
-        b: Result to reorder (e.g. the expensive expert's output).
-
-    Returns:
-        AlignmentResult; apply with reorder_result(b, alignment).
-    """
+    """Align streams of result B onto the speaker order of result A."""
     emb_a, emb_b = _embeddings_of(a), _embeddings_of(b)
     if emb_a is not None and emb_b is not None:
         cost = cosine_cost_matrix(emb_a, emb_b)
@@ -109,6 +116,8 @@ def align_results(a: SeparationResult, b: SeparationResult) -> AlignmentResult:
         cost = xcorr_cost_matrix(a.streams, b.streams)
         method = "xcorr"
 
+    if not np.isfinite(cost).all():
+        raise RuntimeError("alignment cost matrix contains non-finite values")
     ia, ib = linear_sum_assignment(cost)
     assignment = list(zip(ia.tolist(), ib.tolist(), strict=True))
     matched_a = {int(i) for i in ia}
@@ -123,14 +132,8 @@ def align_results(a: SeparationResult, b: SeparationResult) -> AlignmentResult:
 
 
 def reorder_result(b: SeparationResult, alignment: AlignmentResult) -> SeparationResult:
-    """
-    Return a copy of B with streams and metadata reordered to A's speaker order.
-
-    Matched streams take the slot of their partner in A; B streams unmatched
-    in A (over-count) are appended after, preserving all audio. The returned
-    object is a new SeparationResult; B is not mutated.
-    """
-    order = [j for _, j in sorted(alignment.assignment, key=lambda p: p[0])]
+    """Return a copy of B reordered to A's speaker order."""
+    order = [j for _, j in sorted(alignment.assignment, key=lambda pair: pair[0])]
     order += alignment.unmatched_b
     streams = b.streams[order]
     metadata = [replace(b.metadata[j]) for j in order]
