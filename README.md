@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-11** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-70-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-73-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-32-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-31-yellow?style=for-the-badge)
 &nbsp;
-![Not done yet](https://img.shields.io/badge/❌_not_done_yet-145-red?style=for-the-badge)
+![Not done yet](https://img.shields.io/badge/❌_not_done_yet-143-red?style=for-the-badge)
 
-**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **28%** &nbsp;·&nbsp; 70 done &nbsp;·&nbsp; 32 in flight &nbsp;·&nbsp; 145 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `████████░░░░░░░░░░░░░░░░░░░░` **30%** &nbsp;·&nbsp; 73 done &nbsp;·&nbsp; 31 in flight &nbsp;·&nbsp; 143 to go &nbsp;·&nbsp; **247 tasks**
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -132,7 +132,7 @@ P0 Eval (C) ──┘                                                          �
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every module: header docstring (purpose, inputs, outputs) — confirmed across all modules
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Each owner maintains one-page design note in `docs/` — `docs/models.md`, `docs/DEVC_DESIGN.md` done
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason) — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unit tests for every data and metric function — 244 tests passing as of 2026-07-11 (1 env-specific torchaudio failure on Windows/Python 3.13)
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unit tests for every data and metric function — 386 tests passing as of 2026-07-11
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] One shared end-to-end integration test — must pass before every gate
 
 ### Data split discipline (mandatory, all phases)
@@ -338,7 +338,7 @@ P0 Eval (C) ──┘                                                          �
 | P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
 | P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
 | P2-B1 | Cascade gate: compare REAL-M score to threshold `tau`; escalate if below | P1-B4 | B | Cascade controller | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/cascade_gate.py` |
-| P2-B2 | Escalation-rate instrumentation | P2-B1 | C | Dashboard / logging | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `escalation_rate` query in `eval/reporting.py`; runtime logging pending P2-B1 |
+| P2-B2 | Escalation-rate instrumentation | P2-B1 | C | Dashboard / logging | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `eval/cascade_logging.py` (`CascadeRunLogger`, `build_cascade_record`); per-sample escalation records + session summary, PR `c81449b` |
 | P2-B3 | Fusion head CRRR (~1M params): `s_fused_k = s_SR_k + alpha_k(t) * R_theta`; alpha from confidence, mask entropy, local SI-SDRi proxy, scene weights | M1 alignment | B | `models/fusion.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/fusion.py` |
 | P2-B4 | Residual regularization loss (L2 on fusion correction) | P2-B3 | B | Loss term | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `train/losses.py` |
 
@@ -360,7 +360,7 @@ P0 Eval (C) ──┘                                                          �
 | P2-B7 | Multi-resolution STFT loss | P2-B5 | B | Loss term (lambda=0.5) | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `train/losses.py` |
 | P2-B8 | Speaker-consistency loss (ArcFace-style) | P2-B5 | B | Loss term (lambda=0.1) | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `train/losses.py` |
 | P2-INT1 | **Whole-team review of training-loop PR** | P2-B6 | All | Approved PR | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P2-INT2 | End-to-end forward pass integration test | P2-B6 | All | E2E test | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-INT2 | End-to-end forward pass integration test | P2-B6 | All | E2E test | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `tests/test_e2e_forward.py` (196 lines, full forward-pass through trainable heads), PR `c81449b` |
 | P2-INT3 | Short training run (few epochs) on mixed conditions | P2-INT2 | B | Checkpoint + logs | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 | P2-INT4 | Validate: beats best single expert on val set | P2-INT3 | B + C | Metric comparison table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 | P2-INT5 | Measure and report escalation rate | P2-B2, P2-INT3 | C | Escalation rate per tier | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
@@ -413,7 +413,7 @@ L_total = L_SI-SDR-uPIT (1.0)
 | P3-A1 | Mixer support for N=2..5 (Libri2Mix–Libri5Mix) | P0-A1, P1-A5 | A | On-the-fly 2–5 speaker mixtures | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — DynamicMixer supports arbitrary N; Libri4/5Mix prep scripts done (P1-A5); N-aware disk loader (`discover_librimix_samples`) still 3-speaker only |
 | P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `data/prepare_sparselibrimix.py` + `tests/test_prepare_sparselibrimix.py`, PR #7 |
 | P3-C5 | Stop-classifier training on Libri2–5Mix | P3-C1, P3-A1 | C | Trained classifier checkpoint | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — training script shipped 2026-07-09, PR #2 (self-test passes); real training run on Libri2–5Mix pending data + M2 |
-| P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — blocked on P3-C1 real training, P1-B2 attractor logits |
+| P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/count_coordinator.py` (`SpeakerCountCoordinator.decide()` fusing attractor logits + stop-classifier; graceful fallback when weights absent), PR `c81449b` |
 | P3-INT2 | Unknown-N evaluation across N=2,3,4,5 | P3-INT1, P3-C3 | C | Count accuracy results | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — blocked on P3-INT1 |
 
 **MASTER §4.5:** Stop when P(more speakers) falls below calibrated threshold. Report full confusion matrix (which mistakes: merge vs split).
