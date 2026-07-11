@@ -1,8 +1,9 @@
 """Tests for SepFormer expert wrapper (mocked, no pretrained weights)."""
 
+from unittest.mock import MagicMock
+
 import numpy as np
 import torch
-from unittest.mock import MagicMock
 
 from models.experts.sepformer import SepFormerExpert
 

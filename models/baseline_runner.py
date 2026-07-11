@@ -19,6 +19,7 @@ from tqdm import tqdm
 
 from data.dynamic_mix_dataset import DynamicMixDataset
 from data.mixer_stub import MixtureSample, discover_librimix_samples
+from eval.metrics import pit_si_sdr
 from models.experts.sepformer import SepFormerExpert
 from models.experts.srcorrnet import SRCorrNetExpert
 from schemas.separation_result import SeparationResult
@@ -78,73 +79,12 @@ def compute_sisdri(
     mixture: np.ndarray,
 ) -> float:
     """
-    Compute SI-SDRi in dB with permutation-invariant speaker matching.
+    Compute mean SI-SDRi in dB with permutation-invariant speaker matching.
 
-    Uses Asteroid PIT when available; falls back to numpy permutation search.
+    Delegates to the canonical eval.metrics.pit_si_sdr implementation.
     """
-    try:
-        return _sisdri_asteroid(estimates, references, mixture)
-    except (ImportError, OSError, RuntimeError):
-        return _sisdri_numpy(estimates, references, mixture)
-
-
-def _sisdri_asteroid(
-    estimates: np.ndarray,
-    references: np.ndarray,
-    mixture: np.ndarray,
-) -> float:
-    from asteroid.losses import PITLossWrapper
-    from asteroid.losses.sdr import pairwise_neg_sisdr
-
-    ref_t = torch.from_numpy(references).float().unsqueeze(0)
-    est_t = torch.from_numpy(estimates).float().unsqueeze(0)
-    mix_t = torch.from_numpy(mixture).float().unsqueeze(0)
-
-    n_ref = ref_t.shape[1]
-    n_est = est_t.shape[1]
-    if n_est < n_ref:
-        pad = torch.zeros(1, n_ref - n_est, est_t.shape[2])
-        est_t = torch.cat([est_t, pad], dim=1)
-    elif n_est > n_ref:
-        est_t = est_t[:, :n_ref, :]
-
-    loss_func = PITLossWrapper(pairwise_neg_sisdr, pit_from="pw_mtx")
-    with torch.no_grad():
-        sisdr = -loss_func(est_t, ref_t).item()
-        mix_rep = mix_t.expand_as(ref_t)
-        sisdr_mix = -loss_func(mix_rep, ref_t).item()
-
-    return float(sisdr - sisdr_mix)
-
-
-def _sisdri_numpy(estimates: np.ndarray, references: np.ndarray, mixture: np.ndarray) -> float:
-    """SI-SDRi via exhaustive permutation search (up to 5 speakers)."""
-    from itertools import permutations
-
-    n_ref = references.shape[0]
-    n_est = estimates.shape[0]
-    k = min(n_ref, n_est)
-
-    best_sisdr = -np.inf
-    for perm in permutations(range(n_est), k):
-        sisdr_vals = [_sisdr_single(estimates[j], references[i]) for i, j in enumerate(perm)]
-        best_sisdr = max(best_sisdr, float(np.mean(sisdr_vals)))
-
-    mix_vals = [_sisdr_single(mixture, references[i]) for i in range(k)]
-    sisdr_mix = float(np.mean(mix_vals))
-    return best_sisdr - sisdr_mix
-
-
-def _sisdr_single(estimate: np.ndarray, reference: np.ndarray) -> float:
-    """Scale-invariant SDR for one source pair."""
-    eps = 1e-8
-    ref = reference - np.mean(reference)
-    est = estimate - np.mean(estimate)
-    dot = np.sum(ref * est)
-    ref_energy = np.sum(ref**2) + eps
-    proj = (dot / ref_energy) * ref
-    noise = est - proj
-    return float(10 * np.log10((np.sum(proj**2) + eps) / (np.sum(noise**2) + eps)))
+    result = pit_si_sdr(estimates, references, mixture)
+    return result.mean_si_sdri
 
 
 def evaluate_expert_on_sample(
@@ -266,7 +206,9 @@ def _write_results(config: BaselineConfig, results: dict[str, ExpertBaselineResu
         "|--------|-------------------|----------|---|",
     ]
     for name, r in results.items():
-        lines.append(f"| {name} | {r.mean_sisdri_db:.2f} | {r.std_sisdri_db:.2f} | {r.num_samples} |")
+        lines.append(
+            f"| {name} | {r.mean_sisdri_db:.2f} | {r.std_sisdri_db:.2f} | {r.num_samples} |"
+        )
     lines.append("")
 
     with open(md_path, "w", encoding="utf-8") as f:
@@ -274,4 +216,7 @@ def _write_results(config: BaselineConfig, results: dict[str, ExpertBaselineResu
 
     print(f"\nBaseline results written to {json_path} and {md_path}")
     for name, r in results.items():
-        print(f"  {name}: {r.mean_sisdri_db:.2f} +/- {r.std_sisdri_db:.2f} dB SI-SDRi ({r.num_samples} samples)")
+        print(
+            f"  {name}: {r.mean_sisdri_db:.2f} +/- {r.std_sisdri_db:.2f} dB SI-SDRi "
+            f"({r.num_samples} samples)"
+        )

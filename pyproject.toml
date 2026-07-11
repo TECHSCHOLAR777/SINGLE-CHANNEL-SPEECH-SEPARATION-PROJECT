@@ -30,13 +30,16 @@ dev = [
     "black>=24.0",
     "pre-commit>=3.6",
 ]
+experts = [
+    "clearvoice>=0.1.2",
+]
 
 [project.scripts]
 ca-mose-baseline = "scripts.run_baseline:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["data*", "models*", "eval*", "train*", "align*", "demo*", "schemas*", "scripts*"]
+include = ["data*", "models*", "eval*", "train*", "align*", "demo*", "schemas*", "scripts*", "utils*"]
 
 [tool.black]
 line-length = 100

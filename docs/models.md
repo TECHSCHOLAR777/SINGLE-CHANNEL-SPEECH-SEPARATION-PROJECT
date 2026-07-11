@@ -29,9 +29,28 @@ result: SeparationResult = expert.separate(mixture, sample_rate)
 
 ## Phase 1 additions (planned)
 
-- `MossFormer2Expert` wrapper (ClearerVoice-Studio)
-- `REALMQualityEstimator` for cascade gate
+- `MossFormer2Expert` wrapper (`models/experts/mossformer2.py`) — ClearVoice / MossFormer2_SS_16K
+- `REALMQualityEstimator` for cascade gate (`models/realm_quality.py`)
+- `preprocess.py` — resample 16 kHz, -26 dBFS peak norm, STFT branch
+- `TFGridNetExpert` fallback when SR-CorrNet unavailable (`models/experts/tfgridnet.py`)
 - Hungarian alignment consumes expert outputs (owned by Dev C in `align/`)
+
+## Phase 2 additions (Dev B)
+
+- `CascadeGate` (`models/cascade_gate.py`) — REAL-M score vs tau, escalate if below
+- `CRRRFusionHead` (`models/fusion.py`) — Confidence-Routed Residual Refinement (~1M params)
+- `SceneAnalyzer` stub (`models/scene_analyzer.py`) — interim until Dev A full analyzer
+- `CompositeLoss` (`train/losses.py`) — all seven MASTER §7.2 terms
+- `CAMoSETrainer` (`train/trainer.py`) — trains scene/router/fusion heads; experts frozen
+
+## Phase 3 additions (Dev B, P3-B1)
+
+- `CountingFeatureExtractor` (`models/counting_features.py`) — four stop-classifier signals:
+  - Residual energy ratio and mixture-consistency error from waveform math
+  - VAD speech probability on the residual (`VADAdapter`, energy default, Silero optional)
+  - Minimum ECAPA cosine distance to prior stems (reuses `ECAPAEmbedder`)
+- Feature vector order frozen in `FEATURE_NAMES`; consumed by Dev C's `StopClassifier`
+- `compute_stop_features()` accepts precomputed VAD/embedding or computes them end-to-end
 
 ## Hardware notes
 
