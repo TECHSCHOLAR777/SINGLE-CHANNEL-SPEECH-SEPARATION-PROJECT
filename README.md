@@ -116,13 +116,9 @@ P0 Eval (C) ──┘                                                          �
 
 ### Git workflow (all phases)
 
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] `main` always runnable and passing CI; **no direct commits to main** — CI workflow active; all merges via PR
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Branch naming: `type/owner/short-description` (e.g. `feat/devb/fusion-head`) — Dev C followed convention; Dev A used plain branch names
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] One branch per task; short-lived (merge within 2–4 days)
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `main` always runnable and passing CI; **no direct commits to main** — CI workflow active; all merges via PR
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every change via PR with **1 review from a non-owner** — done 2026-07-09/10, PRs #1–#4
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] P2 training-loop PR + shared interface changes → **review from all three**
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Squash-merge; rebase before merge; delete branch after merge
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Merge at least at each milestone gate; ideally more often
 
 ### Codebase standards (all phases)
 
