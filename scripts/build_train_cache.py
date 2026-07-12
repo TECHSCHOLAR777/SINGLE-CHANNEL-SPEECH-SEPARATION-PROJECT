@@ -231,7 +231,7 @@ def _stream_embeddings(result) -> np.ndarray | None:
 def build_cache(args: argparse.Namespace) -> dict:
     from models.experts.embeddings import ECAPAEmbedder
     from models.experts.mossformer2 import MossFormer2Expert
-    from models.experts.tfgridnet import get_expensive_expert
+    from models.experts.srcorrnet import SRCorrNetExpert
     from models.realm_quality import REALMQualityEstimator
 
     device = args.device
@@ -252,13 +252,20 @@ def build_cache(args: argparse.Namespace) -> dict:
         raise RuntimeError("No mixtures loaded — check the source arguments.")
 
     moss = MossFormer2Expert(device=device, compute_embeddings=True, target_speakers=k)
-    expensive = get_expensive_expert(
+    # SR-CorrNet strictly — no SepFormer/TF-GridNet fallback.
+    expensive = SRCorrNetExpert(
         device=device,
-        srcorrnet_repo=args.srcorrnet_repo,
-        srcorrnet_checkpoint=args.srcorrnet_checkpoint,
-        tfgridnet_tag=args.espnet_tag,
+        repo_path=args.srcorrnet_repo,
+        checkpoint_path=args.srcorrnet_checkpoint,
+        hf_model_id=args.srcorrnet_hf_model,
         num_speakers=k,
     )
+    if not expensive.is_available:
+        raise RuntimeError(
+            "SR-CorrNet-SS is required but not available. Clone dmlguq456/SR_CorrNet_SS "
+            'and `pip install -e ".[hub]"`, or pass --srcorrnet-repo / --srcorrnet-checkpoint. '
+            "SepFormer fallback is intentionally disabled."
+        )
     realm = REALMQualityEstimator(device=device)
     ref_embedder = ECAPAEmbedder(device=device)
 
@@ -365,9 +372,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     exp = p.add_argument_group("experts")
     exp.add_argument("--target-speakers", type=int, default=3)
-    exp.add_argument("--srcorrnet-repo", default=None)
-    exp.add_argument("--srcorrnet-checkpoint", default=None)
-    exp.add_argument("--espnet-tag", default=None, help="ESPnet TF-GridNet model tag (optional)")
+    exp.add_argument("--srcorrnet-repo", default=None, help="Local SR_CorrNet_SS clone (optional)")
+    exp.add_argument("--srcorrnet-checkpoint", default=None, help="Local checkpoint (optional)")
+    exp.add_argument(
+        "--srcorrnet-hf-model",
+        default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk",
+        help="HF Hub model id used when no local checkpoint is given",
+    )
 
     out = p.add_argument_group("output")
     out.add_argument("--out-dir", required=True)

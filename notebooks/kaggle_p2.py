@@ -28,6 +28,7 @@
 # %%
 import os
 import subprocess
+import sys
 
 REPO = "https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT.git"
 WORK = "/kaggle/working"
@@ -38,8 +39,18 @@ if not os.path.isdir(SRC):
 os.chdir(SRC)
 print("cwd:", os.getcwd())
 
-# torch / torchaudio are preinstalled on Kaggle. Add the expert stack.
-get_ipython().system("pip install -q clearvoice speechbrain soundfile scipy tqdm 2>&1 | tail -3")  # noqa: F821
+# torch / torchaudio are preinstalled on Kaggle. Add the cheap-expert stack.
+get_ipython().system("pip install -q clearvoice speechbrain soundfile scipy tqdm 2>&1 | tail -3")  # noqa: F821, E501
+
+# Expensive expert: SR-CorrNet-SS (strict, no SepFormer). Clone + editable install
+# with the [hub] extra so `from sr_corrnet import SSInference` pulls the HF checkpoint.
+SRC_REPO = f"{WORK}/SR_CorrNet_SS"
+if not os.path.isdir(SRC_REPO):
+    subprocess.run(
+        ["git", "clone", "--depth", "1", "https://github.com/dmlguq456/SR_CorrNet_SS.git", SRC_REPO],
+        check=True,
+    )
+get_ipython().system(f'pip install -q -e "{SRC_REPO}[hub]" 2>&1 | tail -3')  # noqa: F821
 
 # %% [markdown]
 # ## Cell 2 — LibriSpeech dev-clean + speaker-disjoint train/dev pools
@@ -81,19 +92,26 @@ TRAIN_POOL = link_pool(train_spk, "train")
 DEV_POOL = link_pool(dev_spk, "dev")
 
 # %% [markdown]
-# ## Cell 3 — expensive expert weights (optional SR-CorrNet)
-# Set these to your SR-CorrNet clone + checkpoint to use it; leave empty to fall
-# back to SepFormer automatically.
+# ## Cell 3 — SR-CorrNet expensive expert (strict, HF Hub checkpoint)
+# Uses the variable 2–3 speaker 1-channel WSJ model by default (8 kHz; the
+# wrapper resamples to/from the project's 16 kHz). Override `SRCORRNET_HF_MODEL`
+# for the 2–5 speaker variant, or point `SRCORRNET_CKPT` at a local checkpoint.
 
 # %%
-SRCORRNET_REPO = os.environ.get("SRCORRNET_REPO", "")  # e.g. /kaggle/working/SR_CorrNet
-SRCORRNET_CKPT = os.environ.get("SRCORRNET_CKPT", "")  # e.g. /kaggle/input/srcorrnet/best.pt
-sr_args = []
-if SRCORRNET_REPO:
-    sr_args += ["--srcorrnet-repo", SRCORRNET_REPO]
+SRCORRNET_HF_MODEL = os.environ.get("SRCORRNET_HF_MODEL", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk")
+SRCORRNET_CKPT = os.environ.get("SRCORRNET_CKPT", "")  # optional local .pt
+sr_args = ["--srcorrnet-hf-model", SRCORRNET_HF_MODEL]
 if SRCORRNET_CKPT:
     sr_args += ["--srcorrnet-checkpoint", SRCORRNET_CKPT]
-print("expensive expert:", "SR-CorrNet" if SRCORRNET_REPO else "SepFormer fallback")
+print("expensive expert: SR-CorrNet-SS", SRCORRNET_HF_MODEL)
+
+# Fail fast if SR-CorrNet can't import, before spending time on the cache build.
+_probe = subprocess.run(
+    [sys.executable, "-c", "from sr_corrnet import SSInference; print('sr_corrnet import OK')"],
+    capture_output=True,
+    text=True,
+)
+print(_probe.stdout.strip() or _probe.stderr.strip())
 
 # %% [markdown]
 # ## Cell 4 — build the frozen-expert cache (the slow, one-time step)
