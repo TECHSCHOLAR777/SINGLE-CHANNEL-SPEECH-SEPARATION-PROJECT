@@ -26,7 +26,6 @@ from torch.utils.data import DataLoader, Dataset
 
 from models.cascade_gate import CascadeGate
 from models.fusion import CRRRFusionHead
-from models.realm_quality import QualityEstimate
 from models.router import TwoLevelRouter
 from models.scene_analyzer import SceneAnalyzer
 from train.losses import CompositeLoss, LossBreakdown, LossWeights
@@ -85,7 +84,9 @@ class CAMoSETrainable(nn.Module):
     ) -> None:
         super().__init__()
         self.scene_analyzer = SceneAnalyzer(feature_dim=feature_dim)
-        self.router = TwoLevelRouter(feature_dim=feature_dim, num_experts=num_experts, null_index=null_index)
+        self.router = TwoLevelRouter(
+            feature_dim=feature_dim, num_experts=num_experts, null_index=null_index
+        )
         assert self.scene_analyzer.feature_dim == self.router.feature_dim, (
             f"feature_dim mismatch: SceneAnalyzer={self.scene_analyzer.feature_dim}, "
             f"TwoLevelRouter={self.router.feature_dim}"
@@ -131,7 +132,6 @@ class CAMoSETrainer:
 
         scene_out = self.model.scene_analyzer(mixture)
         router_w = self.model.router(scene_out["segment_features"])
-        scene_weights = scene_out["scene_weights"]
         tf_weight = router_w[..., self.tf_expert_index].mean(dim=1, keepdim=True)
         tf_weight = tf_weight.expand(-1, sr.shape[1])
 
@@ -376,7 +376,11 @@ def run_self_test(epochs: int = 2, device: str = "cpu") -> dict[str, Any]:
     final_loss = history[-1]["loss"]
     if not math.isfinite(final_loss):
         raise RuntimeError(f"non-finite loss after self-test: {final_loss}")
-    return {"epochs": epochs, "history": history, "trainable_params": trainer.model.parameter_count()}
+    return {
+        "epochs": epochs,
+        "history": history,
+        "trainable_params": trainer.model.parameter_count(),
+    }
 
 
 def save_checkpoint(trainer: CAMoSETrainer, path: str | Path) -> None:
@@ -391,11 +395,24 @@ def save_checkpoint(trainer: CAMoSETrainer, path: str | Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Train CA-MoSE trainable heads")
-    parser.add_argument("--config", nargs="*", default=["configs/experts.yaml", "configs/training.yaml"])
+    parser.add_argument(
+        "--config", nargs="*", default=["configs/experts.yaml", "configs/training.yaml"]
+    )
     parser.add_argument("--epochs", type=int, default=5)
     parser.add_argument("--device", default="cpu")
     parser.add_argument("--output", default="outputs/training/checkpoint.pt")
     parser.add_argument("--self-test", action="store_true")
+    parser.add_argument(
+        "--cache-dir",
+        default=None,
+        help="Train on a frozen-expert cache (build_train_cache.py) instead of synthetic data",
+    )
+    parser.add_argument(
+        "--val-cache-dir",
+        default=None,
+        help="Optional cache to evaluate cascade vs single experts after training (P2-INT4)",
+    )
+    parser.add_argument("--batch-size", type=int, default=4)
     args = parser.parse_args()
 
     if args.self_test:
@@ -405,22 +422,42 @@ def main() -> None:
 
     cfg = load_config(*args.config)
     trainer = build_trainer_from_config(cfg, device=args.device)
-    loader = synth_train_loader(
-        n_samples=int(cfg_get(cfg, "training.synth_samples", 64)),
-        batch_size=int(cfg_get(cfg, "training.batch_size", 4)),
-        seed=int(cfg_get(cfg, "seed", 42)),
-    )
+
+    if args.cache_dir:
+        from train.cached_dataset import cached_train_loader
+
+        loader = cached_train_loader(args.cache_dir, batch_size=args.batch_size, shuffle=True)
+        print(f"training on cache {args.cache_dir} ({len(loader.dataset)} samples)")
+    else:
+        loader = synth_train_loader(
+            n_samples=int(cfg_get(cfg, "training.synth_samples", 64)),
+            batch_size=args.batch_size,
+            seed=int(cfg_get(cfg, "seed", 42)),
+        )
+
     history = []
     for epoch in range(args.epochs):
         metrics = trainer.train_epoch(loader)
-        history.append({"epoch": epoch, "loss": metrics.loss, "escalation_rate": metrics.escalation_rate})
+        history.append(
+            {"epoch": epoch, "loss": metrics.loss, "escalation_rate": metrics.escalation_rate}
+        )
         print(f"epoch {epoch}: loss={metrics.loss:.4f} escalation={metrics.escalation_rate:.2%}")
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
     save_checkpoint(trainer, out_path)
     meta_path = out_path.with_suffix(".json")
-    meta_path.write_text(json.dumps({"history": history}, indent=2), encoding="utf-8")
+
+    eval_report = None
+    if args.val_cache_dir:
+        from scripts.evaluate_cascade import evaluate_cache
+
+        eval_report = evaluate_cache(args.val_cache_dir, out_path, device=args.device)
+        print("P2-INT4 evaluation:", json.dumps(eval_report, indent=2))
+
+    meta_path.write_text(
+        json.dumps({"history": history, "evaluation": eval_report}, indent=2), encoding="utf-8"
+    )
     print(f"saved checkpoint to {out_path}")
 
 

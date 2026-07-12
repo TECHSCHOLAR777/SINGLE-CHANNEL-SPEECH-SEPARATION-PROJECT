@@ -183,9 +183,68 @@ def _select_sample(root: str, index: int) -> MixtureSample:
     return sample
 
 
+def _dynamic_sample(
+    source_glob: str,
+    n: int,
+    seconds: float,
+    sample_rate: int = 16000,
+    seed: int = 0,
+) -> MixtureSample:
+    """
+    Build one long N-speaker mixture from LibriSpeech clean files, so P1-INT2 can
+    run without generating official Libri3Mix. Each source is tiled/truncated to
+    a fixed length so the clip is guaranteed longer than four seconds.
+    """
+    import glob as _glob
+
+    files = sorted(Path(p) for p in _glob.glob(source_glob, recursive=True))
+    if len(files) < n:
+        raise RuntimeError(
+            f"need >= {n} source files for a {n}-speaker mix, glob matched {len(files)}"
+        )
+    rng = np.random.default_rng(seed)
+    chosen = rng.choice(len(files), size=n, replace=False)
+    target = int(seconds * sample_rate)
+
+    refs: list[np.ndarray] = []
+    for ci in chosen:
+        wav, sr = sf.read(str(files[int(ci)]), dtype="float32", always_2d=True)
+        wav = wav.mean(axis=1) if wav.shape[1] > 1 else wav[:, 0]
+        if sr != sample_rate:  # LibriSpeech is already 16 kHz; guard anyway
+            import torch as _t
+            import torchaudio.functional as taf
+
+            wav = taf.resample(_t.from_numpy(wav).unsqueeze(0), sr, sample_rate).squeeze(0).numpy()
+        if wav.shape[0] < target:
+            reps = int(np.ceil(target / max(wav.shape[0], 1)))
+            wav = np.tile(wav, reps)
+        refs.append(wav[:target].astype(np.float32))
+
+    refs_arr = np.stack(refs, axis=0)
+    mixture = refs_arr.sum(axis=0)
+    peak = float(np.max(np.abs(mixture))) + 1e-8
+    if peak > 1.0:  # avoid clipping the summed mixture
+        mixture = mixture / peak
+        refs_arr = refs_arr / peak
+    return MixtureSample(
+        mixture=mixture.astype(np.float32),
+        references=refs_arr.astype(np.float32),
+        sample_rate=sample_rate,
+        utterance_id=f"dynamic_{n}spk_seed{seed}",
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--librimix-root", required=True)
+    parser.add_argument("--librimix-root", default=None)
+    parser.add_argument(
+        "--dynamic-source-glob",
+        default=None,
+        help="Instead of --librimix-root, mix one long clip from these LibriSpeech files",
+    )
+    parser.add_argument("--dynamic-n", type=int, default=3, help="Speakers in the dynamic mix")
+    parser.add_argument("--dynamic-seconds", type=float, default=8.0)
+    parser.add_argument("--seed", type=int, default=0)
     parser.add_argument("--sample-index", type=int, default=0)
     parser.add_argument("--device", default="cuda")
     parser.add_argument("--output-dir", default="outputs/p1_alignment")
@@ -213,20 +272,39 @@ def main() -> None:
     )
     parser.add_argument("--skip-pair", action="store_true")
     parser.add_argument("--strict", action="store_true")
+    parser.add_argument(
+        "--no-pad-expert",
+        action="store_true",
+        help="Run MossFormer2 without residual-padding to the speaker count. "
+        "Default pads (target_speakers=N), which is the fix P1-INT2 depends on.",
+    )
     args = parser.parse_args()
+
+    if not args.librimix_root and not args.dynamic_source_glob:
+        parser.error("provide --librimix-root or --dynamic-source-glob")
 
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    sample = _select_sample(args.librimix_root, args.sample_index)
+    if args.librimix_root:
+        sample = _select_sample(args.librimix_root, args.sample_index)
+    else:
+        sample = _dynamic_sample(
+            args.dynamic_source_glob, args.dynamic_n, args.dynamic_seconds, seed=args.seed
+        )
     num_references = int(sample.references.shape[0])
     max_tracks = args.max_tracks if args.max_tracks is not None else num_references
-    cheap = MossFormer2Expert(device=args.device, compute_embeddings=True)
+    target_speakers = None if args.no_pad_expert else num_references
+    cheap = MossFormer2Expert(
+        device=args.device, compute_embeddings=True, target_speakers=target_speakers
+    )
+    report_target_note = "unpadded" if args.no_pad_expert else f"padded_to_{num_references}"
 
     report: dict[str, Any] = {
         "utterance_id": sample.utterance_id,
         "duration_sec": sample.mixture.shape[0] / sample.sample_rate,
         "sample_rate": sample.sample_rate,
         "max_tracks": max_tracks,
+        "expert_mode": report_target_note,
     }
 
     if not args.skip_pair:
@@ -239,8 +317,12 @@ def main() -> None:
         )
         pair_len = min(sample.mixture.shape[0], int(round(args.chunk_sec * sample.sample_rate)))
         paired = run_and_align(cheap, expensive, sample.mixture[:pair_len], sample.sample_rate)
-        _write_streams(output_dir, "p1_int1_anchor", paired.anchor.streams, paired.anchor.sample_rate)
-        _write_streams(output_dir, "p1_int1_aligned", paired.aligned.streams, paired.aligned.sample_rate)
+        _write_streams(
+            output_dir, "p1_int1_anchor", paired.anchor.streams, paired.anchor.sample_rate
+        )
+        _write_streams(
+            output_dir, "p1_int1_aligned", paired.aligned.streams, paired.aligned.sample_rate
+        )
         report["p1_int1"] = {
             "anchor_expert": paired.anchor.expert_used,
             "other_expert": paired.aligned.expert_used,
