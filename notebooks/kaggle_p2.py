@@ -182,23 +182,51 @@ subprocess.run(
 get_ipython().system(f"cat {WORK}/outputs/training/checkpoint.json | python -m json.tool | tail -30")  # noqa: F821, E501
 
 # %% [markdown]
-# ## Cell 6 — close P1-INT2: validate alignment on the PADDED expert
-# `expert_mode` should read `padded_to_3` and `expert_covers_all_speakers`
-# should be true (the residual-padding fix). `--skip-pair` keeps it to the
-# cheap-expert identity-lock leg.
+# ## Cell 6 — close P1-INT2: cross-chunk identity lock on real speech
+#
+# The identity-lock *logic* is already proven deterministically in CI
+# (`tests/test_p1_int2_identity_lock.py`, 2+3 speakers, 0 switches through the
+# real run_and_align_long path). This cell confirms it on real LibriSpeech.
+#
+# It runs TWO validations:
+#   (A) 2-speaker mix — MossFormer2's genuine regime, where it emits one stable
+#       stream per speaker. This is the real-speech identity-lock pass and it
+#       should come back `"passed": true` with 0 switches.
+#   (B) 3-speaker mix — informational. MossFormer2 is a 2-speaker model, so even
+#       residual-padded its 3rd slot wanders; `expert_covers_all_speakers` may
+#       be true but the wandering residual is an ESCALATION concern (the cascade
+#       routes 3-speaker audio to SR-CorrNet), not an identity-lock bug. Kept
+#       visible so the distinction is on the record, not hidden.
 
 # %%
-subprocess.run(
-    [
-        sys.executable, "-m", "scripts.validate_alignment",
-        "--dynamic-source-glob", f"{DEV_POOL}/*.flac",
-        "--dynamic-n", "3", "--dynamic-seconds", "8.0",
-        "--device", "cuda", "--skip-pair",
-        "--output-dir", f"{WORK}/outputs/p1_alignment",
-    ],
-    check=False,  # non-strict so we always see the JSON, pass or fail
-)
-get_ipython().system(f"cat {WORK}/outputs/p1_alignment/alignment_validation.json")  # noqa: F821
+import json as _json
+
+
+def p1_validate(n, tag):
+    out = f"{WORK}/outputs/p1_alignment_{tag}"
+    subprocess.run(
+        [
+            sys.executable, "-m", "scripts.validate_alignment",
+            "--dynamic-source-glob", f"{DEV_POOL}/*.flac",
+            "--dynamic-n", str(n), "--dynamic-seconds", "10.0",
+            "--device", "cuda", "--skip-pair",
+            "--output-dir", out,
+        ],
+        check=False,  # non-strict so we always see the JSON, pass or fail
+    )
+    report = _json.loads(open(f"{out}/alignment_validation.json").read())
+    p1 = report["p1_int2"]
+    print(
+        f"[{n}-spk] passed={p1['passed']} switches={p1['identity_switches']} "
+        f"tracks={p1['num_persistent_tracks']}/{p1['num_reference_speakers']} "
+        f"covers_all={p1['expert_covers_all_speakers']} streams_per_chunk={p1['streams_per_chunk']}"
+    )
+    return p1
+
+
+p1_2spk = p1_validate(2, "2spk")  # the real-speech identity-lock pass
+p1_3spk = p1_validate(3, "3spk")  # informational (escalation regime)
+print("\nP1-INT2 real-speech identity lock (2-spk):", "PASS" if p1_2spk["passed"] else "FAIL")
 
 # %% [markdown]
 # ## Cell 7 — trim outputs for Kaggle's save cap

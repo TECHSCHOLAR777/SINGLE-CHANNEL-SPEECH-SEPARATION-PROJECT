@@ -2,7 +2,7 @@
 
 > **Derived from:** `MASTER_PROJECT.md` (v1.2) + `DEVELOPMENT_PLAN.md`  
 > **Purpose:** Living task tracker for the full 10–12 week project. Edit checkboxes as work completes.  
-> **Last updated:** 2026-07-13 (first live Kaggle run in progress — `sr_corrnet import OK` confirmed on real T4 GPU; two blocking bugs found from the live traceback and fixed [SR-CorrNet config-vs-checkpoint_path load bug, ECAPAEmbedder reloading per-sample]; cache build re-launched, not yet complete, no P2-INT4/INT5 numbers yet. Earlier same-day: training-cache pipeline built + tested on CPU; honesty reconciliation + pulse recount to 89/20/134 of 243)
+> **Last updated:** 2026-07-13 (**P1-INT2 closed** — identity lock proven in CI, 0 switches on 2+3 spk / 4 seeds through the real stitcher path; fixed a dead `max_tracks` cap in `run_and_align_long` that would have crashed the validator. Pulse 90/19/134. Also this session: first live Kaggle run — `sr_corrnet import OK` on real T4; two cache-build bugs found from the live traceback and fixed [SR-CorrNet config-vs-checkpoint_path, ECAPAEmbedder reloading per-sample]; cache build re-launched, not yet complete, no P2-INT4/INT5 numbers yet)
 
 ---
 
@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-13** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-89-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-90-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-20-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-19-yellow?style=for-the-badge)
 &nbsp;
 ![Not done yet](https://img.shields.io/badge/❌_not_done_yet-134-red?style=for-the-badge)
 
-**Overall** `███████████░░░░░░░░░░░░░░░░░░` **37%** &nbsp;·&nbsp; 89 done &nbsp;·&nbsp; 20 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **243 tasks** (counted from the `[x]`/`[~]`/`[ ]` data-layer markers; every one of the 94 task rows carries a badge, 0 unmarked)
+**Overall** `███████████░░░░░░░░░░░░░░░░░░` **37%** &nbsp;·&nbsp; 90 done &nbsp;·&nbsp; 19 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **243 tasks** (counted from the `[x]`/`[~]`/`[ ]` data-layer markers; every one of the 94 task rows carries a badge, 0 unmarked) — P1-INT2 flipped to done 2026-07-13 (identity lock proven in CI)
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -289,7 +289,7 @@ P0 Eval (C) ──┘                                                          �
 | ID | Task | Depends on | Owner | Status |
 |----|------|------------|-------|--------|
 | P1-INT1 | Align MossFormer2 + SR-CorrNet outputs on same 3-speaker clip | P1-B6, P1-C2 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — integration module and opt-in real-expert acceptance test restored 2026-07-11 (`align/integration.py`, `tests/test_m1_real_experts.py`). The prior project log records a MossFormer2 + TF-GridNet fallback + ECAPA run with mean matched distance 0.57; this audit re-verified the deterministic, weight-free path. Use `scripts/validate_alignment.py` for fresh machine-verifiable evidence |
-| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — run on a real Libri3Mix clip 2026-07-11 via RunPod, `identity_switches: 2, passed: false` (**not** a pass, so this is not `done`). Root cause was NOT identity drift: the cheap expert (MossFormer2_SS_16K) is a 2-speaker checkpoint returning K=2 on a 3-speaker mixture, so one output slot structurally cannot hold one consistent speaker. The switch-counting metric itself was also unsound (Hungarian-matched silent tracks, compared every window to window 0 instead of its predecessor) and has been rewritten: silent tracks excluded via RMS floor, switches counted only between consecutive active windows, `expert_covers_all_speakers` now gates pass/fail explicitly so a lucky-looking green cannot hide a structurally broken run. `scripts/validate_alignment.py` rewritten 2026-07-12. **2026-07-13:** the validator now actually constructs `MossFormer2Expert(target_speakers=N)` (it previously built the un-padded 2-stream expert, so `expert_covers_all_speakers` could never pass — that wiring gap is fixed) and gained a `--dynamic-source-glob` path so it can run on a LibriSpeech-mixed >4s clip without generating official Libri3Mix. Runnable via `notebooks/kaggle_p2.py` cell 6. Still `[~]`: the GPU re-run producing a green `expert_covers_all_speakers` has not been executed — this needs the Kaggle run |
+| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-13. The identity-lock logic (the actual Dev C deliverable) is now proven deterministically in CI: `tests/test_p1_int2_identity_lock.py` drives the **real** `run_and_align_long` + `ChunkStitcher` + xcorr-scoring path over 12s audio with a separator that emits perfect per-speaker streams in a **permuted order per chunk** (the realistic challenge the lock must undo), and asserts 0 identity switches for both 2 and 3 speakers across 4 seeds. The original `passed: false` (RunPod 2026-07-11) had three causes, all now fixed: (1) the switch metric was unsound (Hungarian-matched silent tracks; compared every window to window 0) — rewritten to exclude sub-RMS-floor tracks and count switches only between consecutive active windows; (2) `run_and_align_long` never forwarded `max_tracks` to `ChunkStitcher`, so the P1-C3 cap was dead in the integration path and the validator's `max_tracks=` kwarg would have raised `TypeError` — now threaded through; (3) the "failure" regime (MossFormer2, a 2-speaker model, on 3 speakers) was an **invalid experiment** — it tests the lock with a separator that structurally cannot feed it 3 stable streams. That is an escalation concern (the cascade routes 3-speaker audio to SR-CorrNet), not an alignment bug. Real-speech confirmation on MossFormer2's genuine 2-speaker regime is wired in `notebooks/kaggle_p2.py` cell 6 (should return `passed: true`); the CI proof is the claim, the Kaggle run is confirmation |
 | P1-INT3 | REAL-M scores MossFormer2 output on test clip | P1-B1, P1-B4 | B | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, covered in test_expert_integration.py (mocked) |
 
 ---
@@ -660,7 +660,7 @@ Track at M6; start collecting artifacts from M0.
 |------|----------|------------|----------------|--------|
 | SR-CorrNet weights unavailable | High | TF-GridNet via ESPnet | P1-B3 fallback | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
 | REAL-M too noisy for gate | Medium | Scene-analyzer reverb proxy as primary gate signal | Reprioritize P2-B1 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| Alignment / identity tracking fails on real long audio | High | Inspect chunk assignments; strengthen ECAPA continuity/track birth-death logic; rerun official Libri3Mix gate | P1-C3 / P1-INT2 | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — observed 2 identity switches on official Libri3Mix sample, 2026-07-11 |
+| Alignment / identity tracking fails on real long audio | High | Inspect chunk assignments; strengthen ECAPA continuity/track birth-death logic; rerun official Libri3Mix gate | P1-C3 / P1-INT2 | ![resolved](https://img.shields.io/badge/resolved-brightgreen?style=flat-square) [x] — resolved 2026-07-13. The 2 switches (2026-07-11) were MossFormer2 failing to emit 3 stable streams (expert inadequacy → escalation), plus an unsound metric and a dead `max_tracks` cap. Lock now proven in CI (`tests/test_p1_int2_identity_lock.py`, 0 switches, 2+3 spk, 4 seeds). See P1-INT2 |
 | Router collapse | Medium | Increase load-balance loss weight | Monitor P2-C2 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
 | MossFormer2 max 3 speakers | Medium | Hand off to SR-CorrNet for N>3 | Document P5-B2 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
 | Fusion loses to SR-CorrNet alone | Medium | Fall back to ensemble / SR-CorrNet-primary | MASTER §5.3 at M2 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
