@@ -35,11 +35,38 @@ class MossFormer2Expert:
         model_name: str = DEFAULT_MODEL,
         compute_embeddings: bool = True,
         embedder_savedir: str | None = None,
+        target_speakers: int | None = None,
     ) -> None:
+        """
+        Args:
+            target_speakers: Pad the output up to this many streams when the
+                checkpoint emits fewer.
+
+                MossFormer2_SS_16K is a TWO-speaker model. On a three-speaker
+                mixture it returns K=2, while SR-CorrNet returns K=3, and
+                CAMoSEFusion.forward raises `stream shape mismatch` the moment
+                the two meet. The cascade therefore cannot train at all on
+                Libri3Mix without reconciling K.
+
+                When target_speakers=3 and the model returns 2 streams, the
+                missing stream is filled with the RESIDUAL, mixture minus the
+                sum of the emitted streams. On a 3-speaker mixture that residual
+                is approximately the speaker the model failed to extract, plus
+                artefacts, so it is a real signal rather than padding. It is
+                marked `synthetic="residual"` with low confidence in
+                StreamMetadata so the router, the gate, and the fusion head can
+                learn to distrust it, and its energy is exactly the quantity the
+                cascade should escalate on.
+
+                A gap larger than one cannot be recovered this way (the residual
+                would blend several speakers), so remaining slots are zero-filled
+                and marked `synthetic="zero"` with confidence 0.
+        """
         self.device = torch.device(device)
         self.model_name = model_name
         self.compute_embeddings = compute_embeddings
         self._embedder_savedir = embedder_savedir
+        self.target_speakers = target_speakers
         self._cv: object | None = None
 
     @staticmethod
@@ -84,12 +111,15 @@ class MossFormer2Expert:
 
         output = self._cv(batch, False)  # type: ignore[operator]
         streams, confidences = self._parse_clearvoice_output(output, wav.shape[0])
+        streams, confidences, synthetic = self._pad_to_target(
+            streams, confidences, wav, self.target_speakers
+        )
 
         metadata = [
             StreamMetadata(
                 expert_source=self.EXPERT_NAME,
                 confidence=float(confidences[i]) if i < len(confidences) else 1.0,
-                extra={"stream_index": i},
+                extra={"stream_index": i, "synthetic": synthetic[i]},
             )
             for i in range(streams.shape[0])
         ]
@@ -111,6 +141,37 @@ class MossFormer2Expert:
             result = attach_ecapa_embeddings(result, embedder=embedder)
 
         return result
+
+    @staticmethod
+    def _pad_to_target(
+        streams: np.ndarray,
+        confidences: list[float],
+        mixture: np.ndarray,
+        target: int | None,
+    ) -> tuple[np.ndarray, list[float], list[str | None]]:
+        """
+        Reconcile the emitted stream count with the expected speaker count.
+
+        Returns (streams, confidences, synthetic) where synthetic[i] is None for
+        a real model output, "residual" for the mixture-minus-sum stream, and
+        "zero" for a hard-padded slot.
+        """
+        k = streams.shape[0]
+        synthetic: list[str | None] = [None] * k
+        if target is None or k >= target:
+            return streams, confidences, synthetic
+
+        extra = np.zeros((target - k, streams.shape[1]), dtype=np.float32)
+        # Slot 0 of the padding carries the residual: what the model left behind.
+        residual = mixture.astype(np.float32) - streams.sum(axis=0)
+        extra[0] = residual
+        synthetic.append("residual")
+        confidences.append(0.0)
+        for _ in range(target - k - 1):
+            synthetic.append("zero")
+            confidences.append(0.0)
+
+        return np.concatenate([streams, extra], axis=0), confidences, synthetic
 
     @staticmethod
     def _parse_clearvoice_output(
