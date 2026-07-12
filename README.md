@@ -2,7 +2,7 @@
 
 > **Derived from:** `MASTER_PROJECT.md` (v1.2) + `DEVELOPMENT_PLAN.md`  
 > **Purpose:** Living task tracker for the full 10–12 week project. Edit checkboxes as work completes.  
-> **Last updated:** 2026-07-13 (honesty reconciliation — restored regressed P1-C3 / P1-INT2 / P2-INT3 detail; P1-INT2 corrected from `done` back to in-progress since the real run was `passed: false`)
+> **Last updated:** 2026-07-13 (honesty reconciliation — restored regressed P1-C3 / P1-INT2 / P2-INT3 detail; P1-INT2 corrected from `done` back to in-progress since the real run was `passed: false`; **pulse recounted from actual markers → 89 / 20 / 134 of 243**, fixing a stale 247 denominator and counts that never matched the checklist)
 
 ---
 
@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-13** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-86-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-89-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-27-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-20-yellow?style=for-the-badge)
 &nbsp;
 ![Not done yet](https://img.shields.io/badge/❌_not_done_yet-134-red?style=for-the-badge)
 
-**Overall** `██████████░░░░░░░░░░░░░░░░░░░░` **35%** &nbsp;·&nbsp; 86 done &nbsp;·&nbsp; 27 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `███████████░░░░░░░░░░░░░░░░░░` **37%** &nbsp;·&nbsp; 89 done &nbsp;·&nbsp; 20 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **243 tasks** (counted from the `[x]`/`[~]`/`[ ]` data-layer markers; every one of the 94 task rows carries a badge, 0 unmarked)
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
