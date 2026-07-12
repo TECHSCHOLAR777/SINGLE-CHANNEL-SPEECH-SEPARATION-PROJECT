@@ -217,6 +217,32 @@ def trivial_mask_proxy(
     return flags
 
 
+def _load_progress(out_dir: Path) -> dict:
+    """Resume state from a prior (possibly interrupted) run, or a fresh start."""
+    path = out_dir / "_progress.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {"next_index": 0, "shard_idx": 0, "n_written": 0, "n_skipped": 0}
+
+
+def _save_progress(
+    out_dir: Path, next_index: int, shard_idx: int, n_written: int, n_skipped: int
+) -> None:
+    """
+    Checkpoint after every shard flush so a killed/disconnected session (e.g. a
+    Kaggle timeout mid cache-build) can resume from the last saved shard instead
+    of reprocessing everything through the frozen experts from sample 0.
+    """
+    path = out_dir / "_progress.json"
+    payload = {
+        "next_index": next_index,
+        "shard_idx": shard_idx,
+        "n_written": n_written,
+        "n_skipped": n_skipped,
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _stream_embeddings(result) -> np.ndarray | None:
     """Stack per-stream ECAPA embeddings from a SeparationResult, or None."""
     embs = [m.embedding for m in result.metadata]
@@ -231,7 +257,7 @@ def _stream_embeddings(result) -> np.ndarray | None:
 def build_cache(args: argparse.Namespace) -> dict:
     from models.experts.embeddings import ECAPAEmbedder
     from models.experts.mossformer2 import MossFormer2Expert
-    from models.experts.tfgridnet import get_expensive_expert
+    from models.experts.srcorrnet import SRCorrNetExpert
     from models.realm_quality import REALMQualityEstimator
 
     device = args.device
@@ -252,25 +278,45 @@ def build_cache(args: argparse.Namespace) -> dict:
         raise RuntimeError("No mixtures loaded — check the source arguments.")
 
     moss = MossFormer2Expert(device=device, compute_embeddings=True, target_speakers=k)
-    expensive = get_expensive_expert(
+    # SR-CorrNet strictly — no SepFormer/TF-GridNet fallback.
+    expensive = SRCorrNetExpert(
         device=device,
-        srcorrnet_repo=args.srcorrnet_repo,
-        srcorrnet_checkpoint=args.srcorrnet_checkpoint,
-        tfgridnet_tag=args.espnet_tag,
+        repo_path=args.srcorrnet_repo,
+        checkpoint_path=args.srcorrnet_checkpoint,
+        hf_model_id=args.srcorrnet_hf_model,
         num_speakers=k,
     )
+    if not expensive.is_available:
+        raise RuntimeError(
+            "SR-CorrNet-SS is required but not available. Clone dmlguq456/SR_CorrNet_SS "
+            'and `pip install -e ".[hub]"`, or pass --srcorrnet-repo / --srcorrnet-checkpoint. '
+            "SepFormer fallback is intentionally disabled."
+        )
     realm = REALMQualityEstimator(device=device)
     ref_embedder = ECAPAEmbedder(device=device)
 
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    progress = {"next_index": 0, "shard_idx": 0, "n_written": 0, "n_skipped": 0}
+    if not args.no_resume:
+        progress = _load_progress(out_dir)
+        if progress["next_index"] > 0:
+            print(
+                f"resuming from sample {progress['next_index']}/{len(samples)} "
+                f"(shard {progress['shard_idx']}, {progress['n_written']} already written) "
+                "— pass --no-resume to restart from scratch"
+            )
+
     shard: list[dict] = []
-    shard_idx = 0
-    n_written = 0
-    n_skipped = 0
+    shard_idx = progress["shard_idx"]
+    n_written = progress["n_written"]
+    n_skipped = progress["n_skipped"]
+    start_index = progress["next_index"]
 
     for i, s in enumerate(samples):
+        if i < start_index:
+            continue
         try:
             mixture = _crop_or_pad(s.mixture.astype(np.float32), seg_len)
             refs = _crop_or_pad(s.references.astype(np.float32), seg_len)
@@ -332,10 +378,14 @@ def build_cache(args: argparse.Namespace) -> dict:
             print(f"wrote shard {shard_idx} ({len(shard)} samples), {n_written} total")
             shard = []
             shard_idx += 1
+            _save_progress(out_dir, i + 1, shard_idx, n_written, n_skipped)
 
     if shard:
         save_cache_shard(out_dir / f"shard_{shard_idx:05d}.pt", shard, sr_target)
         print(f"wrote shard {shard_idx} ({len(shard)} samples), {n_written} total")
+        shard_idx += 1
+
+    _save_progress(out_dir, len(samples), shard_idx, n_written, n_skipped)
 
     manifest = {
         "n_written": n_written,
@@ -365,9 +415,13 @@ def build_parser() -> argparse.ArgumentParser:
 
     exp = p.add_argument_group("experts")
     exp.add_argument("--target-speakers", type=int, default=3)
-    exp.add_argument("--srcorrnet-repo", default=None)
-    exp.add_argument("--srcorrnet-checkpoint", default=None)
-    exp.add_argument("--espnet-tag", default=None, help="ESPnet TF-GridNet model tag (optional)")
+    exp.add_argument("--srcorrnet-repo", default=None, help="Local SR_CorrNet_SS clone (optional)")
+    exp.add_argument("--srcorrnet-checkpoint", default=None, help="Local checkpoint (optional)")
+    exp.add_argument(
+        "--srcorrnet-hf-model",
+        default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk",
+        help="HF Hub model id used when no local checkpoint is given",
+    )
 
     out = p.add_argument_group("output")
     out.add_argument("--out-dir", required=True)
@@ -377,6 +431,11 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--sample-rate", type=int, default=16000)
     out.add_argument("--device", default="cpu")
     out.add_argument("--seed", type=int, default=0)
+    out.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Ignore any existing _progress.json in --out-dir and restart from sample 0",
+    )
     return p
 
 

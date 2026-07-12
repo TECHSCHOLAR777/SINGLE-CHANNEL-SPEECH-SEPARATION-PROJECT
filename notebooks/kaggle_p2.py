@@ -24,22 +24,62 @@
 
 # %% [markdown]
 # ## Cell 1 — clone + install
+#
+# The CA-MoSE repo is **private**, so an anonymous clone fails. Add a GitHub
+# Personal Access Token as a Kaggle Secret named `GH_TOKEN` before running this
+# cell: **Add-ons → Secrets → Add a new secret** (key `GH_TOKEN`, value = a
+# fine-grained PAT scoped to just this repo, Contents: Read-only is enough).
+# The token is read via Kaggle's secrets client and never printed or written
+# to a file — it only appears transiently in the git remote URL for the clone.
 
 # %%
 import os
 import subprocess
+import sys
 
-REPO = "https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT.git"
+REPO_PATH = "TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT.git"
 WORK = "/kaggle/working"
 SRC = f"{WORK}/CA-MoSE"
 
+try:
+    from kaggle_secrets import UserSecretsClient
+
+    GH_TOKEN = UserSecretsClient().get_secret("GH_TOKEN")
+except Exception as exc:
+    raise RuntimeError(
+        "Missing Kaggle Secret 'GH_TOKEN'. This repo is private — add a GitHub "
+        "Personal Access Token via Add-ons -> Secrets (key: GH_TOKEN) before "
+        "running this notebook."
+    ) from exc
+
+REPO_AUTH = f"https://{GH_TOKEN}@github.com/{REPO_PATH}"
+
 if not os.path.isdir(SRC):
-    subprocess.run(["git", "clone", "--branch", "parv", "--depth", "1", REPO, SRC], check=True)
+    subprocess.run(
+        ["git", "clone", "--branch", "parv", "--depth", "1", REPO_AUTH, SRC], check=True
+    )
+    # Strip the token back out of .git/config immediately — otherwise it sits in
+    # plaintext under /kaggle/working, which Kaggle can persist/share as output.
+    subprocess.run(
+        ["git", "-C", SRC, "remote", "set-url", "origin", f"https://github.com/{REPO_PATH}"],
+        check=True,
+    )
+del GH_TOKEN, REPO_AUTH  # never keep the token around longer than the clone call
 os.chdir(SRC)
 print("cwd:", os.getcwd())
 
-# torch / torchaudio are preinstalled on Kaggle. Add the expert stack.
-get_ipython().system("pip install -q clearvoice speechbrain soundfile scipy tqdm 2>&1 | tail -3")  # noqa: F821
+# torch / torchaudio are preinstalled on Kaggle. Add the cheap-expert stack.
+get_ipython().system("pip install -q clearvoice speechbrain soundfile scipy tqdm 2>&1 | tail -3")  # noqa: F821, E501
+
+# Expensive expert: SR-CorrNet-SS (strict, no SepFormer). Clone + editable install
+# with the [hub] extra so `from sr_corrnet import SSInference` pulls the HF checkpoint.
+SRC_REPO = f"{WORK}/SR_CorrNet_SS"
+if not os.path.isdir(SRC_REPO):
+    subprocess.run(
+        ["git", "clone", "--depth", "1", "https://github.com/dmlguq456/SR_CorrNet_SS.git", SRC_REPO],
+        check=True,
+    )
+get_ipython().system(f'pip install -q -e "{SRC_REPO}[hub]" 2>&1 | tail -3')  # noqa: F821
 
 # %% [markdown]
 # ## Cell 2 — LibriSpeech dev-clean + speaker-disjoint train/dev pools
@@ -81,19 +121,26 @@ TRAIN_POOL = link_pool(train_spk, "train")
 DEV_POOL = link_pool(dev_spk, "dev")
 
 # %% [markdown]
-# ## Cell 3 — expensive expert weights (optional SR-CorrNet)
-# Set these to your SR-CorrNet clone + checkpoint to use it; leave empty to fall
-# back to SepFormer automatically.
+# ## Cell 3 — SR-CorrNet expensive expert (strict, HF Hub checkpoint)
+# Uses the variable 2–3 speaker 1-channel WSJ model by default (8 kHz; the
+# wrapper resamples to/from the project's 16 kHz). Override `SRCORRNET_HF_MODEL`
+# for the 2–5 speaker variant, or point `SRCORRNET_CKPT` at a local checkpoint.
 
 # %%
-SRCORRNET_REPO = os.environ.get("SRCORRNET_REPO", "")  # e.g. /kaggle/working/SR_CorrNet
-SRCORRNET_CKPT = os.environ.get("SRCORRNET_CKPT", "")  # e.g. /kaggle/input/srcorrnet/best.pt
-sr_args = []
-if SRCORRNET_REPO:
-    sr_args += ["--srcorrnet-repo", SRCORRNET_REPO]
+SRCORRNET_HF_MODEL = os.environ.get("SRCORRNET_HF_MODEL", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk")
+SRCORRNET_CKPT = os.environ.get("SRCORRNET_CKPT", "")  # optional local .pt
+sr_args = ["--srcorrnet-hf-model", SRCORRNET_HF_MODEL]
 if SRCORRNET_CKPT:
     sr_args += ["--srcorrnet-checkpoint", SRCORRNET_CKPT]
-print("expensive expert:", "SR-CorrNet" if SRCORRNET_REPO else "SepFormer fallback")
+print("expensive expert: SR-CorrNet-SS", SRCORRNET_HF_MODEL)
+
+# Fail fast if SR-CorrNet can't import, before spending time on the cache build.
+_probe = subprocess.run(
+    [sys.executable, "-c", "from sr_corrnet import SSInference; print('sr_corrnet import OK')"],
+    capture_output=True,
+    text=True,
+)
+print(_probe.stdout.strip() or _probe.stderr.strip())
 
 # %% [markdown]
 # ## Cell 4 — build the frozen-expert cache (the slow, one-time step)

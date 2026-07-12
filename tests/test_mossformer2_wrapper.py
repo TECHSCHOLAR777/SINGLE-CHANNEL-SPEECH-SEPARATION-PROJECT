@@ -36,3 +36,28 @@ def test_mossformer2_separate_shape(_avail: MagicMock, _emb: MagicMock) -> None:
     assert result.expert_used == "mossformer2"
     assert result.escalated is False
     assert result.mixture is not None
+
+
+@patch("models.experts.mossformer2.attach_ecapa_embeddings", side_effect=lambda r, **kw: r)
+@patch.object(MossFormer2Expert, "is_available", return_value=True)
+def test_mossformer2_reuses_embedder_across_calls(_avail: MagicMock, _attach: MagicMock) -> None:
+    """
+    ECAPAEmbedder must be built once and reused, not reconstructed per sample —
+    reconstructing it reloads the full SpeechBrain model from disk/network every
+    call, which made a 500-sample cache build look hung on Kaggle.
+    """
+    sr = 16000
+    t = 4000
+    mixture = np.random.randn(t).astype(np.float32)
+    mock_cv = MagicMock(return_value=np.random.randn(3, 1, t).astype(np.float32))
+
+    expert = MossFormer2Expert(device="cpu", compute_embeddings=True)
+    expert._cv = mock_cv
+
+    with patch("models.experts.embeddings.ECAPAEmbedder") as mock_embedder_cls:
+        mock_embedder_cls.return_value = MagicMock()
+        expert.separate(mixture, sample_rate=sr)
+        expert.separate(mixture, sample_rate=sr)
+        expert.separate(mixture, sample_rate=sr)
+
+    assert mock_embedder_cls.call_count == 1
