@@ -39,6 +39,7 @@ def _make_librimix_repo(root: Path) -> Path:
     for name in [
         "mixture_dev_mix_both.csv",
         "mixture_test_mix_both.csv",
+        "mixture_train-100_mix_both.csv",
         "mixture_train-360_mix_both.csv",
     ]:
         (repo / "metadata" / "Libri3Mix" / name).write_text("dummy")
@@ -97,13 +98,34 @@ def test_filtered_metadata_dev_test_only(tmp_path: Path) -> None:
 
 
 def test_filtered_metadata_includes_train_when_requested(tmp_path: Path) -> None:
+    """Default train split is train-100: the one LibriSpeech split we download.
+
+    Regression guard. This previously defaulted to train-360, whose sources live
+    in LibriSpeech train-clean-360, which download_librispeech never fetches. Any
+    --include-train run therefore died inside the generator on missing audio.
+    """
     repo = _make_librimix_repo(tmp_path)
     work_dir = tmp_path / "work"
 
     meta_root = _make_filtered_metadata(repo, work_dir, include_train=True)
 
     libri3_dir = meta_root / "Libri3Mix"
+    assert (libri3_dir / "mixture_train-100_mix_both.csv").exists()
+    assert not (libri3_dir / "mixture_train-360_mix_both.csv").exists()
+
+
+def test_filtered_metadata_can_opt_into_train_360(tmp_path: Path) -> None:
+    """train-360 stays available for anyone willing to pull the extra 23 GB."""
+    repo = _make_librimix_repo(tmp_path)
+    work_dir = tmp_path / "work"
+
+    meta_root = _make_filtered_metadata(
+        repo, work_dir, include_train=True, train_split="train-360"
+    )
+
+    libri3_dir = meta_root / "Libri3Mix"
     assert (libri3_dir / "mixture_train-360_mix_both.csv").exists()
+    assert not (libri3_dir / "mixture_train-100_mix_both.csv").exists()
 
 
 def test_filtered_metadata_idempotent(tmp_path: Path) -> None:

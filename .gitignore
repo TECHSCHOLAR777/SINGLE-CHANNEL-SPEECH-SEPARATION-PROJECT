@@ -45,3 +45,7 @@ Thumbs.db
 # Baseline outputs
 outputs/
 results/
+pretrained_models/
+outputs/
+pretrained_models/
+outputs/

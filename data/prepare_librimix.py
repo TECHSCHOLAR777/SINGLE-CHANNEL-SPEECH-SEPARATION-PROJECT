@@ -46,7 +46,20 @@ LIBRIMIX_REPO_URL = "https://github.com/JorisCos/LibriMix"
 
 # CSV files to include when generating without the train split.
 _DEV_TEST_CSVS = ["mixture_dev_mix_both.csv", "mixture_test_mix_both.csv"]
-_TRAIN_CSV = "mixture_train-360_mix_both.csv"
+# LibriMix ships metadata for BOTH train-100 and train-360. The script only
+# downloads LibriSpeech train-clean-100, so defaulting the train CSV to
+# train-360 guaranteed a generation crash: every source path in that CSV points
+# at train-clean-360 speakers that are not on disk. Keep train-360 available for
+# whoever wants to pay the 23 GB download, but default to the split we actually
+# fetch.
+TRAIN_CSV_BY_SPLIT: dict[str, str] = {
+    "train-100": "mixture_train-100_mix_both.csv",
+    "train-360": "mixture_train-360_mix_both.csv",
+}
+LIBRISPEECH_URL_BY_TRAIN_SPLIT: dict[str, str] = {
+    "train-360": "https://www.openslr.org/resources/12/train-clean-360.tar.gz",
+}
+DEFAULT_TRAIN_SPLIT = "train-100"
 
 # Subsets that must exist for verify_layout to pass (train is best-effort).
 REQUIRED_SUBSETS = ["dev", "test"]
@@ -67,7 +80,7 @@ def _report_progress(block_num: int, block_size: int, total_size: int) -> None:
         print(f"\r  {pct:3d}%  {mb:.1f} / {total_mb:.1f} MB", end="", flush=True)
 
 
-def download_librispeech(librispeech_dir: Path) -> None:
+def download_librispeech(librispeech_dir: Path, extra_splits: dict[str, str] | None = None) -> None:
     """
     Download and extract LibriSpeech splits into librispeech_dir.
 
@@ -76,7 +89,11 @@ def download_librispeech(librispeech_dir: Path) -> None:
     """
     librispeech_dir.mkdir(parents=True, exist_ok=True)
 
-    for split, url in LIBRISPEECH_URLS.items():
+    urls = dict(LIBRISPEECH_URLS)
+    if extra_splits:
+        urls.update(extra_splits)
+
+    for split, url in urls.items():
         extracted = librispeech_dir / "LibriSpeech" / split
         if extracted.exists() and any(extracted.iterdir()):
             print(f"  [skip] {split} already at {extracted}")
@@ -148,7 +165,12 @@ def _find_generation_script(librimix_repo: Path) -> Path:
     )
 
 
-def _make_filtered_metadata(librimix_repo: Path, work_dir: Path, include_train: bool) -> Path:
+def _make_filtered_metadata(
+    librimix_repo: Path,
+    work_dir: Path,
+    include_train: bool,
+    train_split: str = DEFAULT_TRAIN_SPLIT,
+) -> Path:
     """
     Copy LibriMix metadata CSVs into a private directory.
 
@@ -162,7 +184,7 @@ def _make_filtered_metadata(librimix_repo: Path, work_dir: Path, include_train: 
 
     csvs = list(_DEV_TEST_CSVS)
     if include_train:
-        csvs.append(_TRAIN_CSV)
+        csvs.append(TRAIN_CSV_BY_SPLIT[train_split])
 
     for csv_name in csvs:
         src = src_dir / csv_name
@@ -184,6 +206,7 @@ def generate_librimix(
     output_dir: Path,
     *,
     include_train: bool = False,
+    train_split: str = DEFAULT_TRAIN_SPLIT,
 ) -> None:
     """
     Run the LibriMix generation script to produce Libri3Mix.
@@ -199,7 +222,9 @@ def generate_librimix(
         return
 
     script = _find_generation_script(librimix_repo)
-    filtered_meta = _make_filtered_metadata(librimix_repo, output_dir / "tools", include_train)
+    filtered_meta = _make_filtered_metadata(
+        librimix_repo, output_dir / "tools", include_train, train_split
+    )
 
     # LibriSpeech tarballs extract into librispeech_dir/LibriSpeech/
     ls_root = librispeech_dir / "LibriSpeech"
@@ -208,7 +233,7 @@ def generate_librimix(
 
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    splits = "dev + test" + (" + train-360" if include_train else "")
+    splits = "dev + test" + (f" + {train_split}" if include_train else "")
     print(f"  [generate] Libri3Mix ({splits}) -> {libri3mix_out}")
     print(f"    script:      {script.name}")
     print(f"    librispeech: {ls_root}")
@@ -371,9 +396,16 @@ def main() -> None:
     parser.add_argument(
         "--include-train",
         action="store_true",
+        help="Also generate a Libri3Mix train split (see --train-split).",
+    )
+    parser.add_argument(
+        "--train-split",
+        choices=sorted(TRAIN_CSV_BY_SPLIT),
+        default=DEFAULT_TRAIN_SPLIT,
         help=(
-            "Also generate the Libri3Mix train-360 split. "
-            "Requires LibriSpeech train-clean-360 at --librispeech-dir."
+            "Which train split to generate with --include-train. "
+            "train-100 (default) uses LibriSpeech train-clean-100, already downloaded. "
+            "train-360 pulls an extra 23 GB of LibriSpeech."
         ),
     )
     args = parser.parse_args()
@@ -395,7 +427,12 @@ def main() -> None:
     print()
 
     print("Step 1 / 4  Download LibriSpeech")
-    download_librispeech(librispeech_dir)
+    extra = {}
+    if args.include_train and args.train_split in LIBRISPEECH_URL_BY_TRAIN_SPLIT:
+        extra[args.train_split.replace("train-", "train-clean-")] = LIBRISPEECH_URL_BY_TRAIN_SPLIT[
+            args.train_split
+        ]
+    download_librispeech(librispeech_dir, extra_splits=extra)
     print()
 
     print("Step 2 / 4  Clone LibriMix repo")
@@ -408,6 +445,7 @@ def main() -> None:
         librispeech_dir,
         output_dir,
         include_train=args.include_train,
+        train_split=args.train_split,
     )
     print()
 
