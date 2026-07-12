@@ -24,18 +24,47 @@
 
 # %% [markdown]
 # ## Cell 1 — clone + install
+#
+# The CA-MoSE repo is **private**, so an anonymous clone fails. Add a GitHub
+# Personal Access Token as a Kaggle Secret named `GH_TOKEN` before running this
+# cell: **Add-ons → Secrets → Add a new secret** (key `GH_TOKEN`, value = a
+# fine-grained PAT scoped to just this repo, Contents: Read-only is enough).
+# The token is read via Kaggle's secrets client and never printed or written
+# to a file — it only appears transiently in the git remote URL for the clone.
 
 # %%
 import os
 import subprocess
 import sys
 
-REPO = "https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT.git"
+REPO_PATH = "TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT.git"
 WORK = "/kaggle/working"
 SRC = f"{WORK}/CA-MoSE"
 
+try:
+    from kaggle_secrets import UserSecretsClient
+
+    GH_TOKEN = UserSecretsClient().get_secret("GH_TOKEN")
+except Exception as exc:
+    raise RuntimeError(
+        "Missing Kaggle Secret 'GH_TOKEN'. This repo is private — add a GitHub "
+        "Personal Access Token via Add-ons -> Secrets (key: GH_TOKEN) before "
+        "running this notebook."
+    ) from exc
+
+REPO_AUTH = f"https://{GH_TOKEN}@github.com/{REPO_PATH}"
+
 if not os.path.isdir(SRC):
-    subprocess.run(["git", "clone", "--branch", "parv", "--depth", "1", REPO, SRC], check=True)
+    subprocess.run(
+        ["git", "clone", "--branch", "parv", "--depth", "1", REPO_AUTH, SRC], check=True
+    )
+    # Strip the token back out of .git/config immediately — otherwise it sits in
+    # plaintext under /kaggle/working, which Kaggle can persist/share as output.
+    subprocess.run(
+        ["git", "-C", SRC, "remote", "set-url", "origin", f"https://github.com/{REPO_PATH}"],
+        check=True,
+    )
+del GH_TOKEN, REPO_AUTH  # never keep the token around longer than the clone call
 os.chdir(SRC)
 print("cwd:", os.getcwd())
 
