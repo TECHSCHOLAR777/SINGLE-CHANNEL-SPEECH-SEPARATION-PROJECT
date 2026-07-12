@@ -124,19 +124,49 @@ class REALMQualityEstimator:
                 t = torch.from_numpy(wav)
         return t.unsqueeze(0).to(self.device)
 
+    # The pretrained REAL-M SI-SNR estimator (speechbrain/REAL-M-sisnr-estimator)
+    # is a TWO-source model: estimate_batch hardcodes `mix.repeat(2, 1)`, so
+    # predictions must carry exactly 2 sources. Feeding it K != 2 raises
+    # "Sizes of tensors must match ... Expected size K but got size 2" inside
+    # SpeechBrain's torch.cat. We reduce to 2 sources up front.
+    EXPECTED_SOURCES = 2
+
+    @staticmethod
+    def _reduce_to_two(arr: np.ndarray) -> np.ndarray:
+        """
+        Return exactly 2 source rows for the 2-source REAL-M estimator.
+
+        K == 2: unchanged. K > 2 (e.g. MossFormer2 residual-padded to 3): keep
+        the 2 highest-energy rows — a blind proxy for the two dominant real
+        speakers, since a zero/residual pad carries little energy. K == 1:
+        duplicate the single stream. K == 0: error.
+        """
+        k = arr.shape[0]
+        if k == REALMQualityEstimator.EXPECTED_SOURCES:
+            return arr
+        if k == 0:
+            raise ValueError("REAL-M needs at least one stream to score")
+        if k == 1:
+            return np.concatenate([arr, arr], axis=0)
+        energy = np.sum(np.square(arr.astype(np.float64)), axis=1)
+        top2 = np.sort(np.argsort(energy)[-2:])  # keep original order of the two
+        return arr[top2]
+
     def _streams_to_predictions(
         self,
         streams: np.ndarray | torch.Tensor,
         target_len: int,
         sample_rate: int,
     ) -> torch.Tensor:
-        """Convert [K, T] streams to SpeechBrain format [B, T, C]."""
+        """Convert [K, T] streams to SpeechBrain format [B, T, C=2]."""
         from models.preprocess import PROJECT_SAMPLE_RATE, resample_audio
 
         if isinstance(streams, np.ndarray):
             arr = streams.astype(np.float32)
         else:
             arr = streams.detach().cpu().numpy().astype(np.float32)
+
+        arr = self._reduce_to_two(arr)
 
         if sample_rate != PROJECT_SAMPLE_RATE:
             resampled = []
