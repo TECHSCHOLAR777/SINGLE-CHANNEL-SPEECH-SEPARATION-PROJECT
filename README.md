@@ -2,21 +2,21 @@
 
 > **Derived from:** `MASTER_PROJECT.md` (v1.2) + `DEVELOPMENT_PLAN.md`  
 > **Purpose:** Living task tracker for the full 10–12 week project. Edit checkboxes as work completes.  
-> **Last updated:** 2026-07-11 (official Libri3Mix P1 validation recorded; status and blocker reconciliation)
+> **Last updated:** 2026-07-13 (honesty reconciliation — restored regressed P1-C3 / P1-INT2 / P2-INT3 detail; P1-INT2 corrected from `done` back to in-progress since the real run was `passed: false`)
 
 ---
 
 ## 📊 Project pulse
 
-> Snapshot **2026-07-11** — refresh the counts whenever you flip a status.
+> Snapshot **2026-07-13** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-88-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-86-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-25-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-27-yellow?style=for-the-badge)
 &nbsp;
 ![Not done yet](https://img.shields.io/badge/❌_not_done_yet-134-red?style=for-the-badge)
 
-**Overall** `███████████░░░░░░░░░░░░░░░░░░░` **36%** &nbsp;·&nbsp; 88 done &nbsp;·&nbsp; 25 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **247 tasks**
+**Overall** `██████████░░░░░░░░░░░░░░░░░░░░` **35%** &nbsp;·&nbsp; 86 done &nbsp;·&nbsp; 27 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **247 tasks**
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
@@ -263,7 +263,7 @@ P0 Eval (C) ──┘                                                          �
 |----|------|------------|-------------|--------|
 | P1-C1 | ECAPA-TDNN embedding wrapper | none | SpeechBrain `spkrec-ecapa-voxceleb` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `align/embeddings.py`, PR #5 |
 | P1-C2 | Hungarian stream alignment via ECAPA embeddings | P1-C1 | `align/hungarian.py` — cost = 1 − cosine sim | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09 (PR #2), fully active now that P1-C1 (ECAPA wrapper) is complete |
-| P1-C3 | Cross-chunk identity lock (4s chunks, 1s overlap) | P1-C2 | Chunk-stitching module in `align/` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — code deliverable complete 2026-07-11: `ChunkStitcher` is wired through `align.integration.run_and_align_long`, with deterministic alternating-permutation tests; real >4s LibriMix acceptance evidence is tracked separately as P1-INT2 |
+| P1-C3 | Cross-chunk identity lock (4s chunks, 1s overlap) | P1-C2 | Chunk-stitching module in `align/` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-12. Root cause of the phantom-track bug found and fixed: `ChunkStitcher` had no cap on the track bank, so a single unstable output slot minted a new persistent track every chunk (reproduced exactly: `[[0,1],[0,2],[0,3]]`, 4 tracks for 3 speakers). Added `max_tracks`: at cap, an unmatched stream force-assigns to its best Hungarian partner instead of spawning, without polluting that track's embedding EMA. `tests/test_chunking_cap.py`, 9 tests. Real >4s LibriMix acceptance evidence is tracked separately as P1-INT2 |
 | P1-C4 | Alignment unit tests including same-gender stress case | P1-C2 | Tests in `tests/` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `tests/test_align_same_gender.py`, PR #5 |
 
 ---
@@ -293,7 +293,7 @@ P0 Eval (C) ──┘                                                          �
 | ID | Task | Depends on | Owner | Status |
 |----|------|------------|-------|--------|
 | P1-INT1 | Align MossFormer2 + SR-CorrNet outputs on same 3-speaker clip | P1-B6, P1-C2 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — integration module and opt-in real-expert acceptance test restored 2026-07-11 (`align/integration.py`, `tests/test_m1_real_experts.py`). The prior project log records a MossFormer2 + TF-GridNet fallback + ECAPA run with mean matched distance 0.57; this audit re-verified the deterministic, weight-free path. Use `scripts/validate_alignment.py` for fresh machine-verifiable evidence |
-| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — official Libri3Mix run completed 2026-07-11 and produced artifacts; inspect chunk assignments/track lifecycle, fix identity stability, and rerun until zero switches |
+| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — run on a real Libri3Mix clip 2026-07-11 via RunPod, `identity_switches: 2, passed: false` (**not** a pass, so this is not `done`). Root cause was NOT identity drift: the cheap expert (MossFormer2_SS_16K) is a 2-speaker checkpoint returning K=2 on a 3-speaker mixture, so one output slot structurally cannot hold one consistent speaker. The switch-counting metric itself was also unsound (Hungarian-matched silent tracks, compared every window to window 0 instead of its predecessor) and has been rewritten: silent tracks excluded via RMS floor, switches counted only between consecutive active windows, `expert_covers_all_speakers` now gates pass/fail explicitly so a lucky-looking green cannot hide a structurally broken run. `scripts/validate_alignment.py` rewritten 2026-07-12. Re-run against the `target_speakers`-padded expert (see P2-INT3) still pending |
 | P1-INT3 | REAL-M scores MossFormer2 output on test clip | P1-B1, P1-B4 | B | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, covered in test_expert_integration.py (mocked) |
 
 ---
@@ -303,7 +303,7 @@ P0 Eval (C) ──┘                                                          �
 - **Dataset:** one official Libri3Mix `wav16k/max/test/mix_both` sample generated from official Libri3Mix metadata, LibriSpeech `test-clean`, and WHAM! noise.
 - **Command:** `python scripts/validate_alignment.py --librimix-root "$LIBRIMIX_ROOT" --device cuda --output-dir outputs/p1_alignment --skip-pair --strict`
 - **Result:** the long-form pipeline ran and produced artifacts, but the gate did **not** pass: `identity_switches=2`, `passed=false`.
-- **Interpretation:** environment, data loading, MossFormer2 inference, chunking, stitching, and report generation are operational; the remaining P1 blocker is cross-chunk identity stability.
+- **Interpretation:** environment, data loading, MossFormer2 inference, chunking, stitching, and report generation are operational. The 2 switches are **not** an identity-stability bug: MossFormer2_SS_16K returns K=2 streams on a 3-speaker mixture, so one slot cannot hold a consistent speaker. Fixed downstream via `MossFormer2Expert(target_speakers=3)` residual padding (P2-INT3); the switch metric was also rewritten (P1-INT2). Re-run against the padded expert is the remaining step before this gate can pass.
 - **Evidence file:** `outputs/p1_alignment/alignment_validation.json` (keep the compact JSON; do not commit generated WAVs or model weights).
 
 ---
@@ -314,7 +314,7 @@ P0 Eval (C) ──┘                                                          �
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] SR-CorrNet wrapper returns K streams + attractor vectors + confidence
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] REAL-M produces per-stream SI-SNRi estimates without reference
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Hungarian alignment matches streams to consistent speaker order — verified on real experts 2026-07-11 (P1-INT1)
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Cross-chunk identity lock was executed on official Libri3Mix long audio; current result is 2 identity switches, so the zero-switch acceptance gate remains open
+- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Cross-chunk identity lock was executed on official Libri3Mix long audio; current result is 2 identity switches (`passed: false`), so the zero-switch acceptance gate remains open (see P1-INT2)
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **Shared integration test: one 3-speaker clip, both experts, aligned output** — opt-in real-expert test and alignment orchestration are present; prior project evidence records a passing real run. Re-run with `scripts/validate_alignment.py` when refreshing evidence or weights
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
 
@@ -371,7 +371,7 @@ P0 Eval (C) ──┘                                                          �
 | P2-B8 | Speaker-consistency loss (ArcFace-style) | P2-B5 | B | Loss term (lambda=0.1) | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `train/losses.py` |
 | P2-INT1 | **Whole-team review of training-loop PR** | P2-B6 | All | Approved PR | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 | P2-INT2 | End-to-end forward pass integration test | P2-B6 | All | E2E test | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `tests/test_e2e_forward.py` (196 lines, full forward-pass through trainable heads), PR `c81449b` |
-| P2-INT3 | Short training run (few epochs) on mixed conditions | P2-INT2 | B | Checkpoint + logs | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-INT3 | Short training run (few epochs) on mixed conditions | P2-INT2 | B | Checkpoint + logs | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — **was structurally impossible until 2026-07-12**: `CRRRFusionHead.forward` raises `stream shape mismatch` the instant a 2-stream MossFormer2 output meets a 3-stream SR-CorrNet output on a 3-speaker mixture, which every Libri3Mix training batch would trigger. Fixed via `MossFormer2Expert(target_speakers=k)`: the missing stream is filled with the RESIDUAL (mixture minus the sum of emitted streams), which on a genuine speaker gap recovers something close to the missed speaker rather than being pure padding — tested to 1e-5 in `tests/test_mossformer2_residual.py` (6 tests). Marked `synthetic="residual"`, confidence 0.0, so downstream heads learn to distrust it; residual energy is also a free escalation signal. Blocker is dead; a training run has still **not** been executed — 0 epochs run, 0 checkpoints exist |
 | P2-INT4 | Validate: beats best single expert on val set | P2-INT3 | B + C | Metric comparison table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 | P2-INT5 | Measure and report escalation rate | P2-B2, P2-INT3 | C | Escalation rate per tier | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
@@ -408,6 +408,8 @@ L_total = L_SI-SDR-uPIT (1.0)
 **🚧 GATE M3:** System estimates speaker count on unknown-N inputs; produces **confusion matrix + calibration curve**.
 
 **Ownership rotation:** Dev C **leads** counting; Dev B supports features; Dev A supports N=2..5 mixtures.
+
+> **Infra / training-readiness note (2026-07-13):** No training run for P2 or P3 has been executed — **0 epochs, 0 checkpoints** for either phase. Two blockers in front of a first run are down: (1) the 2-vs-3-stream fusion crash is fixed (see P2-INT3); (2) data-prep is guarded end to end — `scripts/preflight_data.py` validates every file a LibriMix metadata CSV references *before* generation starts (both prior generation attempts died hours in on missing files), and `scripts/prepare_all_data.sh` is a resumable, preflighted, disk-budget-checked runner. **Not yet merged to this repo:** the frozen-expert output cache (run the experts once, cache fp16 tensors, feed the trainer with zero experts loaded) plus its Kaggle driver were prototyped off-repo — the files (`scripts/build_train_cache.py`, `train/cached_dataset.py`, `notebooks/kaggle_build_cache.py`) are **absent from `master`**. Do not treat expert-caching as available here until it lands via PR.
 
 ---
 
