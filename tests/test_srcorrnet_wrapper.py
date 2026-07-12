@@ -1,6 +1,9 @@
 """Tests for SR-CorrNet expert availability checks and output parsing."""
 
+import sys
+import types
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import numpy as np
 import torch
@@ -61,3 +64,25 @@ def test_srcorrnet_default_hf_model() -> None:
     expert = SRCorrNetExpert(device="cpu", num_speakers=3)
     assert expert.hf_model_id.startswith("shinuh/sr-corrnet-ss")
     assert expert.model_sample_rate == 8000
+
+
+def test_srcorrnet_loads_hf_model_via_checkpoint_path_not_config(monkeypatch) -> None:
+    """
+    Regression: SSInference.from_pretrained's `config` kwarg only accepts a
+    *local* config name/path (it resolves to "SS/<value>.yaml" and raises
+    FileNotFoundError for anything else). An HF Hub id like
+    "shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk" must go through `checkpoint_path`
+    instead — passing it as `config` failed every single sample on Kaggle.
+    """
+    mock_inference = MagicMock()
+    fake_module = types.ModuleType("sr_corrnet")
+    fake_module.SSInference = mock_inference  # type: ignore[attr-defined]
+    monkeypatch.setitem(sys.modules, "sr_corrnet", fake_module)
+
+    expert = SRCorrNetExpert(device="cpu", num_speakers=3, hf_model_id="shinuh/fake-model")
+    monkeypatch.setattr(SRCorrNetExpert, "is_available", property(lambda self: True))
+    expert._load_model()
+
+    mock_inference.from_pretrained.assert_called_once_with(
+        checkpoint_path="shinuh/fake-model", device="cpu"
+    )

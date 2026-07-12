@@ -90,6 +90,10 @@ class SRCorrNetExpert:
 
         from sr_corrnet import SSInference
 
+        # ``checkpoint_path`` accepts a local file/dir path OR an HF Hub repo id;
+        # ``config`` is only for a *local* config name/path and must not receive
+        # the Hub id — passing it there makes from_pretrained look for a local
+        # "SS/<id>.yaml" and fail with "Config not found" for every sample.
         if self.checkpoint_path is not None:
             self._model = SSInference.from_pretrained(
                 config=str(self.config_path) if self.config_path else None,
@@ -97,7 +101,9 @@ class SRCorrNetExpert:
                 device=str(self.device),
             )
         else:
-            self._model = SSInference.from_pretrained(self.hf_model_id, device=str(self.device))
+            self._model = SSInference.from_pretrained(
+                checkpoint_path=self.hf_model_id, device=str(self.device)
+            )
 
     def separate(self, mixture: np.ndarray | torch.Tensor, sample_rate: int) -> SeparationResult:
         """

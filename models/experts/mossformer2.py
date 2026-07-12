@@ -68,6 +68,7 @@ class MossFormer2Expert:
         self._embedder_savedir = embedder_savedir
         self.target_speakers = target_speakers
         self._cv: object | None = None
+        self._embedder: object | None = None
 
     @staticmethod
     def is_available() -> bool:
@@ -135,10 +136,11 @@ class MossFormer2Expert:
         )
 
         if self.compute_embeddings:
-            from models.experts.embeddings import ECAPAEmbedder
+            if self._embedder is None:
+                from models.experts.embeddings import ECAPAEmbedder
 
-            embedder = ECAPAEmbedder(device=self.device, savedir=self._embedder_savedir)
-            result = attach_ecapa_embeddings(result, embedder=embedder)
+                self._embedder = ECAPAEmbedder(device=self.device, savedir=self._embedder_savedir)
+            result = attach_ecapa_embeddings(result, embedder=self._embedder)
 
         return result
 
