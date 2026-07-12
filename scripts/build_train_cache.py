@@ -217,6 +217,32 @@ def trivial_mask_proxy(
     return flags
 
 
+def _load_progress(out_dir: Path) -> dict:
+    """Resume state from a prior (possibly interrupted) run, or a fresh start."""
+    path = out_dir / "_progress.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8"))
+    return {"next_index": 0, "shard_idx": 0, "n_written": 0, "n_skipped": 0}
+
+
+def _save_progress(
+    out_dir: Path, next_index: int, shard_idx: int, n_written: int, n_skipped: int
+) -> None:
+    """
+    Checkpoint after every shard flush so a killed/disconnected session (e.g. a
+    Kaggle timeout mid cache-build) can resume from the last saved shard instead
+    of reprocessing everything through the frozen experts from sample 0.
+    """
+    path = out_dir / "_progress.json"
+    payload = {
+        "next_index": next_index,
+        "shard_idx": shard_idx,
+        "n_written": n_written,
+        "n_skipped": n_skipped,
+    }
+    path.write_text(json.dumps(payload), encoding="utf-8")
+
+
 def _stream_embeddings(result) -> np.ndarray | None:
     """Stack per-stream ECAPA embeddings from a SeparationResult, or None."""
     embs = [m.embedding for m in result.metadata]
@@ -272,12 +298,25 @@ def build_cache(args: argparse.Namespace) -> dict:
     out_dir = Path(args.out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    progress = {"next_index": 0, "shard_idx": 0, "n_written": 0, "n_skipped": 0}
+    if not args.no_resume:
+        progress = _load_progress(out_dir)
+        if progress["next_index"] > 0:
+            print(
+                f"resuming from sample {progress['next_index']}/{len(samples)} "
+                f"(shard {progress['shard_idx']}, {progress['n_written']} already written) "
+                "— pass --no-resume to restart from scratch"
+            )
+
     shard: list[dict] = []
-    shard_idx = 0
-    n_written = 0
-    n_skipped = 0
+    shard_idx = progress["shard_idx"]
+    n_written = progress["n_written"]
+    n_skipped = progress["n_skipped"]
+    start_index = progress["next_index"]
 
     for i, s in enumerate(samples):
+        if i < start_index:
+            continue
         try:
             mixture = _crop_or_pad(s.mixture.astype(np.float32), seg_len)
             refs = _crop_or_pad(s.references.astype(np.float32), seg_len)
@@ -339,10 +378,14 @@ def build_cache(args: argparse.Namespace) -> dict:
             print(f"wrote shard {shard_idx} ({len(shard)} samples), {n_written} total")
             shard = []
             shard_idx += 1
+            _save_progress(out_dir, i + 1, shard_idx, n_written, n_skipped)
 
     if shard:
         save_cache_shard(out_dir / f"shard_{shard_idx:05d}.pt", shard, sr_target)
         print(f"wrote shard {shard_idx} ({len(shard)} samples), {n_written} total")
+        shard_idx += 1
+
+    _save_progress(out_dir, len(samples), shard_idx, n_written, n_skipped)
 
     manifest = {
         "n_written": n_written,
@@ -388,6 +431,11 @@ def build_parser() -> argparse.ArgumentParser:
     out.add_argument("--sample-rate", type=int, default=16000)
     out.add_argument("--device", default="cpu")
     out.add_argument("--seed", type=int, default=0)
+    out.add_argument(
+        "--no-resume",
+        action="store_true",
+        help="Ignore any existing _progress.json in --out-dir and restart from sample 0",
+    )
     return p
 
 
