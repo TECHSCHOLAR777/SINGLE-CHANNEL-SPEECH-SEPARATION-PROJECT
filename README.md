@@ -327,11 +327,11 @@ P0 Eval (C) ──┘                                                          �
 
 ## 🤝 P2 COLLAB — Before any implementation (all three)
 
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Cascade architecture review session
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Agree tensor flow: [B,T] → Scene Analyzer → MossFormer2 → REAL-M → gate → SR-CorrNet → align → fuse
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Agree quality threshold `tau` tuning strategy (conservative: borderline inputs escalate)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Agree composite loss weights (initial lambdas from MASTER §7.2)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Log decisions in `docs/decisions.md`
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Cascade architecture review session — confirmed by Parv 2026-07-13
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree tensor flow: [B,T] → Scene Analyzer → MossFormer2 → REAL-M → gate → SR-CorrNet → align → fuse — confirmed by Parv 2026-07-13
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree quality threshold `tau` tuning strategy (conservative: borderline inputs escalate) — confirmed by Parv 2026-07-13
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree composite loss weights (initial lambdas from MASTER §7.2) — confirmed by Parv 2026-07-13
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Log decisions in `docs/decisions.md` — confirmed by Parv 2026-07-13
 
 ---
 
@@ -390,10 +390,10 @@ L_total = L_SI-SDR-uPIT (1.0)
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Trained heads (~3M params) converge in few-epoch test run — 30 epochs on Kaggle T4 2026-07-13, loss 0.5995 → 0.0208, checkpoint saved (see P2-INT3)
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Beats best single expert on mixed-condition validation** — measured, does NOT pass: cascade 14.21 dB (at 100% escalation) < expensive 14.84 dB. A tau sweep was run and ruled out as the fix — the fusion slightly degrades SR-CorrNet on clean audio, and the eval is all-3-speaker where the cheap 2-spk model can't contribute. Needs a mixed 2–5 spk / noisier eval, not tuning (see P2-INT4). Note: "mixed-condition" is the operative phrase — this criterion was never meant for clean-all-3-spk |
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Escalation rate measured and logged (target ~30–40%) — 57% measured on the trained checkpoint 2026-07-13 (above target; see P2-INT5)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Expected RTF computed at measured escalation rate
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] All three can explain single-input flow through system
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Expected RTF computed at measured escalation rate — at the measured 57% escalation: E[RTF] ≈ RTF_cheap + e·RTF_expensive = 0.05 + 0.57×0.31 ≈ **0.23** vs always-expensive 0.31 (~27% compute saved). Caveat: on the clean 3-spk run that saving came with a quality loss (cascade 10.43 < expensive 14.84); the compute/quality trade only becomes favourable in the mixed-N regime (P2-INT4). Recompute at the mixed-N escalation rate when that run lands
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] All three can explain single-input flow through system — confirmed by Parv 2026-07-13 (flow walk-through)
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Training-loop PR reviewed by all three — PR #22 merged; confirmed by Parv 2026-07-13
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Joint integration session completed — confirmed by Parv 2026-07-13
 - ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] **Novelty N1 proof started:** the single-expert-vs-cascade ablation is implemented as `scripts/evaluate_cascade.py` (PIT SI-SDRi for cascade vs MossFormer2 vs SR-CorrNet + escalation rate); it emits the verdict the moment a trained checkpoint exists
 
 ---
@@ -450,7 +450,7 @@ L_total = L_SI-SDR-uPIT (1.0)
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Calibration curve produced**
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Oracle-count vs learned-count ablation planned (for P5)
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Novelty N3 + N6:** counting contribution + mixture-consistency feature documented
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Joint integration session completed — confirmed by Parv 2026-07-13 (the remaining M3 items below are trained-model deliverables, not human sign-offs)
 
 ---
 
