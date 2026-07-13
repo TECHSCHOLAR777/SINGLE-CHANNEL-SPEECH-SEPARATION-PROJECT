@@ -322,3 +322,44 @@ for tau in [6, 8, 10, 12, 14, 16, 20, 100]:
         best = (tau, s["cascade"], d["cascade_beats_single_expert"])
 print(f"\nbest cascade: tau={best[0]} -> {best[1]:.2f} dB, beats_single_expert={best[2]}")
 print("Paste this whole table back to Parv.")
+
+# %% [markdown]
+# ## Cell 11 — train the speaker-count stop-classifier (P3 / M3)
+#
+# Trains the StopClassifier on peel-off examples derived from the MIXED-N cache
+# (cell 8) — no experts reloaded, the cache already has stems + true_count +
+# ECAPA embeddings. Then fits temperature scaling for honest confidences.
+# Needs the mixed-N cache from cell 8. CPU-fast (small MLP), but --device cuda
+# is fine.
+
+# %%
+subprocess.run(
+    [
+        sys.executable, "-m", "scripts.train_stop_classifier",
+        "--cache-dir", f"{WORK}/cache_mixed/train",
+        "--val-cache-dir", f"{WORK}/cache_mixed/dev",
+        "--epochs", "80", "--device", "cuda",
+        "--out", f"{WORK}/outputs/counting/stop_classifier.pt",
+    ],
+    check=True,
+)
+
+# %% [markdown]
+# ## Cell 12 — unknown-N counting eval → M3 artifacts
+# Peel-off inference (N not given) → confusion matrix + calibration curve + ECE.
+# These CSV/SVG files are exactly the M3 "confusion matrix produced" +
+# "calibration curve produced" deliverables.
+
+# %%
+subprocess.run(
+    [
+        sys.executable, "-m", "scripts.eval_counting",
+        "--cache-dir", f"{WORK}/cache_mixed/dev",
+        "--checkpoint", f"{WORK}/outputs/counting/stop_classifier.pt",
+        "--output-dir", f"{WORK}/outputs/counting",
+        "--count-range", "2", "5",
+    ],
+    check=True,
+)
+get_ipython().system(f"ls -la {WORK}/outputs/counting")  # noqa: F821
+print("Paste the counting verdict (accuracy + ECE + confusion matrix) back to Parv.")
