@@ -129,6 +129,12 @@ class CAMoSETrainer:
         references = batch.references.to(self.device)
         moss = batch.moss_streams.to(self.device)
         sr = batch.sr_streams.to(self.device)
+        # Move these to the device BEFORE any escalated-index gather: esc_idx is
+        # derived from `quality` (on device), so indexing a still-on-CPU tensor
+        # with it raises "indices should be ... on the same device". Harmless on
+        # CPU, fatal on CUDA — which is why it only surfaced on the Kaggle run.
+        sr_confidence = batch.sr_confidence.to(self.device)
+        moss_mask_entropy = batch.moss_mask_entropy.to(self.device)
 
         scene_out = self.model.scene_analyzer(mixture)
         router_w = self.model.router(scene_out["segment_features"])
@@ -165,8 +171,8 @@ class CAMoSETrainer:
                 sr_streams=sr[esc_idx],
                 moss_streams=moss[esc_idx],
                 mixture=mixture[esc_idx],
-                sr_confidence=batch.sr_confidence[esc_idx].to(self.device),
-                moss_mask_entropy=batch.moss_mask_entropy[esc_idx].to(self.device),
+                sr_confidence=sr_confidence[esc_idx],
+                moss_mask_entropy=moss_mask_entropy[esc_idx],
                 scene_weight_tf=tf_weight[esc_idx],
             )
             estimates[esc_idx] = fused_out.fused_streams

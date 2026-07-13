@@ -317,20 +317,25 @@ def build_cache(args: argparse.Namespace) -> dict:
     for i, s in enumerate(samples):
         if i < start_index:
             continue
+        stage = "start"
         try:
             mixture = _crop_or_pad(s.mixture.astype(np.float32), seg_len)
             refs = _crop_or_pad(s.references.astype(np.float32), seg_len)
             n_true = refs.shape[0]
 
+            stage = "mossformer2"
             moss_res = moss.separate(mixture, sr_target)
             moss_streams = _fit_k(moss_res.streams.astype(np.float32), k)
             moss_streams = _crop_or_pad(moss_streams, seg_len)
 
+            stage = "srcorrnet"
             exp_res = expensive.separate(mixture, sr_target)
             sr_streams = _fit_k(exp_res.streams.astype(np.float32), k)
             sr_streams = _crop_or_pad(sr_streams, seg_len)
+            stage = "align"
             sr_streams = align_expensive_to_cheap(moss_streams, sr_streams)
 
+            stage = "realm"
             quality = realm.estimate(mixture, moss_streams, sr_target)
             quality_db = float(quality.min_sisnr_db)
 
@@ -369,8 +374,17 @@ def build_cache(args: argparse.Namespace) -> dict:
             shard.append(sample)
             n_written += 1
         except Exception as exc:  # noqa: BLE001 - log and continue on any per-sample failure
+            # Print the FULL traceback for the first failure so a repeating
+            # per-sample error (e.g. a shape mismatch in one expert) is
+            # diagnosable without re-running under a debugger. Subsequent skips
+            # stay one line, and now name which stage/expert threw.
+            if n_skipped == 0:
+                import traceback
+
+                print(f"[skip {i}] first failure at stage='{stage}' — full traceback:")
+                traceback.print_exc()
             n_skipped += 1
-            print(f"[skip {i}] {type(exc).__name__}: {exc}")
+            print(f"[skip {i}] stage={stage} {type(exc).__name__}: {exc}")
             continue
 
         if len(shard) >= args.shard_size:

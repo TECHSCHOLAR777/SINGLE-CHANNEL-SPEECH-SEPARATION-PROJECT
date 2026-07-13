@@ -139,8 +139,14 @@ def run_and_align_long(
     overlap_sec: float = 1.0,
     match_threshold: float = 0.35,
     ema: float = 0.7,
+    max_tracks: int | None = None,
 ) -> LongAlignmentResult:
-    """Separate long audio in overlapping chunks with persistent speaker IDs."""
+    """Separate long audio in overlapping chunks with persistent speaker IDs.
+
+    ``max_tracks`` caps the persistent track bank (P1-C3). Without it, a single
+    unstable output slot mints a new phantom track every chunk; normally set it
+    to the reference speaker count.
+    """
     wave = np.asarray(mixture, dtype=np.float32).squeeze()
     if wave.ndim != 1 or wave.size == 0:
         raise ValueError(f"mixture must be a non-empty mono waveform, got {wave.shape}")
@@ -179,6 +185,7 @@ def run_and_align_long(
                 overlap_sec=overlap_sec,
                 match_threshold=match_threshold,
                 ema=ema,
+                max_tracks=max_tracks,
             )
         elif separated.sample_rate != output_sample_rate:
             raise ValueError(
