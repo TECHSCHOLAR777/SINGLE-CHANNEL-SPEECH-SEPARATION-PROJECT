@@ -118,7 +118,10 @@ class CAMoSETrainer:
     ) -> None:
         self.model = model.to(device)
         self.gate = gate
-        self.loss_fn = loss_fn
+        # CompositeLoss is an nn.Module with real params (SpeakerConsistencyLoss's
+        # projection layer) — left on CPU it raises "mat2 is on cpu" the moment
+        # the speaker loss runs on CUDA-moved embeddings.
+        self.loss_fn = loss_fn.to(device)
         self.device = torch.device(device)
         self.tf_expert_index = tf_expert_index
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
@@ -305,7 +308,11 @@ class SyntheticTrainDataset(Dataset):
         sr_streams = refs + self.rng.normal(0, 0.01, size=refs.shape).astype(np.float32)
 
         quality = float(self.rng.uniform(8.0, 16.0))
-        emb_dim = 64
+        # Match real ECAPA-TDNN output (speechbrain/spkrec-ecapa-voxceleb =
+        # 192-dim) so this self-test actually exercises the same shapes
+        # production training uses — the old 64 here silently diverged from
+        # CompositeLoss's real embedding_dim and only surfaced on Kaggle.
+        emb_dim = 192
         stream_emb = self.rng.normal(size=(self.n_speakers, emb_dim)).astype(np.float32)
         ref_emb = stream_emb + self.rng.normal(0, 0.05, size=(self.n_speakers, emb_dim)).astype(
             np.float32
@@ -361,10 +368,11 @@ def build_trainer_from_config(cfg: dict[str, Any], device: str = "cpu") -> CAMoS
         residual_reg=float(cfg_get(cfg, "training.loss.residual_reg", 0.1)),
         speaker_consistency=float(cfg_get(cfg, "training.loss.speaker_consistency", 0.1)),
     )
+    embedding_dim = int(cfg_get(cfg, "training.embedding_dim", 192))
     return CAMoSETrainer(
         model=model,
         gate=gate,
-        loss_fn=CompositeLoss(weights),
+        loss_fn=CompositeLoss(weights, embedding_dim=embedding_dim),
         device=device,
         lr=float(cfg_get(cfg, "training.lr", 1e-4)),
         tf_expert_index=int(cfg_get(cfg, "training.tf_expert_index", 1)),

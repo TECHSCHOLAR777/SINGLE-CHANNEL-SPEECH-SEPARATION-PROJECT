@@ -82,10 +82,20 @@ def evaluate_cache(
     checkpoint: str | Path | None = None,
     device: str = "cpu",
     batch_size: int = 8,
+    tau: float | None = None,
 ) -> dict[str, Any]:
-    """Score cascade vs single experts over a cached set."""
+    """
+    Score cascade vs single experts over a cached set.
+
+    ``tau`` overrides the checkpoint's gate threshold — the escalation decision
+    is made at inference (REAL-M quality < tau), so sweeping tau re-scores the
+    SAME trained checkpoint with no retraining. Lower tau -> more escalation.
+    """
     ds = CachedExpertDataset(cache_dir)
     trainer, meta = load_trained_model(checkpoint, device=device)
+    if tau is not None:
+        trainer.gate.tau = float(tau)
+        meta = {**meta, "gate_tau": float(tau), "gate_tau_overridden": True}
     trainer.model.eval()
 
     cascade, moss, expensive = [], [], []
@@ -143,9 +153,17 @@ def main() -> None:
     p.add_argument("--device", default="cpu")
     p.add_argument("--batch-size", type=int, default=8)
     p.add_argument("--report", default=None, help="Optional JSON output path")
+    p.add_argument(
+        "--tau",
+        type=float,
+        default=None,
+        help="Override the gate threshold (re-scores the same checkpoint; lower = more escalation)",
+    )
     args = p.parse_args()
 
-    report = evaluate_cache(args.cache_dir, args.checkpoint, args.device, args.batch_size)
+    report = evaluate_cache(
+        args.cache_dir, args.checkpoint, args.device, args.batch_size, tau=args.tau
+    )
     print(json.dumps(report, indent=2))
     if args.report:
         Path(args.report).parent.mkdir(parents=True, exist_ok=True)

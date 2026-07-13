@@ -101,17 +101,13 @@ def pit_si_sdr_loss(estimates: torch.Tensor, references: torch.Tensor) -> torch.
         best_perm: tuple[int, ...] | None = None
         best_val = float("inf")
         for perm in itertools.permutations(range(k)):
-            perm_loss = torch.stack(
-                [neg_si_sdr(est[perm[i]], ref[i]) for i in range(k)]
-            ).mean()
+            perm_loss = torch.stack([neg_si_sdr(est[perm[i]], ref[i]) for i in range(k)]).mean()
             val = float(perm_loss.detach().item())
             if val < best_val:
                 best_val = val
                 best_perm = perm
         assert best_perm is not None
-        chosen = torch.stack(
-            [neg_si_sdr(est[best_perm[i]], ref[i]) for i in range(k)]
-        ).mean()
+        chosen = torch.stack([neg_si_sdr(est[best_perm[i]], ref[i]) for i in range(k)]).mean()
         losses.append(chosen)
     return torch.stack(losses).mean()
 
@@ -252,11 +248,24 @@ class CompositeLoss(nn.Module):
     Weighted sum of all seven CA-MoSE training losses (P2-B5).
     """
 
-    def __init__(self, weights: LossWeights | None = None) -> None:
+    def __init__(self, weights: LossWeights | None = None, embedding_dim: int = 192) -> None:
+        """
+        Args:
+            embedding_dim: Dimensionality of the stream/reference speaker
+                embeddings fed to the speaker-consistency loss. Defaults to
+                192, the real output size of SpeechBrain's ECAPA-TDNN
+                (speechbrain/spkrec-ecapa-voxceleb) — the embedder actually
+                used by MossFormer2Expert/ECAPAEmbedder. Must match whatever
+                embedder produces stream_embeddings/reference_embeddings, or
+                the projection layer's matmul raises a shape mismatch (as it
+                did against the old hardcoded default of 64 on the first real
+                Kaggle training run — CI's synthetic 64-dim fakes never
+                caught it).
+        """
         super().__init__()
         self.weights = weights or LossWeights()
         self.mrstft = MultiResolutionSTFTLoss()
-        self.speaker_loss = SpeakerConsistencyLoss()
+        self.speaker_loss = SpeakerConsistencyLoss(embedding_dim=embedding_dim)
 
     def forward(
         self,
