@@ -138,7 +138,7 @@ print("expensive expert:", MIXED_HF_MODEL)
 # from the last flushed shard. Bump `LIMIT_*` once the pipeline is proven.
 
 # %%
-LIMIT_TRAIN, LIMIT_DEV = 500, 100
+LIMIT_TRAIN, LIMIT_DEV = 2000, 100
 
 
 def build_mixed(pool, out, limit):
