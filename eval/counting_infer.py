@@ -93,7 +93,7 @@ def infer_count(
     embs: np.ndarray,
     vad: VADAdapter,
     threshold: float = 0.5,
-    min_count: int = 1,
+    min_count: int = 2,
 ) -> tuple[int, float]:
     """
     Peel-off unknown-N inference for one mixture.

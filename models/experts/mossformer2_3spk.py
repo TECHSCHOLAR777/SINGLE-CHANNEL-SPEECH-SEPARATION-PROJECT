@@ -119,11 +119,34 @@ class MossFormer2ThreeSpkExpert:
         try:
             for filename, submodule in pairs:
                 state = torch.load(self._ckpt(filename), map_location="cpu")
-                submodule.load_state_dict(_clean_state(state))
+                result = submodule.load_state_dict(_clean_state(state), strict=False)
+                if result.missing_keys:
+                    print(f"[mossformer2_3spk] {filename}: {len(result.missing_keys)} missing keys")
+                if result.unexpected_keys:
+                    print(f"[mossformer2_3spk] {filename}: {len(result.unexpected_keys)} unexpected keys")
         except Exception as exc:  # noqa: BLE001 - fall back to the bundled full state dict
             try:
                 full = torch.load(self._ckpt("pytorch_model.bin"), map_location="cpu")
-                model.load_state_dict(_clean_state(full))
+                # pytorch_model.bin stores flat keys with submodule prefixes;
+                # split by prefix and load each submodule with strict=False.
+                submodule_map = {"encoder.": model.enc, "masknet.": model.mask_net, "decoder.": model.dec}
+                sub_states: dict[str, dict] = {"encoder.": {}, "masknet.": {}, "decoder.": {}}
+                remainder: dict = {}
+                for k, v in _clean_state(full).items():
+                    placed = False
+                    for prefix in sub_states:
+                        if k.startswith(prefix):
+                            sub_states[prefix][k[len(prefix) :]] = v
+                            placed = True
+                            break
+                    if not placed:
+                        remainder[k] = v
+                if any(sub_states.values()):
+                    for prefix, sub_state in sub_states.items():
+                        if sub_state:
+                            submodule_map[prefix].load_state_dict(sub_state, strict=False)
+                else:
+                    model.load_state_dict(_clean_state(full), strict=False)
             except Exception as exc2:  # noqa: BLE001
                 raise RuntimeError(
                     "Failed to load MossFormer2-3spk weights from component ckpts "
