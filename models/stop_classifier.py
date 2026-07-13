@@ -19,7 +19,7 @@ from pathlib import Path
 import torch
 import torch.nn as nn
 
-from models.counting_features import FEATURE_NAMES, _EPS, compute_stop_features
+from models.counting_features import _EPS, FEATURE_NAMES, compute_stop_features
 
 __all__ = [
     "FEATURE_NAMES",
@@ -87,11 +87,15 @@ class StopClassifier(nn.Module):
         Returns:
             The fitted temperature value.
         """
-        temp = nn.Parameter(torch.ones(1))
+        # The temperature scalar must live on the same device as the logits, or
+        # the closure's `logits / temp` raises a CUDA-vs-CPU device mismatch
+        # (the LBFGS/temperature step ran fine in CPU CI but broke on the Kaggle
+        # GPU run).
+        logits = val_logits.detach()
+        labels = val_labels.detach().float().to(logits.device)
+        temp = nn.Parameter(torch.ones(1, device=logits.device))
         optimizer = torch.optim.LBFGS([temp], lr=0.05, max_iter=100)
         bce = nn.BCEWithLogitsLoss()
-        logits = val_logits.detach()
-        labels = val_labels.detach().float()
 
         def closure() -> torch.Tensor:
             optimizer.zero_grad()

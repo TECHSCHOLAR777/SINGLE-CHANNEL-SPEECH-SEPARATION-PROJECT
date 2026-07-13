@@ -83,6 +83,7 @@ def evaluate_cache(
     device: str = "cpu",
     batch_size: int = 8,
     tau: float | None = None,
+    sr_primary: bool = False,
 ) -> dict[str, Any]:
     """
     Score cascade vs single experts over a cached set.
@@ -90,6 +91,12 @@ def evaluate_cache(
     ``tau`` overrides the checkpoint's gate threshold — the escalation decision
     is made at inference (REAL-M quality < tau), so sweeping tau re-scores the
     SAME trained checkpoint with no retraining. Lower tau -> more escalation.
+
+    ``sr_primary`` bypasses the learned CRRR fusion: escalated samples output the
+    RAW expensive-expert (SR-CorrNet) streams, non-escalated output MossFormer2.
+    This is the honest cascade when the fusion degrades a strong expert — it
+    isolates the routing decision from fusion and needs no retraining (the
+    trained heads are unused; only the quality gate routes).
     """
     ds = CachedExpertDataset(cache_dir)
     trainer, meta = load_trained_model(checkpoint, device=device)
@@ -97,6 +104,7 @@ def evaluate_cache(
         trainer.gate.tau = float(tau)
         meta = {**meta, "gate_tau": float(tau), "gate_tau_overridden": True}
     trainer.model.eval()
+    gate_tau = float(trainer.gate.tau)
 
     cascade, moss, expensive = [], [], []
     n_esc = 0
@@ -107,15 +115,22 @@ def evaluate_cache(
         for start in range(0, len(order), batch_size):
             items = [ds[i] for i in order[start : start + batch_size]]
             batch = _collate_train_batch(items)
-            out = trainer.forward_batch(batch, compute_loss=False)
-            est = out.estimates.cpu().numpy()
             moss_np = batch.moss_streams.cpu().numpy()
             sr_np = batch.sr_streams.cpu().numpy()
             mix_np = batch.mixture.cpu().numpy()
             ref_np = batch.references.cpu().numpy()
             counts = batch.true_count.cpu().numpy().astype(int)
 
-            n_esc += int(out.escalated_mask.sum().item())
+            if sr_primary:
+                # Route on the quality gate; escalated -> raw SR-CorrNet, else moss.
+                quality = batch.quality_scores_db.cpu().numpy().reshape(-1)
+                esc = quality < gate_tau
+                est = np.where(esc[:, None, None], sr_np, moss_np)
+                n_esc += int(esc.sum())
+            else:
+                out = trainer.forward_batch(batch, compute_loss=False)
+                est = out.estimates.cpu().numpy()
+                n_esc += int(out.escalated_mask.sum().item())
             n_total += est.shape[0]
 
             for b in range(est.shape[0]):
@@ -141,6 +156,7 @@ def evaluate_cache(
         "best_single_expert": best_single_name,
         "cascade_minus_best_single_db": cascade_m - best_single,
         "cascade_beats_single_expert": bool(cascade_m > best_single),  # P2-INT4 verdict
+        "mode": "sr_primary" if sr_primary else "fusion",
         **meta,
     }
     return report
@@ -159,10 +175,20 @@ def main() -> None:
         default=None,
         help="Override the gate threshold (re-scores the same checkpoint; lower = more escalation)",
     )
+    p.add_argument(
+        "--sr-primary",
+        action="store_true",
+        help="Bypass fusion: escalated -> raw SR-CorrNet, else MossFormer2 (no retrain)",
+    )
     args = p.parse_args()
 
     report = evaluate_cache(
-        args.cache_dir, args.checkpoint, args.device, args.batch_size, tau=args.tau
+        args.cache_dir,
+        args.checkpoint,
+        args.device,
+        args.batch_size,
+        tau=args.tau,
+        sr_primary=args.sr_primary,
     )
     print(json.dumps(report, indent=2))
     if args.report:

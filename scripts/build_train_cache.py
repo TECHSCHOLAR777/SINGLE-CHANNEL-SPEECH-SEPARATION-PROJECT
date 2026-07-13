@@ -329,6 +329,11 @@ def build_cache(args: argparse.Namespace) -> dict:
             moss_streams = _crop_or_pad(moss_streams, seg_len)
 
             stage = "srcorrnet"
+            # Target the sample's TRUE speaker count so the variable-N model
+            # (e.g. var-2-5spk) separates into n_true streams rather than a
+            # fixed K; _fit_k then pads/truncates to the cache's fixed K. On a
+            # single-N run n_true == k, so this is a no-op there.
+            expensive.num_speakers = n_true
             exp_res = expensive.separate(mixture, sr_target)
             sr_streams = _fit_k(exp_res.streams.astype(np.float32), k)
             sr_streams = _crop_or_pad(sr_streams, seg_len)
@@ -405,6 +410,8 @@ def build_cache(args: argparse.Namespace) -> dict:
         "n_written": n_written,
         "n_skipped": n_skipped,
         "target_speakers": k,
+        "allowed_n": args.allowed_n,
+        "srcorrnet_hf_model": args.srcorrnet_hf_model,
         "segment_seconds": args.segment_seconds,
         "sample_rate": sr_target,
         "expensive_expert": type(expensive).__name__,

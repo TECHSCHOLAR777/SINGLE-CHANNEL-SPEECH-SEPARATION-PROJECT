@@ -250,26 +250,45 @@ class CAMoSETrainer:
         )
 
 
+def _pad_speaker_axis(t: torch.Tensor, k: int) -> torch.Tensor:
+    """Zero-pad a [N, ...] tensor along its speaker axis (dim 0) up to k rows.
+
+    Mixed-N caches store references / reference embeddings at each sample's true
+    speaker count (2..5), while moss/sr streams are already padded to a fixed K.
+    Padding references to that K lets a batch stack; the SI-SDR / count losses
+    use true_count so the zero pads are never scored as real speakers.
+    """
+    n = t.shape[0]
+    if n >= k:
+        return t
+    pad = torch.zeros((k - n, *t.shape[1:]), dtype=t.dtype)
+    return torch.cat([t, pad], dim=0)
+
+
 def _collate_train_batch(items: list[TrainBatch]) -> TrainBatch:
-    """Stack a list of single-sample TrainBatch objects."""
+    """Stack a list of single-sample TrainBatch objects (references padded to K)."""
+    k = max(x.moss_streams.shape[0] for x in items)
+    k = max(k, max(x.references.shape[0] for x in items))
+    has_stream_emb = items[0].stream_embeddings is not None
+    has_ref_emb = items[0].reference_embeddings is not None
     return TrainBatch(
         mixture=torch.stack([x.mixture for x in items]),
-        references=torch.stack([x.references for x in items]),
+        references=torch.stack([_pad_speaker_axis(x.references, k) for x in items]),
         true_count=torch.stack([x.true_count for x in items]),
         trivial_mask=torch.stack([x.trivial_mask for x in items]),
-        moss_streams=torch.stack([x.moss_streams for x in items]),
-        sr_streams=torch.stack([x.sr_streams for x in items]),
+        moss_streams=torch.stack([_pad_speaker_axis(x.moss_streams, k) for x in items]),
+        sr_streams=torch.stack([_pad_speaker_axis(x.sr_streams, k) for x in items]),
         quality_scores_db=torch.stack([x.quality_scores_db for x in items]),
-        sr_confidence=torch.stack([x.sr_confidence for x in items]),
-        moss_mask_entropy=torch.stack([x.moss_mask_entropy for x in items]),
+        sr_confidence=torch.stack([_pad_speaker_axis(x.sr_confidence, k) for x in items]),
+        moss_mask_entropy=torch.stack([_pad_speaker_axis(x.moss_mask_entropy, k) for x in items]),
         stream_embeddings=(
-            torch.stack([x.stream_embeddings for x in items])
-            if items[0].stream_embeddings is not None
+            torch.stack([_pad_speaker_axis(x.stream_embeddings, k) for x in items])
+            if has_stream_emb
             else None
         ),
         reference_embeddings=(
-            torch.stack([x.reference_embeddings for x in items])
-            if items[0].reference_embeddings is not None
+            torch.stack([_pad_speaker_axis(x.reference_embeddings, k) for x in items])
+            if has_ref_emb
             else None
         ),
     )
@@ -441,7 +460,7 @@ def main() -> None:
         from train.cached_dataset import cached_train_loader
 
         loader = cached_train_loader(args.cache_dir, batch_size=args.batch_size, shuffle=True)
-        print(f"training on cache {args.cache_dir} ({len(loader.dataset)} samples)")
+        print(f"training on cache {args.cache_dir} ({len(loader.dataset)} samples)", flush=True)
     else:
         loader = synth_train_loader(
             n_samples=int(cfg_get(cfg, "training.synth_samples", 64)),
@@ -455,7 +474,10 @@ def main() -> None:
         history.append(
             {"epoch": epoch, "loss": metrics.loss, "escalation_rate": metrics.escalation_rate}
         )
-        print(f"epoch {epoch}: loss={metrics.loss:.4f} escalation={metrics.escalation_rate:.2%}")
+        print(
+            f"epoch {epoch}: loss={metrics.loss:.4f} escalation={metrics.escalation_rate:.2%}",
+            flush=True,  # unbuffered so per-epoch progress shows live in a Jupyter cell
+        )
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)

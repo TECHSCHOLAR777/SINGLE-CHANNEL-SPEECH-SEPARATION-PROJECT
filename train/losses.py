@@ -8,12 +8,12 @@ null-sparsity, residual regularization, and speaker-consistency (ArcFace).
 
 from __future__ import annotations
 
-import itertools
 from dataclasses import dataclass, field
 
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from scipy.optimize import linear_sum_assignment
 
 from models.router import load_balance_loss, null_sparsity_loss
 
@@ -71,17 +71,47 @@ def neg_si_sdr(estimate: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     return -si_sdr_db
 
 
-def pit_si_sdr_loss(estimates: torch.Tensor, references: torch.Tensor) -> torch.Tensor:
+def _pairwise_neg_si_sdr(est: torch.Tensor, ref: torch.Tensor) -> torch.Tensor:
+    """
+    Full [K, K] matrix of negative SI-SDR for every (estimate i, reference j).
+
+    Vectorized — no Python loop over pairs — so the PIT cost matrix is built in
+    a couple of tensor ops rather than one call per pair.
+    """
+    est = est - est.mean(dim=-1, keepdim=True)
+    ref = ref - ref.mean(dim=-1, keepdim=True)
+    e = est.unsqueeze(1)  # [K, 1, T]
+    r = ref.unsqueeze(0)  # [1, K, T]
+    ref_energy = (r * r).sum(dim=-1).clamp_min(_EPS)  # [1, K]
+    scale = (e * r).sum(dim=-1) / ref_energy  # [K, K]
+    target = scale.unsqueeze(-1) * r  # [K, K, T]
+    residual = e - target
+    num = (target * target).sum(dim=-1)  # [K, K]
+    den = (residual * residual).sum(dim=-1).clamp_min(_EPS)
+    return -(10.0 * torch.log10((num + _EPS) / den))
+
+
+def pit_si_sdr_loss(
+    estimates: torch.Tensor,
+    references: torch.Tensor,
+    true_counts: torch.Tensor | None = None,
+) -> torch.Tensor:
     """
     Utterance-level permutation-invariant negative SI-SDR loss.
 
-    Enumerates permutations (feasible for K <= 5) and picks the assignment
-    with lowest loss per batch item. Permutation selection is detached so
-    gradients flow only through the chosen assignment.
+    Uses a Hungarian assignment on the [K, K] pairwise-SI-SDR cost matrix per
+    item — O(K^3), the SAME optimum as brute-force permutation search but
+    without the O(K!) blowup (5! = 120 perms, each with a GPU->CPU .item() sync,
+    made a mixed 2-5 speaker training run take hours). The assignment is chosen
+    on detached costs; gradients flow only through the selected pairs.
 
     Args:
         estimates: [B, K_est, T].
         references: [B, K_ref, T].
+        true_counts: Optional [B] real speaker count per item. In a mixed-N
+            batch, references beyond a sample's true count are zero pads; scoring
+            them explodes SI-SDR (energy ~0 -> huge negative dB). When provided,
+            each item is scored only over its first true_count speakers.
 
     Returns:
         Scalar mean loss across the batch.
@@ -93,22 +123,18 @@ def pit_si_sdr_loss(estimates: torch.Tensor, references: torch.Tensor) -> torch.
     if references.shape[0] != b or references.shape[2] != t:
         raise ValueError("batch/time dimensions must match between estimates and references")
 
-    k = min(k_est, k_ref)
+    k_full = min(k_est, k_ref)
     losses: list[torch.Tensor] = []
     for batch_idx in range(b):
+        k = k_full
+        if true_counts is not None:
+            k = int(min(int(true_counts[batch_idx].item()), k_full))
+            k = max(k, 1)
         est = estimates[batch_idx, :k]
         ref = references[batch_idx, :k]
-        best_perm: tuple[int, ...] | None = None
-        best_val = float("inf")
-        for perm in itertools.permutations(range(k)):
-            perm_loss = torch.stack([neg_si_sdr(est[perm[i]], ref[i]) for i in range(k)]).mean()
-            val = float(perm_loss.detach().item())
-            if val < best_val:
-                best_val = val
-                best_perm = perm
-        assert best_perm is not None
-        chosen = torch.stack([neg_si_sdr(est[best_perm[i]], ref[i]) for i in range(k)]).mean()
-        losses.append(chosen)
+        cost = _pairwise_neg_si_sdr(est, ref)  # [k, k], differentiable
+        rows, cols = linear_sum_assignment(cost.detach().cpu().numpy())
+        losses.append(cost[rows, cols].mean())
     return torch.stack(losses).mean()
 
 
@@ -299,7 +325,7 @@ class CompositeLoss(nn.Module):
         Returns:
             LossBreakdown with total weighted loss and per-term values.
         """
-        l_si_sdr = pit_si_sdr_loss(estimates, references)
+        l_si_sdr = pit_si_sdr_loss(estimates, references, true_counts=true_counts)
         l_mrstft = self.mrstft(estimates, references)
         l_count = count_bce_loss(count_logits, true_counts)
         l_lb = load_balance_loss(router_weights)

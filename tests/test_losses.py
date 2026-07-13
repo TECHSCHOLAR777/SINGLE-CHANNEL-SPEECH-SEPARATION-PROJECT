@@ -120,3 +120,19 @@ def test_router_aux_losses_match_exports() -> None:
     trivial = (torch.rand(3, 5) > 0.5).float()
     assert load_balance_loss(w).ndim == 0
     assert null_sparsity_loss(w, trivial, null_index=2).ndim == 0
+
+
+def test_pit_si_sdr_true_counts_ignores_zero_pads() -> None:
+    # Mixed-N batch: item 0 has 2 real speakers + a zero pad, item 1 has 3.
+    # Scoring the zero pad would explode SI-SDR; true_counts must exclude it.
+    torch.manual_seed(0)
+    t = 512
+    est = torch.randn(2, 3, t)
+    ref = est.clone()
+    ref[0, 2] = 0.0  # zero-pad the 3rd reference of the 2-speaker item
+    est[0, 2] = torch.randn(t)  # non-zero estimate in the padded slot
+    counts = torch.tensor([2, 3])
+    loss_masked = pit_si_sdr_loss(est, ref, true_counts=counts)
+    loss_unmasked = pit_si_sdr_loss(est, ref)  # scores the zero pad -> huge
+    assert torch.isfinite(loss_masked)
+    assert float(loss_masked) < float(loss_unmasked)  # pad no longer dominates
