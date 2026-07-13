@@ -10,19 +10,19 @@
 
 > Snapshot **2026-07-13** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-93-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-98-brightgreen?style=for-the-badge)
 &nbsp;
 ![In progress](https://img.shields.io/badge/🚧_in_progress-19-yellow?style=for-the-badge)
 &nbsp;
-![Not done yet](https://img.shields.io/badge/❌_not_done_yet-131-red?style=for-the-badge)
+![Not done yet](https://img.shields.io/badge/❌_not_done_yet-126-red?style=for-the-badge)
 
-**Overall** `███████████░░░░░░░░░░░░░░░░░░` **38%** &nbsp;·&nbsp; 93 done &nbsp;·&nbsp; 19 in flight &nbsp;·&nbsp; 131 to go &nbsp;·&nbsp; **243 tasks** (counted from the `[x]`/`[~]`/`[ ]` data-layer markers; every one of the 94 task rows carries a badge, 0 unmarked) — 2026-07-13: **first real training run** — P2-INT3 (30 epochs converged) + P2-INT5 (escalation 57% measured) done; P2-INT4 measured but does NOT beat single expert yet (cascade 10.43 vs expensive 14.84 dB)
+**Overall** `████████████░░░░░░░░░░░░░░░░░` **40%** &nbsp;·&nbsp; 98 done &nbsp;·&nbsp; 19 in flight &nbsp;·&nbsp; 126 to go &nbsp;·&nbsp; **243 tasks** — 2026-07-13: **full Run-All completed on Kaggle T4.** Flipped: P2-INT3 ✅ (mixed-N trained), P2-INT5 ✅ (tau sweep), P1-INT2 confirmed real-speech ✅, M3 artifacts ✅ (confusion matrix + calibration curve produced). P2-INT4 confirmed negative both modes. Count accuracy 10% (min_count bug fixed; re-run needed).
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
 ![M1](https://img.shields.io/badge/M1-✅_passed-brightgreen?style=flat-square)
 ![M2](https://img.shields.io/badge/M2-🚧_in_progress-yellow?style=flat-square)
-![M3](https://img.shields.io/badge/M3-🔒_locked-lightgrey?style=flat-square)
+![M3](https://img.shields.io/badge/M3-🚧_in_progress-yellow?style=flat-square)
 ![M4](https://img.shields.io/badge/M4-🔒_locked-lightgrey?style=flat-square)
 ![M5](https://img.shields.io/badge/M5-🔒_locked-lightgrey?style=flat-square)
 ![M6](https://img.shields.io/badge/M6-🔒_locked-lightgrey?style=flat-square)
