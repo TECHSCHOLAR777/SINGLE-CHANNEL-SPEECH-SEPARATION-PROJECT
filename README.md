@@ -10,13 +10,13 @@
 
 > Snapshot **2026-07-13** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-90-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-91-brightgreen?style=for-the-badge)
 &nbsp;
 ![In progress](https://img.shields.io/badge/🚧_in_progress-19-yellow?style=for-the-badge)
 &nbsp;
-![Not done yet](https://img.shields.io/badge/❌_not_done_yet-134-red?style=for-the-badge)
+![Not done yet](https://img.shields.io/badge/❌_not_done_yet-133-red?style=for-the-badge)
 
-**Overall** `███████████░░░░░░░░░░░░░░░░░░` **37%** &nbsp;·&nbsp; 90 done &nbsp;·&nbsp; 19 in flight &nbsp;·&nbsp; 134 to go &nbsp;·&nbsp; **243 tasks** (counted from the `[x]`/`[~]`/`[ ]` data-layer markers; every one of the 94 task rows carries a badge, 0 unmarked) — P1-INT2 flipped to done 2026-07-13 (identity lock proven in CI)
+**Overall** `███████████░░░░░░░░░░░░░░░░░░` **37%** &nbsp;·&nbsp; 91 done &nbsp;·&nbsp; 19 in flight &nbsp;·&nbsp; 133 to go &nbsp;·&nbsp; **243 tasks** (counted from the `[x]`/`[~]`/`[ ]` data-layer markers; every one of the 94 task rows carries a badge, 0 unmarked) — 2026-07-13: P1-INT2 done (identity lock proven in CI) and P2-INT1 done (training-loop PR reviewed + merged, #22); M1 fully passed
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
