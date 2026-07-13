@@ -44,8 +44,10 @@ def _synthetic_sample(seed: int, k: int = K, n: int = K, t: int = T) -> dict:
     mixture = refs.sum(axis=0)
     moss = refs + rng.normal(0, 0.02, size=(k, t)).astype(np.float32)
     sr_streams = refs + rng.normal(0, 0.01, size=(k, t)).astype(np.float32)
-    emb = rng.normal(size=(k, 64)).astype(np.float32)
-    ref_emb = emb + rng.normal(0, 0.05, size=(n, 64)).astype(np.float32)
+    # 192-dim: matches real ECAPA-TDNN output (speechbrain/spkrec-ecapa-voxceleb)
+    # and CompositeLoss's real default embedding_dim.
+    emb = rng.normal(size=(k, 192)).astype(np.float32)
+    ref_emb = emb + rng.normal(0, 0.05, size=(n, 192)).astype(np.float32)
     return make_sample_dict(
         mixture=torch.from_numpy(mixture),
         references=torch.from_numpy(refs),
@@ -84,7 +86,7 @@ def test_cache_roundtrip_shapes(tmp_path):
     assert batch.moss_streams.shape == (K, T)
     assert batch.sr_streams.shape == (K, T)
     assert batch.mixture.dtype == torch.float32  # promoted back from fp16
-    assert batch.stream_embeddings is not None and batch.stream_embeddings.shape == (K, 64)
+    assert batch.stream_embeddings is not None and batch.stream_embeddings.shape == (K, 192)
 
 
 def test_train_step_moves_params(tmp_path):
