@@ -257,6 +257,7 @@ def _stream_embeddings(result) -> np.ndarray | None:
 def build_cache(args: argparse.Namespace) -> dict:
     from models.experts.embeddings import ECAPAEmbedder
     from models.experts.mossformer2 import MossFormer2Expert
+    from models.experts.mossformer2_3spk import MossFormer2ThreeSpkExpert
     from models.experts.srcorrnet import SRCorrNetExpert
     from models.realm_quality import REALMQualityEstimator
 
@@ -277,7 +278,15 @@ def build_cache(args: argparse.Namespace) -> dict:
     if not samples:
         raise RuntimeError("No mixtures loaded — check the source arguments.")
 
-    moss = MossFormer2Expert(device=device, compute_embeddings=True, target_speakers=k)
+    # Cheap expert. The default is the 2-speaker MossFormer2_SS_16K residual-
+    # padded to K (only ~8 dB on 3+ spk mixtures — the reason the cascade cannot
+    # beat the single expert on quality). --cheap-expert mossformer2_3spk swaps
+    # in the genuine 3-speaker WSJ0-3mix checkpoint, which emits 3 real streams
+    # (then residual/zero-padded to K by _fit_k when K>3).
+    if args.cheap_expert == "mossformer2_3spk":
+        moss = MossFormer2ThreeSpkExpert(device=device, compute_embeddings=True)
+    else:
+        moss = MossFormer2Expert(device=device, compute_embeddings=True, target_speakers=k)
     # SR-CorrNet strictly — no SepFormer/TF-GridNet fallback.
     expensive = SRCorrNetExpert(
         device=device,
@@ -414,6 +423,7 @@ def build_cache(args: argparse.Namespace) -> dict:
         "srcorrnet_hf_model": args.srcorrnet_hf_model,
         "segment_seconds": args.segment_seconds,
         "sample_rate": sr_target,
+        "cheap_expert": type(moss).__name__,
         "expensive_expert": type(expensive).__name__,
         "source": args.librimix_root or args.dynamic_source_glob,
         "subset": args.subset,
@@ -435,6 +445,16 @@ def build_parser() -> argparse.ArgumentParser:
     src.add_argument("--limit", type=int, default=None, help="Cap number of mixtures")
 
     exp = p.add_argument_group("experts")
+    exp.add_argument(
+        "--cheap-expert",
+        choices=["mossformer2", "mossformer2_3spk"],
+        default="mossformer2",
+        help=(
+            "Cheap expert. 'mossformer2' = 2-spk MossFormer2_SS_16K residual-padded "
+            "(default, weak on 3+ spk). 'mossformer2_3spk' = genuine 3-spk WSJ0-3mix "
+            "checkpoint (alibabasglab/mossformer2-wsj0mix-3spk)."
+        ),
+    )
     exp.add_argument("--target-speakers", type=int, default=3)
     exp.add_argument("--srcorrnet-repo", default=None, help="Local SR_CorrNet_SS clone (optional)")
     exp.add_argument("--srcorrnet-checkpoint", default=None, help="Local checkpoint (optional)")

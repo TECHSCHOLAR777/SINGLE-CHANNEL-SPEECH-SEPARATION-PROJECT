@@ -76,12 +76,17 @@ class MossFormer2ThreeSpkExpert:
         hf_model_id: str = DEFAULT_HF_MODEL,
         model_sample_rate: int = 8000,
         local_dir: str | Path | None = None,
+        compute_embeddings: bool = True,
+        embedder_savedir: str | None = None,
     ) -> None:
         self.device = torch.device(device)
         self.hf_model_id = hf_model_id
         self.model_sample_rate = int(model_sample_rate)
         self.local_dir = Path(local_dir) if local_dir else None
+        self.compute_embeddings = compute_embeddings
+        self._embedder_savedir = embedder_savedir
         self._model: torch.nn.Module | None = None
+        self._embedder: object | None = None
 
     @property
     def is_available(self) -> bool:
@@ -187,7 +192,7 @@ class MossFormer2ThreeSpkExpert:
             )
             for i in range(streams.shape[0])
         ]
-        return SeparationResult(
+        result = SeparationResult(
             streams=streams,
             sample_rate=PROJECT_SAMPLE_RATE,
             speaker_count=streams.shape[0],
@@ -196,6 +201,15 @@ class MossFormer2ThreeSpkExpert:
             escalated=False,
             expert_used=self.EXPERT_NAME,
         )
+
+        if self.compute_embeddings:
+            from models.experts.embeddings import ECAPAEmbedder, attach_ecapa_embeddings
+
+            if self._embedder is None:
+                self._embedder = ECAPAEmbedder(device=self.device, savedir=self._embedder_savedir)
+            result = attach_ecapa_embeddings(result, embedder=self._embedder)
+
+        return result
 
 
 def _clean_state(state: dict) -> dict:

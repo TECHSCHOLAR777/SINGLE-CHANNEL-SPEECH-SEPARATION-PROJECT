@@ -146,6 +146,7 @@ def build_mixed(pool, out, limit):
         sys.executable, "-m", "scripts.build_train_cache",
         "--dynamic-source-glob", f"{pool}/*.flac",
         "--allowed-n", "2", "3", "4", "5", "--target-speakers", "5",
+        "--cheap-expert", "mossformer2_3spk",
         "--limit", str(limit), "--segment-seconds", "3.0",
         "--device", "cuda", "--out-dir", out, "--shard-size", "128",
         "--srcorrnet-hf-model", MIXED_HF_MODEL,

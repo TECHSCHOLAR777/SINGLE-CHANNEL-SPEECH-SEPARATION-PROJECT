@@ -18,6 +18,7 @@ def test_default_config() -> None:
     assert expert.hf_model_id == DEFAULT_HF_MODEL
     assert expert.model_sample_rate == 8000
     assert expert.MAX_SPEAKERS == 3
+    assert expert.compute_embeddings is True
 
 
 def test_fix_length_crops_and_pads() -> None:
@@ -38,7 +39,8 @@ def test_separate_shape_with_mocked_model(monkeypatch) -> None:
     t = 16000
     mixture = np.random.randn(t).astype(np.float32)
 
-    expert = MossFormer2ThreeSpkExpert(device="cpu")
+    # compute_embeddings=False so the shape test stays offline (no ECAPA load).
+    expert = MossFormer2ThreeSpkExpert(device="cpu", compute_embeddings=False)
 
     # Mock the loaded model: returns a list of 3 streams at the 8 kHz model rate.
     def fake_forward(wav_t):
