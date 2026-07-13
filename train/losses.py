@@ -71,7 +71,11 @@ def neg_si_sdr(estimate: torch.Tensor, reference: torch.Tensor) -> torch.Tensor:
     return -si_sdr_db
 
 
-def pit_si_sdr_loss(estimates: torch.Tensor, references: torch.Tensor) -> torch.Tensor:
+def pit_si_sdr_loss(
+    estimates: torch.Tensor,
+    references: torch.Tensor,
+    true_counts: torch.Tensor | None = None,
+) -> torch.Tensor:
     """
     Utterance-level permutation-invariant negative SI-SDR loss.
 
@@ -82,6 +86,10 @@ def pit_si_sdr_loss(estimates: torch.Tensor, references: torch.Tensor) -> torch.
     Args:
         estimates: [B, K_est, T].
         references: [B, K_ref, T].
+        true_counts: Optional [B] real speaker count per item. In a mixed-N
+            batch, references beyond a sample's true count are zero pads; scoring
+            them explodes SI-SDR (energy ~0 -> huge negative dB). When provided,
+            each item is scored only over its first true_count speakers.
 
     Returns:
         Scalar mean loss across the batch.
@@ -93,9 +101,13 @@ def pit_si_sdr_loss(estimates: torch.Tensor, references: torch.Tensor) -> torch.
     if references.shape[0] != b or references.shape[2] != t:
         raise ValueError("batch/time dimensions must match between estimates and references")
 
-    k = min(k_est, k_ref)
+    k_full = min(k_est, k_ref)
     losses: list[torch.Tensor] = []
     for batch_idx in range(b):
+        k = k_full
+        if true_counts is not None:
+            k = int(min(int(true_counts[batch_idx].item()), k_full))
+            k = max(k, 1)
         est = estimates[batch_idx, :k]
         ref = references[batch_idx, :k]
         best_perm: tuple[int, ...] | None = None
@@ -299,7 +311,7 @@ class CompositeLoss(nn.Module):
         Returns:
             LossBreakdown with total weighted loss and per-term values.
         """
-        l_si_sdr = pit_si_sdr_loss(estimates, references)
+        l_si_sdr = pit_si_sdr_loss(estimates, references, true_counts=true_counts)
         l_mrstft = self.mrstft(estimates, references)
         l_count = count_bce_loss(count_logits, true_counts)
         l_lb = load_balance_loss(router_weights)

@@ -23,6 +23,7 @@ from scripts.build_train_cache import (
 )
 from train.cached_dataset import (
     CachedExpertDataset,
+    _sample_to_batch,
     cached_train_loader,
     make_sample_dict,
     save_cache_shard,
@@ -37,17 +38,19 @@ T = 12000  # 0.75 s — small but real segment
 def _synthetic_sample(seed: int, k: int = K, n: int = K, t: int = T) -> dict:
     rng = np.random.default_rng(seed)
     time = np.arange(t, dtype=np.float32) / SR
-    refs = np.stack(
-        [np.sin(2 * np.pi * f * time).astype(np.float32) for f in (300.0, 500.0, 700.0)[:n]],
-        axis=0,
-    )
+    freqs = (300.0, 500.0, 700.0, 900.0, 1100.0)[:n]
+    refs = np.stack([np.sin(2 * np.pi * f * time).astype(np.float32) for f in freqs], axis=0)
     mixture = refs.sum(axis=0)
-    moss = refs + rng.normal(0, 0.02, size=(k, t)).astype(np.float32)
-    sr_streams = refs + rng.normal(0, 0.01, size=(k, t)).astype(np.float32)
+    # Cheap/expensive streams have k slots; first n carry the real speakers,
+    # the rest are (near-zero) pads — mirrors residual/zero padding for n < k.
+    refs_k = refs if n >= k else np.concatenate([refs, np.zeros((k - n, t), np.float32)], axis=0)
+    refs_k = refs_k[:k]
+    moss = refs_k + rng.normal(0, 0.02, size=(k, t)).astype(np.float32)
+    sr_streams = refs_k + rng.normal(0, 0.01, size=(k, t)).astype(np.float32)
     # 192-dim: matches real ECAPA-TDNN output (speechbrain/spkrec-ecapa-voxceleb)
     # and CompositeLoss's real default embedding_dim.
     emb = rng.normal(size=(k, 192)).astype(np.float32)
-    ref_emb = emb + rng.normal(0, 0.05, size=(n, 192)).astype(np.float32)
+    ref_emb = emb[:n] + rng.normal(0, 0.05, size=(n, 192)).astype(np.float32)
     return make_sample_dict(
         mixture=torch.from_numpy(mixture),
         references=torch.from_numpy(refs),
@@ -159,3 +162,16 @@ def test_evaluate_cache_untrained_reports(tmp_path):
     for k in ("cascade", "mossformer2", "expensive"):
         assert np.isfinite(report["si_sdri_db"][k])
     assert isinstance(report["cascade_beats_single_expert"], bool)
+
+
+def test_collate_pads_variable_speaker_references():
+    # Mixed-N: samples with 2 and 4 references must collate into one batch.
+    from train.trainer import _collate_train_batch
+
+    def _mk(n):
+        return _sample_to_batch(_synthetic_sample(seed=n, k=5, n=n))
+
+    batch = _collate_train_batch([_mk(2), _mk(4)])
+    assert batch.references.shape == (2, 5, T)  # padded to K=5
+    assert batch.reference_embeddings.shape == (2, 5, 192)
+    assert batch.true_count.tolist() == [2.0, 4.0]  # real counts preserved
