@@ -118,7 +118,10 @@ class CAMoSETrainer:
     ) -> None:
         self.model = model.to(device)
         self.gate = gate
-        self.loss_fn = loss_fn
+        # CompositeLoss is an nn.Module with real params (SpeakerConsistencyLoss's
+        # projection layer) — left on CPU it raises "mat2 is on cpu" the moment
+        # the speaker loss runs on CUDA-moved embeddings.
+        self.loss_fn = loss_fn.to(device)
         self.device = torch.device(device)
         self.tf_expert_index = tf_expert_index
         self.optimizer = torch.optim.AdamW(self.model.parameters(), lr=lr)
