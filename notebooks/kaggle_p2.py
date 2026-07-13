@@ -13,9 +13,8 @@
 #   5. re-runs `scripts/validate_alignment.py` against the *padded* expert to
 #      close P1-INT2 (`expert_covers_all_speakers`)
 #
-# The expensive expert is SR-CorrNet if you point `SRCORRNET_REPO` /
-# `SRCORRNET_CKPT` at your weights; otherwise it auto-falls back to SepFormer
-# (`sepformer-wsj03mix`) so the whole notebook still runs end to end.
+# The expensive expert is SR-CorrNet-SS strictly (no SepFormer fallback), loaded
+# from the HF Hub. Cells 8–10 add the MIXED 2–5 speaker P2-INT4 attempt.
 #
 # Kaggle notes for a first-timer: turn on **Settings → Accelerator: GPU T4 x2**
 # and **Settings → Internet: On**. Outputs land in `/kaggle/working`, which is
@@ -237,3 +236,89 @@ get_ipython().system(f"du -sh {WORK}/cache {WORK}/outputs 2>/dev/null")  # noqa:
 # Uncomment to drop the cache from the saved output (rebuild next session):
 # get_ipython().system(f"rm -rf {WORK}/cache")
 print("Done. Copy the printed P2-INT4 verdict and P1 alignment JSON back to Parv.")
+
+# %% [markdown]
+# ## Cell 8 — MIXED-N cache (2–5 speakers) — the real P2-INT4 regime
+#
+# The clean all-3-speaker run showed the cascade cannot beat SR-CorrNet at any
+# tau (even 100% escalation plateaued below it) — the cheap 2-speaker model has
+# nothing to add on 3-spk, and the fusion can't improve an already-strong
+# expert on clean audio. P2-INT4 ("beats best single expert on **mixed-
+# condition** validation") needs the regime it was written for:
+#   * mixed 2–5 speaker counts — SR-CorrNet var-2-5spk still runs, but the cheap
+#     expert is genuinely competent on the 2-spk cases, so routing matters;
+#   * cache K = 5 (max), each sample padded to 5, true_count kept per sample.
+#
+# This rebuilds train/dev caches with `--allowed-n 2 3 4 5 --target-speakers 5`
+# and the var-2-5spk expensive model. Slower than the 3-spk build (5-speaker
+# separation); resume is on, so a dropped session re-runs `build_mixed` safely.
+
+# %%
+MIXED_HF_MODEL = "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"
+
+
+def build_mixed(pool, out, limit):
+    cmd = [
+        sys.executable, "-m", "scripts.build_train_cache",
+        "--dynamic-source-glob", f"{pool}/*.flac",
+        "--allowed-n", "2", "3", "4", "5",
+        "--target-speakers", "5",
+        "--limit", str(limit), "--segment-seconds", "3.0",
+        "--device", "cuda", "--out-dir", out, "--shard-size", "128",
+        "--srcorrnet-hf-model", MIXED_HF_MODEL,
+    ]
+    print(" ".join(cmd))
+    subprocess.run(cmd, check=True)
+
+
+build_mixed(TRAIN_POOL, f"{WORK}/cache_mixed/train", 500)
+build_mixed(DEV_POOL, f"{WORK}/cache_mixed/dev", 100)
+get_ipython().system(f"cat {WORK}/cache_mixed/train/manifest.json")  # noqa: F821
+
+# %% [markdown]
+# ## Cell 9 — train the cascade on the mixed-N cache
+# Same trainer; the count head (max_speakers=5) and fusion are already K-agnostic.
+
+# %%
+subprocess.run(
+    [
+        sys.executable, "-m", "train.trainer",
+        "--cache-dir", f"{WORK}/cache_mixed/train",
+        "--val-cache-dir", f"{WORK}/cache_mixed/dev",
+        "--epochs", "30", "--batch-size", "8", "--device", "cuda",
+        "--output", f"{WORK}/outputs/training_mixed/checkpoint.pt",
+    ],
+    check=True,
+)
+get_ipython().system(  # noqa: F821
+    f"cat {WORK}/outputs/training_mixed/checkpoint.json | python -m json.tool | tail -30"
+)
+
+# %% [markdown]
+# ## Cell 10 — the real P2-INT4 verdict + tau sweep on mixed-N
+# If `cascade_beats_single_expert` is true at any tau here, P2-INT4 passes.
+
+# %%
+import json as _json  # noqa: E402
+
+ckpt_mixed = f"{WORK}/outputs/training_mixed/checkpoint.pt"
+print(f"{'tau':>5} {'escal%':>7} {'cascade':>8} {'moss':>7} {'expensive':>10} {'beats?':>7}")
+best = None
+for tau in [6, 8, 10, 12, 14, 16, 20, 100]:
+    r = subprocess.run(
+        [sys.executable, "-m", "scripts.evaluate_cascade",
+         "--cache-dir", f"{WORK}/cache_mixed/dev", "--checkpoint", ckpt_mixed,
+         "--device", "cuda", "--tau", str(tau)],
+        capture_output=True, text=True,
+    )
+    d = _json.loads(r.stdout)
+    s = d["si_sdri_db"]
+    print(
+        f"{tau:>5} {d['escalation_rate']*100:>6.0f}% {s['cascade']:>8.2f} "
+        f"{s['mossformer2']:>7.2f} {s['expensive']:>10.2f} "
+        f"{str(d['cascade_beats_single_expert']):>7}"
+    )
+    if best is None or s["cascade"] > best[1]:
+        best = (tau, s["cascade"], d["cascade_beats_single_expert"])
+print(f"\nbest cascade: tau={best[0]} -> {best[1]:.2f} dB, beats_single_expert={best[2]}")
+print("Paste this whole table back to Parv.")
