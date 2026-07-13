@@ -175,3 +175,16 @@ def test_collate_pads_variable_speaker_references():
     assert batch.references.shape == (2, 5, T)  # padded to K=5
     assert batch.reference_embeddings.shape == (2, 5, 192)
     assert batch.true_count.tolist() == [2.0, 4.0]  # real counts preserved
+
+
+def test_evaluate_cache_sr_primary_bypasses_fusion(tmp_path):
+    from scripts.evaluate_cascade import evaluate_cache
+
+    _build_cache(tmp_path, n_samples=8, shard_size=4)
+    report = evaluate_cache(tmp_path, checkpoint=None, device="cpu", batch_size=4, sr_primary=True)
+    assert report["mode"] == "sr_primary"
+    assert np.isfinite(report["si_sdri_db"]["cascade"])
+    # In sr-primary the cascade is a route between the two raw experts, so it
+    # cannot exceed the better single expert's average.
+    best = max(report["si_sdri_db"]["mossformer2"], report["si_sdri_db"]["expensive"])
+    assert report["si_sdri_db"]["cascade"] <= best + 1e-6
