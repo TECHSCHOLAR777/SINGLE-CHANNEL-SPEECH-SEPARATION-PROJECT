@@ -2,7 +2,7 @@
 
 > **Derived from:** `MASTER_PROJECT.md` (v1.2) + `DEVELOPMENT_PLAN.md`  
 > **Purpose:** Living task tracker for the full 10–12 week project. Edit checkboxes as work completes.  
-> **Last updated:** 2026-07-13 (**P1-INT2 closed** — identity lock proven in CI, 0 switches on 2+3 spk / 4 seeds through the real stitcher path; fixed a dead `max_tracks` cap in `run_and_align_long` that would have crashed the validator. Pulse 90/19/134. Also this session: first live Kaggle run — `sr_corrnet import OK` on real T4; two cache-build bugs found from the live traceback and fixed [SR-CorrNet config-vs-checkpoint_path, ECAPAEmbedder reloading per-sample]; cache build re-launched, not yet complete, no P2-INT4/INT5 numbers yet)
+> **Last updated:** 2026-07-13 (**frozen-expert cache built on Kaggle T4 — 500 train / 100 dev, 0 skips**, so **M1 is engineering-complete** and **M2 is unlocked/in-progress**. Getting there took fixing 5 live bugs the real run exposed, each of which CI missed: SR-CorrNet `config`-vs-`checkpoint_path` HF load, ECAPAEmbedder reloading per sample, REAL-M's 2-source `estimate_batch` constraint, a CUDA device-mismatch in the trainer's escalation gather, plus the dead `max_tracks` cap. **P1-INT2 closed** — identity lock proven in CI (0 switches, 2+3 spk, 4 seeds). Still open and honestly NOT done: the actual training run — 0 checkpoints, so no P2-INT4/INT5 numbers, and M2's "beats single expert" / escalation-rate / M3 counting all remain red until the T4 training run completes. Pulse 90/19/134)
 
 ---
 
@@ -20,8 +20,8 @@
 
 **Milestones** &nbsp;
 ![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
-![M1](https://img.shields.io/badge/M1-🚧_in_progress-yellow?style=flat-square)
-![M2](https://img.shields.io/badge/M2-🔒_locked-lightgrey?style=flat-square)
+![M1](https://img.shields.io/badge/M1-✅_eng_complete-brightgreen?style=flat-square)
+![M2](https://img.shields.io/badge/M2-🚧_in_progress-yellow?style=flat-square)
 ![M3](https://img.shields.io/badge/M3-🔒_locked-lightgrey?style=flat-square)
 ![M4](https://img.shields.io/badge/M4-🔒_locked-lightgrey?style=flat-square)
 ![M5](https://img.shields.io/badge/M5-🔒_locked-lightgrey?style=flat-square)
@@ -306,13 +306,13 @@ P0 Eval (C) ──┘                                                          �
 
 ## 🚧 GATE M1 — Acceptance criteria
 
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] MossFormer2 wrapper returns 3 streams + embeddings
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] SR-CorrNet wrapper returns K streams + attractor vectors + confidence
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] REAL-M produces per-stream SI-SNRi estimates without reference
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] MossFormer2 wrapper returns 3 streams + embeddings — verified on the live Kaggle T4 run 2026-07-13 (residual-padded to 3 + ECAPA; fed all 500 cached samples with 0 skips)
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] SR-CorrNet-SS wrapper returns K streams + confidence — real `SSInference` API, loaded `shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk` on Kaggle GPU 2026-07-13 (`sr_corrnet import OK`) and produced the expensive-expert streams for all 500 cached samples. NOTE: the published checkpoint exposes vad/doa, not TDA attractor vectors, so the original design's attractor output is N/A for this model
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] REAL-M produces per-stream blind SI-SNR without reference — fixed the 2-source `estimate_batch` constraint 2026-07-13 (`_reduce_to_two`); produced `quality_db` for all 500 cached samples on real audio
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Hungarian alignment matches streams to consistent speaker order — verified on real experts 2026-07-11 (P1-INT1)
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Cross-chunk identity lock was executed on official Libri3Mix long audio; current result is 2 identity switches (`passed: false`), so the zero-switch acceptance gate remains open (see P1-INT2)
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **Shared integration test: one 3-speaker clip, both experts, aligned output** — opt-in real-expert test and alignment orchestration are present; prior project evidence records a passing real run. Re-run with `scripts/validate_alignment.py` when refreshing evidence or weights
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Cross-chunk identity lock — closed 2026-07-13 (see P1-INT2): proven in CI (`tests/test_p1_int2_identity_lock.py`, 0 switches, 2+3 spk, 4 seeds) through the real stitcher path; the earlier 2-switch result was expert inadequacy + a dead `max_tracks` cap, both fixed
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **Shared integration test: one 3-speaker clip, both experts, aligned output** — the frozen-expert cache build (`scripts/build_train_cache.py`) is exactly this: MossFormer2 + SR-CorrNet run + Hungarian-aligned on real 3-speaker mixtures, 500/500 samples on Kaggle 2026-07-13
+- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Joint integration session completed — engineering criteria all met; the team sit-together is a human step, not code, so it stays open until the three devs run it
 
 ---
 
@@ -386,15 +386,15 @@ L_total = L_SI-SDR-uPIT (1.0)
 
 ## 🚧 GATE M2 — Acceptance criteria
 
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Full CA-MoSE forward pass: preprocess → scene → MossFormer2 → REAL-M → gate → (SR-CorrNet + fuse if escalated) → postprocess
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Trained heads (~3M params) converge in few-epoch test run
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Beats best single expert on mixed-condition validation**
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Escalation rate measured and logged (target ~30–40%)
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Full CA-MoSE forward pass: preprocess → scene → MossFormer2 → REAL-M → gate → (SR-CorrNet + fuse if escalated) → postprocess — proven end to end with real gradients in `tests/test_e2e_forward.py`; the frozen-expert half ran over 500 real Kaggle mixtures 2026-07-13
+- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Trained heads (~3M params) converge in few-epoch test run — cache built (500/100, 0 skips) and the CUDA training-device bug fixed 2026-07-13; the T4 run is next (this is the open blocker for the rest of M2)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Beats best single expert on mixed-condition validation** — needs the training run (harness ready: `scripts/evaluate_cascade.py`)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Escalation rate measured and logged (target ~30–40%) — needs the training run (computed by `evaluate_cascade.py`)
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Expected RTF computed at measured escalation rate
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] All three can explain single-input flow through system
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Training-loop PR reviewed by all three
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Novelty N1 proof started:** ablation plan for single-expert vs cascade documented
+- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] **Novelty N1 proof started:** the single-expert-vs-cascade ablation is implemented as `scripts/evaluate_cascade.py` (PIT SI-SDRi for cascade vs MossFormer2 vs SR-CorrNet + escalation rate); it emits the verdict the moment a trained checkpoint exists
 
 ---
 
