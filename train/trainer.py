@@ -460,7 +460,7 @@ def main() -> None:
         from train.cached_dataset import cached_train_loader
 
         loader = cached_train_loader(args.cache_dir, batch_size=args.batch_size, shuffle=True)
-        print(f"training on cache {args.cache_dir} ({len(loader.dataset)} samples)")
+        print(f"training on cache {args.cache_dir} ({len(loader.dataset)} samples)", flush=True)
     else:
         loader = synth_train_loader(
             n_samples=int(cfg_get(cfg, "training.synth_samples", 64)),
@@ -474,7 +474,10 @@ def main() -> None:
         history.append(
             {"epoch": epoch, "loss": metrics.loss, "escalation_rate": metrics.escalation_rate}
         )
-        print(f"epoch {epoch}: loss={metrics.loss:.4f} escalation={metrics.escalation_rate:.2%}")
+        print(
+            f"epoch {epoch}: loss={metrics.loss:.4f} escalation={metrics.escalation_rate:.2%}",
+            flush=True,  # unbuffered so per-epoch progress shows live in a Jupyter cell
+        )
 
     out_path = Path(args.output)
     out_path.parent.mkdir(parents=True, exist_ok=True)
