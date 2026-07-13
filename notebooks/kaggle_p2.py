@@ -1,87 +1,84 @@
 # %% [markdown]
-# # CA-MoSE — P1 close + P2 first real training run (Kaggle T4)
+# # CA-MoSE — full P2 + P3 pipeline (Kaggle T4, Run All)
 #
-# One notebook, run top to bottom on Kaggle (GPU T4 x2, **Internet ON**). It:
-#   1. clones the repo (`parv` branch) and installs the frozen experts
-#   2. downloads LibriSpeech `dev-clean` and splits it into speaker-disjoint
-#      train / dev pools (no speaker leakage)
-#   3. builds the frozen-expert cache ONCE with `scripts/build_train_cache.py`
-#      (MossFormer2 padded to 3 + expensive expert Hungarian-aligned + REAL-M
-#      + ECAPA)
-#   4. trains the CA-MoSE heads on the cache and evaluates **cascade vs best
-#      single expert** (P2-INT3/INT4/INT5)
-#   5. re-runs `scripts/validate_alignment.py` against the *padded* expert to
-#      close P1-INT2 (`expert_covers_all_speakers`)
+# **This notebook runs top-to-bottom with `Save & Run All (Commit)`.** It builds
+# the mixed 2–5 speaker cache, trains the cascade, and produces every gate
+# artifact (P2-INT4 verdict, P1-INT2 identity lock, M3 confusion matrix +
+# calibration curve).
 #
-# The expensive expert is SR-CorrNet-SS strictly (no SepFormer fallback), loaded
-# from the HF Hub. Cells 8–10 add the MIXED 2–5 speaker P2-INT4 attempt.
+# ## Before you run — 3 one-time setup steps
+# 1. **Settings → Accelerator → GPU T4 ×2**
+# 2. **Settings → Internet → On**
+# 3. **Add-ons → Secrets → Add secret** named **`GH_TOKEN`** = a GitHub
+#    fine-grained PAT with **Contents: Read** on the private repo (the repo is
+#    private, so an anonymous clone fails without this).
 #
-# Kaggle notes for a first-timer: turn on **Settings → Accelerator: GPU T4 x2**
-# and **Settings → Internet: On**. Outputs land in `/kaggle/working`, which is
-# what Kaggle saves (keep it under the 20 GB cap — the cache trim cell handles
-# that).
+# Then hit **Save & Run All (Commit)**. First run is long (cache build + two
+# trainings, ~3–5 h) but everything is resumable and checkpointed under
+# `/kaggle/working`, which Kaggle saves.
+#
+# ## What each stage closes
+# | Cell | Produces | Gate |
+# |------|----------|------|
+# | 4    | mixed 2–5 spk frozen-expert cache | — |
+# | 5    | trained cascade checkpoint | P2-INT3 |
+# | 6    | cascade-vs-expert table (fusion + sr-primary) + escalation | P2-INT4/INT5 |
+# | 7–8  | stop-classifier + confusion matrix + calibration curve | M3 |
+# | 9    | cross-chunk identity lock on real speech | P1-INT2 |
 
 # %% [markdown]
-# ## Cell 1 — clone + install
-#
-# The CA-MoSE repo is **private**, so an anonymous clone fails. Add a GitHub
-# Personal Access Token as a Kaggle Secret named `GH_TOKEN` before running this
-# cell: **Add-ons → Secrets → Add a new secret** (key `GH_TOKEN`, value = a
-# fine-grained PAT scoped to just this repo, Contents: Read-only is enough).
-# The token is read via Kaggle's secrets client and never printed or written
-# to a file — it only appears transiently in the git remote URL for the clone.
+# ## Cell 1 — clone (private repo) + install experts
 
 # %%
+import json
 import os
 import subprocess
 import sys
 
-REPO_PATH = "TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT.git"
 WORK = "/kaggle/working"
 SRC = f"{WORK}/CA-MoSE"
+SRC_REPO = f"{WORK}/SR_CorrNet_SS"
+REPO_PATH = "TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT.git"
+MIXED_HF_MODEL = "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"  # 2–5 speaker expensive expert
 
+# GitHub token from the Kaggle Secret (never printed / persisted to disk).
 try:
     from kaggle_secrets import UserSecretsClient
 
-    GH_TOKEN = UserSecretsClient().get_secret("GH_TOKEN")
+    _GH = UserSecretsClient().get_secret("GH_TOKEN")
 except Exception as exc:
     raise RuntimeError(
-        "Missing Kaggle Secret 'GH_TOKEN'. This repo is private — add a GitHub "
-        "Personal Access Token via Add-ons -> Secrets (key: GH_TOKEN) before "
-        "running this notebook."
+        "Missing Kaggle Secret 'GH_TOKEN'. Add-ons -> Secrets -> add GH_TOKEN "
+        "(a GitHub fine-grained PAT with Contents:Read on the private repo)."
     ) from exc
 
-REPO_AUTH = f"https://{GH_TOKEN}@github.com/{REPO_PATH}"
-
+_AUTH = f"https://{_GH}@github.com/{REPO_PATH}"
 if not os.path.isdir(SRC):
-    subprocess.run(
-        ["git", "clone", "--branch", "parv", "--depth", "1", REPO_AUTH, SRC], check=True
-    )
-    # Strip the token back out of .git/config immediately — otherwise it sits in
-    # plaintext under /kaggle/working, which Kaggle can persist/share as output.
-    subprocess.run(
-        ["git", "-C", SRC, "remote", "set-url", "origin", f"https://github.com/{REPO_PATH}"],
-        check=True,
-    )
-del GH_TOKEN, REPO_AUTH  # never keep the token around longer than the clone call
+    subprocess.run(["git", "clone", "--branch", "parv", "--depth", "1", _AUTH, SRC], check=True)
+else:
+    subprocess.run(["git", "-C", SRC, "remote", "set-url", "origin", _AUTH], check=True)
+    subprocess.run(["git", "-C", SRC, "pull", "origin", "parv"], check=True)
+# Strip the token back out of .git/config so it never sits in the saved output.
+subprocess.run(
+    ["git", "-C", SRC, "remote", "set-url", "origin", f"https://github.com/{REPO_PATH}"], check=True
+)
+del _GH, _AUTH
 os.chdir(SRC)
 print("cwd:", os.getcwd())
 
-# torch / torchaudio are preinstalled on Kaggle. Add the cheap-expert stack.
-get_ipython().system("pip install -q clearvoice speechbrain soundfile scipy tqdm 2>&1 | tail -3")  # noqa: F821, E501
-
-# Expensive expert: SR-CorrNet-SS (strict, no SepFormer). Clone + editable install
-# with the [hub] extra so `from sr_corrnet import SSInference` pulls the HF checkpoint.
-SRC_REPO = f"{WORK}/SR_CorrNet_SS"
+# Cheap expert (MossFormer2 via clearvoice) + ECAPA/REAL-M (speechbrain).
+subprocess.run("pip install -q clearvoice speechbrain soundfile scipy tqdm", shell=True)
+# Expensive expert: SR-CorrNet-SS strictly (no SepFormer), editable + HF hub extra.
 if not os.path.isdir(SRC_REPO):
     subprocess.run(
         ["git", "clone", "--depth", "1", "https://github.com/dmlguq456/SR_CorrNet_SS.git", SRC_REPO],
         check=True,
     )
-get_ipython().system(f'pip install -q -e "{SRC_REPO}[hub]" 2>&1 | tail -3')  # noqa: F821
+subprocess.run(f'pip install -q -e "{SRC_REPO}[hub]"', shell=True)
+print("install done")
 
 # %% [markdown]
-# ## Cell 2 — LibriSpeech dev-clean + speaker-disjoint train/dev pools
+# ## Cell 2 — LibriSpeech dev-clean → speaker-disjoint train/dev pools
 
 # %%
 import glob
@@ -90,9 +87,12 @@ import random
 
 LS_URL = "https://www.openslr.org/resources/12/dev-clean.tar.gz"
 LS_ROOT = f"{WORK}/LibriSpeech/dev-clean"
-
 if not os.path.isdir(LS_ROOT):
-    get_ipython().system(f"cd {WORK} && wget -q {LS_URL} && tar xzf dev-clean.tar.gz && rm dev-clean.tar.gz")  # noqa: F821, E501
+    subprocess.run(
+        f"cd {WORK} && wget -q {LS_URL} && tar xzf dev-clean.tar.gz && rm dev-clean.tar.gz",
+        shell=True,
+        check=True,
+    )
 
 speaker_dirs = sorted(p for p in glob.glob(f"{LS_ROOT}/*") if os.path.isdir(p))
 random.Random(0).shuffle(speaker_dirs)
@@ -120,149 +120,32 @@ TRAIN_POOL = link_pool(train_spk, "train")
 DEV_POOL = link_pool(dev_spk, "dev")
 
 # %% [markdown]
-# ## Cell 3 — SR-CorrNet expensive expert (strict, HF Hub checkpoint)
-# Uses the variable 2–3 speaker 1-channel WSJ model by default (8 kHz; the
-# wrapper resamples to/from the project's 16 kHz). Override `SRCORRNET_HF_MODEL`
-# for the 2–5 speaker variant, or point `SRCORRNET_CKPT` at a local checkpoint.
+# ## Cell 3 — SR-CorrNet import probe (fail fast before the slow cache build)
 
 # %%
-SRCORRNET_HF_MODEL = os.environ.get("SRCORRNET_HF_MODEL", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk")
-SRCORRNET_CKPT = os.environ.get("SRCORRNET_CKPT", "")  # optional local .pt
-sr_args = ["--srcorrnet-hf-model", SRCORRNET_HF_MODEL]
-if SRCORRNET_CKPT:
-    sr_args += ["--srcorrnet-checkpoint", SRCORRNET_CKPT]
-print("expensive expert: SR-CorrNet-SS", SRCORRNET_HF_MODEL)
-
-# Fail fast if SR-CorrNet can't import, before spending time on the cache build.
 _probe = subprocess.run(
     [sys.executable, "-c", "from sr_corrnet import SSInference; print('sr_corrnet import OK')"],
     capture_output=True,
     text=True,
 )
 print(_probe.stdout.strip() or _probe.stderr.strip())
+assert "OK" in _probe.stdout, "SR-CorrNet failed to import — check cell 1 install"
+print("expensive expert:", MIXED_HF_MODEL)
 
 # %% [markdown]
-# ## Cell 4 — build the frozen-expert cache (the slow, one-time step)
-# Smoke sizes: 500 train / 100 dev. Bump `--limit` once the pipeline is proven.
+# ## Cell 4 — build the MIXED 2–5 speaker cache (slow, resumable, one-time)
+# Smoke sizes 500 train / 100 dev. Resume is automatic — re-running continues
+# from the last flushed shard. Bump `LIMIT_*` once the pipeline is proven.
 
 # %%
-import sys
-
-
-def build_cache(pool, out, limit):
-    cmd = [
-        sys.executable, "-m", "scripts.build_train_cache",
-        "--dynamic-source-glob", f"{pool}/*.flac",
-        "--allowed-n", "3", "--target-speakers", "3",
-        "--limit", str(limit), "--segment-seconds", "3.0",
-        "--device", "cuda", "--out-dir", out, "--shard-size", "128",
-    ] + sr_args
-    print(" ".join(cmd))
-    subprocess.run(cmd, check=True)
-
-
-build_cache(TRAIN_POOL, f"{WORK}/cache/train", 500)
-build_cache(DEV_POOL, f"{WORK}/cache/dev", 100)
-
-# %% [markdown]
-# ## Cell 5 — train the cascade + evaluate vs single experts (P2-INT3/4/5)
-
-# %%
-subprocess.run(
-    [
-        sys.executable, "-m", "train.trainer",
-        "--cache-dir", f"{WORK}/cache/train",
-        "--val-cache-dir", f"{WORK}/cache/dev",
-        "--epochs", "30", "--batch-size", "8", "--device", "cuda",
-        "--output", f"{WORK}/outputs/training/checkpoint.pt",
-    ],
-    check=True,
-)
-get_ipython().system(f"cat {WORK}/outputs/training/checkpoint.json | python -m json.tool | tail -30")  # noqa: F821, E501
-
-# %% [markdown]
-# ## Cell 6 — close P1-INT2: cross-chunk identity lock on real speech
-#
-# The identity-lock *logic* is already proven deterministically in CI
-# (`tests/test_p1_int2_identity_lock.py`, 2+3 speakers, 0 switches through the
-# real run_and_align_long path). This cell confirms it on real LibriSpeech.
-#
-# It runs TWO validations:
-#   (A) 2-speaker mix — MossFormer2's genuine regime, where it emits one stable
-#       stream per speaker. This is the real-speech identity-lock pass and it
-#       should come back `"passed": true` with 0 switches.
-#   (B) 3-speaker mix — informational. MossFormer2 is a 2-speaker model, so even
-#       residual-padded its 3rd slot wanders; `expert_covers_all_speakers` may
-#       be true but the wandering residual is an ESCALATION concern (the cascade
-#       routes 3-speaker audio to SR-CorrNet), not an identity-lock bug. Kept
-#       visible so the distinction is on the record, not hidden.
-
-# %%
-import json as _json
-
-
-def p1_validate(n, tag):
-    out = f"{WORK}/outputs/p1_alignment_{tag}"
-    subprocess.run(
-        [
-            sys.executable, "-m", "scripts.validate_alignment",
-            "--dynamic-source-glob", f"{DEV_POOL}/*.flac",
-            "--dynamic-n", str(n), "--dynamic-seconds", "10.0",
-            "--device", "cuda", "--skip-pair",
-            "--output-dir", out,
-        ],
-        check=False,  # non-strict so we always see the JSON, pass or fail
-    )
-    report = _json.loads(open(f"{out}/alignment_validation.json").read())
-    p1 = report["p1_int2"]
-    print(
-        f"[{n}-spk] passed={p1['passed']} switches={p1['identity_switches']} "
-        f"tracks={p1['num_persistent_tracks']}/{p1['num_reference_speakers']} "
-        f"covers_all={p1['expert_covers_all_speakers']} streams_per_chunk={p1['streams_per_chunk']}"
-    )
-    return p1
-
-
-p1_2spk = p1_validate(2, "2spk")  # the real-speech identity-lock pass
-p1_3spk = p1_validate(3, "3spk")  # informational (escalation regime)
-print("\nP1-INT2 real-speech identity lock (2-spk):", "PASS" if p1_2spk["passed"] else "FAIL")
-
-# %% [markdown]
-# ## Cell 7 — trim outputs for Kaggle's save cap
-# Keep the checkpoint + JSON reports; drop the (large) fp16 cache before saving.
-
-# %%
-get_ipython().system(f"du -sh {WORK}/cache {WORK}/outputs 2>/dev/null")  # noqa: F821
-# Uncomment to drop the cache from the saved output (rebuild next session):
-# get_ipython().system(f"rm -rf {WORK}/cache")
-print("Done. Copy the printed P2-INT4 verdict and P1 alignment JSON back to Parv.")
-
-# %% [markdown]
-# ## Cell 8 — MIXED-N cache (2–5 speakers) — the real P2-INT4 regime
-#
-# The clean all-3-speaker run showed the cascade cannot beat SR-CorrNet at any
-# tau (even 100% escalation plateaued below it) — the cheap 2-speaker model has
-# nothing to add on 3-spk, and the fusion can't improve an already-strong
-# expert on clean audio. P2-INT4 ("beats best single expert on **mixed-
-# condition** validation") needs the regime it was written for:
-#   * mixed 2–5 speaker counts — SR-CorrNet var-2-5spk still runs, but the cheap
-#     expert is genuinely competent on the 2-spk cases, so routing matters;
-#   * cache K = 5 (max), each sample padded to 5, true_count kept per sample.
-#
-# This rebuilds train/dev caches with `--allowed-n 2 3 4 5 --target-speakers 5`
-# and the var-2-5spk expensive model. Slower than the 3-spk build (5-speaker
-# separation); resume is on, so a dropped session re-runs `build_mixed` safely.
-
-# %%
-MIXED_HF_MODEL = "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"
+LIMIT_TRAIN, LIMIT_DEV = 500, 100
 
 
 def build_mixed(pool, out, limit):
     cmd = [
         sys.executable, "-m", "scripts.build_train_cache",
         "--dynamic-source-glob", f"{pool}/*.flac",
-        "--allowed-n", "2", "3", "4", "5",
-        "--target-speakers", "5",
+        "--allowed-n", "2", "3", "4", "5", "--target-speakers", "5",
         "--limit", str(limit), "--segment-seconds", "3.0",
         "--device", "cuda", "--out-dir", out, "--shard-size", "128",
         "--srcorrnet-hf-model", MIXED_HF_MODEL,
@@ -271,13 +154,12 @@ def build_mixed(pool, out, limit):
     subprocess.run(cmd, check=True)
 
 
-build_mixed(TRAIN_POOL, f"{WORK}/cache_mixed/train", 500)
-build_mixed(DEV_POOL, f"{WORK}/cache_mixed/dev", 100)
-get_ipython().system(f"cat {WORK}/cache_mixed/train/manifest.json")  # noqa: F821
+build_mixed(TRAIN_POOL, f"{WORK}/cache_mixed/train", LIMIT_TRAIN)
+build_mixed(DEV_POOL, f"{WORK}/cache_mixed/dev", LIMIT_DEV)
+subprocess.run(f"cat {WORK}/cache_mixed/train/manifest.json", shell=True)
 
 # %% [markdown]
-# ## Cell 9 — train the cascade on the mixed-N cache
-# Same trainer; the count head (max_speakers=5) and fusion are already K-agnostic.
+# ## Cell 5 — train the cascade on the mixed-N cache (P2-INT3)
 
 # %%
 subprocess.run(
@@ -290,47 +172,49 @@ subprocess.run(
     ],
     check=True,
 )
-get_ipython().system(  # noqa: F821
-    f"cat {WORK}/outputs/training_mixed/checkpoint.json | python -m json.tool | tail -30"
-)
 
 # %% [markdown]
-# ## Cell 10 — the real P2-INT4 verdict + tau sweep on mixed-N
-# If `cascade_beats_single_expert` is true at any tau here, P2-INT4 passes.
+# ## Cell 6 — P2-INT4 / INT5: cascade vs single experts (fusion AND sr-primary)
+# Two tau sweeps on the SAME checkpoint (no retrain): the learned fusion, and
+# the sr-primary routing (escalated -> raw SR-CorrNet, else MossFormer2). If
+# `beats?` is True at any tau, P2-INT4 passes; otherwise the honest story is the
+# quality/compute trade (escalation rate + Expected RTF).
 
 # %%
-import json as _json  # noqa: E402
+CKPT = f"{WORK}/outputs/training_mixed/checkpoint.pt"
 
-ckpt_mixed = f"{WORK}/outputs/training_mixed/checkpoint.pt"
-print(f"{'tau':>5} {'escal%':>7} {'cascade':>8} {'moss':>7} {'expensive':>10} {'beats?':>7}")
-best = None
-for tau in [6, 8, 10, 12, 14, 16, 20, 100]:
-    r = subprocess.run(
-        [sys.executable, "-m", "scripts.evaluate_cascade",
-         "--cache-dir", f"{WORK}/cache_mixed/dev", "--checkpoint", ckpt_mixed,
-         "--device", "cuda", "--tau", str(tau)],
-        capture_output=True, text=True,
-    )
-    d = _json.loads(r.stdout)
-    s = d["si_sdri_db"]
-    print(
-        f"{tau:>5} {d['escalation_rate']*100:>6.0f}% {s['cascade']:>8.2f} "
-        f"{s['mossformer2']:>7.2f} {s['expensive']:>10.2f} "
-        f"{str(d['cascade_beats_single_expert']):>7}"
-    )
-    if best is None or s["cascade"] > best[1]:
-        best = (tau, s["cascade"], d["cascade_beats_single_expert"])
-print(f"\nbest cascade: tau={best[0]} -> {best[1]:.2f} dB, beats_single_expert={best[2]}")
-print("Paste this whole table back to Parv.")
+
+def sweep(sr_primary):
+    tag = "sr-primary" if sr_primary else "fusion"
+    print(f"\n=== {tag} ===")
+    print(f"{'tau':>4} {'escal%':>7} {'cascade':>8} {'moss':>7} {'expensive':>10} {'beats?':>7}")
+    best = None
+    for tau in [6, 8, 10, 12, 16, 20, 100]:
+        cmd = [
+            sys.executable, "-m", "scripts.evaluate_cascade",
+            "--cache-dir", f"{WORK}/cache_mixed/dev", "--checkpoint", CKPT,
+            "--device", "cuda", "--tau", str(tau),
+        ]
+        if sr_primary:
+            cmd.append("--sr-primary")
+        d = json.loads(subprocess.run(cmd, capture_output=True, text=True).stdout)
+        s = d["si_sdri_db"]
+        print(
+            f"{tau:>4} {d['escalation_rate'] * 100:>6.0f}% {s['cascade']:>8.2f} "
+            f"{s['mossformer2']:>7.2f} {s['expensive']:>10.2f} "
+            f"{str(d['cascade_beats_single_expert']):>7}"
+        )
+        if best is None or s["cascade"] > best[1]:
+            best = (tau, s["cascade"], d["cascade_beats_single_expert"])
+    print(f"best {tag}: tau={best[0]} -> {best[1]:.2f} dB, beats_single_expert={best[2]}")
+    return best
+
+
+best_fusion = sweep(sr_primary=False)
+best_srprimary = sweep(sr_primary=True)
 
 # %% [markdown]
-# ## Cell 11 — train the speaker-count stop-classifier (P3 / M3)
-#
-# Trains the StopClassifier on peel-off examples derived from the MIXED-N cache
-# (cell 8) — no experts reloaded, the cache already has stems + true_count +
-# ECAPA embeddings. Then fits temperature scaling for honest confidences.
-# Needs the mixed-N cache from cell 8. CPU-fast (small MLP), but --device cuda
-# is fine.
+# ## Cell 7 — train the speaker-count stop-classifier (P3 / M3)
 
 # %%
 subprocess.run(
@@ -345,10 +229,8 @@ subprocess.run(
 )
 
 # %% [markdown]
-# ## Cell 12 — unknown-N counting eval → M3 artifacts
-# Peel-off inference (N not given) → confusion matrix + calibration curve + ECE.
-# These CSV/SVG files are exactly the M3 "confusion matrix produced" +
-# "calibration curve produced" deliverables.
+# ## Cell 8 — unknown-N counting eval → M3 artifacts
+# Confusion matrix + calibration curve + ECE (CSV/SVG under outputs/counting).
 
 # %%
 subprocess.run(
@@ -356,10 +238,42 @@ subprocess.run(
         sys.executable, "-m", "scripts.eval_counting",
         "--cache-dir", f"{WORK}/cache_mixed/dev",
         "--checkpoint", f"{WORK}/outputs/counting/stop_classifier.pt",
-        "--output-dir", f"{WORK}/outputs/counting",
-        "--count-range", "2", "5",
+        "--output-dir", f"{WORK}/outputs/counting", "--count-range", "2", "5",
     ],
     check=True,
 )
-get_ipython().system(f"ls -la {WORK}/outputs/counting")  # noqa: F821
-print("Paste the counting verdict (accuracy + ECE + confusion matrix) back to Parv.")
+subprocess.run(f"ls -la {WORK}/outputs/counting", shell=True)
+
+# %% [markdown]
+# ## Cell 9 — P1-INT2: cross-chunk identity lock on real speech
+# 2-speaker mix (MossFormer2's genuine regime) — should report `passed: true`.
+# The identity-lock logic is already proven in CI; this is the real-speech pass.
+
+# %%
+subprocess.run(
+    [
+        sys.executable, "-m", "scripts.validate_alignment",
+        "--dynamic-source-glob", f"{DEV_POOL}/*.flac",
+        "--dynamic-n", "2", "--dynamic-seconds", "10.0",
+        "--device", "cuda", "--skip-pair",
+        "--output-dir", f"{WORK}/outputs/p1_alignment_2spk",
+    ],
+    check=False,  # non-strict so the JSON always prints
+)
+subprocess.run(f"cat {WORK}/outputs/p1_alignment_2spk/alignment_validation.json", shell=True)
+
+# %% [markdown]
+# ## Cell 10 — summary of everything (paste this back)
+
+# %%
+print("=" * 60)
+print("CA-MoSE run summary")
+print("=" * 60)
+print(f"P2-INT4 fusion:     best cascade {best_fusion[1]:.2f} dB, beats={best_fusion[2]}")
+print(f"P2-INT4 sr-primary: best cascade {best_srprimary[1]:.2f} dB, beats={best_srprimary[2]}")
+_cs = json.loads((pathlib.Path(WORK) / "outputs/counting/counting_summary.json").read_text())
+print(f"M3 count accuracy:  {_cs['counting']['accuracy']:.3f}")
+if _cs.get("calibration"):
+    print(f"M3 calibration ECE: {_cs['calibration']['ece']:.4f}")
+subprocess.run(f"du -sh {WORK}/cache_mixed {WORK}/outputs 2>/dev/null", shell=True)
+print("\nDone. Copy this summary + the cell 6 tables + cell 8 confusion matrix back to the team.")
