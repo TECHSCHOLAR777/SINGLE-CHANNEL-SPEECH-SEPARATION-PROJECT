@@ -1,14 +1,14 @@
-"""Frozen pretrained separation expert wrappers."""
+"""Frozen pretrained separation backbone wrappers.
 
-from models.experts.mossformer2 import MossFormer2Expert
-from models.experts.sepformer import SepFormerExpert
+CALM-Sep uses a single frozen SR-CorrNet var-2-5 backbone. The old
+multi-expert bank (MossFormer2, SepFormer, TF-GridNet) was removed in the
+architecture pivot; see BLUEPRINT §3 and the README migration table.
+"""
+
+from models.experts.embeddings import ECAPAEmbedder
 from models.experts.srcorrnet import SRCorrNetExpert
-from models.experts.tfgridnet import TFGridNetExpert, get_expensive_expert
 
 __all__ = [
-    "MossFormer2Expert",
-    "SepFormerExpert",
+    "ECAPAEmbedder",
     "SRCorrNetExpert",
-    "TFGridNetExpert",
-    "get_expensive_expert",
 ]

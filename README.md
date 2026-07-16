@@ -1,31 +1,32 @@
-# CA-MoSE Project TODO - Single Source of Truth
+# CALM-Sep Project TODO — Single Source of Truth
 
-> **Derived from:** `MASTER_PROJECT.md` (v1.2) + `DEVELOPMENT_PLAN.md`  
-> **Purpose:** Living task tracker for the full 10–12 week project. Edit checkboxes as work completes.  
-> **Last updated:** 2026-07-13 — **full Run-All notebook completed on Kaggle T4×2.** P2-INT3 ✅ (30 epochs mixed-N, loss -1.99→-2.50). P2-INT4 **confirmed negative on both fusion and sr-primary at every tau**: fusion best 15.79 dB @ tau=100 < SR-CorrNet 16.22; sr-primary best 16.22 dB @ tau=100 = SR-CorrNet exactly. P2-INT5 ✅ (tau sweep: 49%–100% escalation). **P1-INT2 confirmed passed on real Kaggle speech**: 2-spk, 0 identity switches, passed=true. **M3 counting pipeline ran end-to-end**: stop-classifier trained (80 epochs, val_acc=61.4%), confusion matrix produced, calibration curve produced — but count_accuracy=10% (near-random, root cause: min_count=1 bug + temperature=8.54 collapse; min_count fixed to 2). MossFormer2-3spk wrapper built (`alibabasglab/mossformer2-wsj0mix-3spk`); load_state_dict now strict=False. M2 honest close: compute-adaptive routing — at tau=6, 51% cheap-only, E[RTF] ≈ 0.20 vs 0.31 (36% compute reduction) at −3.55 dB quality cost. M3 data criteria partially closed (artifacts produced; accuracy needs a second run with the min_count fix). Pulse 95/17/131)
+> **Derived from:** `BLUEPRINT` (Master Project Blueprint, CALM-Sep) — the sole authority.
+> **Purpose:** Living task tracker for the full project. Edit checkboxes as work completes.
+> **Supersedes:** the CA-MoSE cascade tracker (MossFormer2 → REAL-M → SR-CorrNet). That architecture is retired. See **§ Migration from CA-MoSE** below for what carried over and what was deleted.
+> **Last updated:** 2026-07-17 — tracker re-baselined onto CALM-Sep. Reusable foundation (repo infra, eval metrics, alignment/stitching, data-prep, augmentation, dynamic mixer) carried forward as done; all CALM-Sep-specific components (LoRA library, condition analyzer, gate, attractor counting, band recovery, calibration) reset to not-started.
 
 ---
 
 ## 📊 Project pulse
 
-> Snapshot **2026-07-13** — refresh the counts whenever you flip a status.
+> Snapshot **2026-07-17** — refresh the counts whenever you flip a status.
 
-![Done](https://img.shields.io/badge/✅_done-98-brightgreen?style=for-the-badge)
+![Done](https://img.shields.io/badge/✅_done-31-brightgreen?style=for-the-badge)
 &nbsp;
-![In progress](https://img.shields.io/badge/🚧_in_progress-19-yellow?style=for-the-badge)
+![In progress](https://img.shields.io/badge/🚧_in_progress-2-yellow?style=for-the-badge)
 &nbsp;
-![Not done yet](https://img.shields.io/badge/❌_not_done_yet-126-red?style=for-the-badge)
+![Not done yet](https://img.shields.io/badge/❌_not_done_yet-74-red?style=for-the-badge)
 
-**Overall** `████████████░░░░░░░░░░░░░░░░░` **40%** &nbsp;·&nbsp; 98 done &nbsp;·&nbsp; 19 in flight &nbsp;·&nbsp; 126 to go &nbsp;·&nbsp; **243 tasks** — 2026-07-13: **full Run-All completed on Kaggle T4.** Flipped: P2-INT3 ✅ (mixed-N trained), P2-INT5 ✅ (tau sweep), P1-INT2 confirmed real-speech ✅, M3 artifacts ✅ (confusion matrix + calibration curve produced). P2-INT4 confirmed negative both modes. Count accuracy 10% (min_count bug fixed; re-run needed).
+**Overall** `████████░░░░░░░░░░░░░░░░░░░░░` **29%** &nbsp;·&nbsp; 31 done &nbsp;·&nbsp; 2 in flight &nbsp;·&nbsp; 74 to go &nbsp;·&nbsp; **107 tasks** — architecture pivot from cascade to frozen-backbone + LoRA mixture. "Done" now counts only work that is valid **under CALM-Sep** (reusable infra/data/eval/alignment). Cascade-only deliverables were removed from the count, not carried as done.
 
 **Milestones** &nbsp;
-![M0](https://img.shields.io/badge/M0-✅_passed-brightgreen?style=flat-square)
-![M1](https://img.shields.io/badge/M1-✅_passed-brightgreen?style=flat-square)
-![M2](https://img.shields.io/badge/M2-🚧_in_progress-yellow?style=flat-square)
-![M3](https://img.shields.io/badge/M3-🚧_in_progress-yellow?style=flat-square)
+![M0](https://img.shields.io/badge/M0-🚧_in_progress-yellow?style=flat-square)
+![M1](https://img.shields.io/badge/M1-🔒_locked-lightgrey?style=flat-square)
+![M1b](https://img.shields.io/badge/M1b-🔒_locked-lightgrey?style=flat-square)
+![M2](https://img.shields.io/badge/M2-🔒_locked-lightgrey?style=flat-square)
+![M3](https://img.shields.io/badge/M3-🔒_locked-lightgrey?style=flat-square)
 ![M4](https://img.shields.io/badge/M4-🔒_locked-lightgrey?style=flat-square)
 ![M5](https://img.shields.io/badge/M5-🔒_locked-lightgrey?style=flat-square)
-![M6](https://img.shields.io/badge/M6-🔒_locked-lightgrey?style=flat-square)
 
 ---
 
@@ -53,19 +54,25 @@ _The badge is the colour layer; the `[x]`/`[~]`/`[ ]` marker is the data layer (
 **Edit rules:**
 1. Only mark `[x]` (and the green badge) when the deliverable exists, is tested, and is merged to `main`.
 2. If a gate fails, stop forward progress, fix, re-run gate, then continue.
-3. Add dates and notes inline when tasks complete: `[x] Task name — done 2026-07-15, PR #12`
-4. Tier-3 novelties (N9, N10) stay locked until **M5** passes.
+3. Add dates and notes inline when tasks complete: `[x] Task name — done 2026-07-20, PR #NN`
+4. **Fixed constraints are never revisited** (see north star). A task that reopens one is out of scope.
 
 ---
 
 ## Project north star
 
-**System:** CA-MoSE — Condition-Aware Mixture-of-Separation-Experts  
-**Task:** Blind single-channel separation of **N ≥ 3** simultaneous speakers with **unknown N** at test time  
-**Core strategy:** Conditional cascade — MossFormer2 (cheap, always runs) → REAL-M quality check → escalate to SR-CorrNet (expensive, ~30–40% of inputs) → fusion only on escalated inputs  
-**Trainable budget:** ~3.3M parameters (Scene Analyzer, Router, Stop-Classifier, Fusion Head); experts frozen  
-**Hardware:** 2× Kaggle T4 (16 GB) for development; A100 only for final runs  
-**Duration:** 10–12 weeks across Phases P0–P6 (Milestones M0–M6)
+**System:** CALM-Sep — Condition-Aware LoRA Mixture for Multi-Speaker Speech Separation
+**Task:** Blind single-channel separation of **N ∈ {2,3,4,5}** simultaneous speakers with **unknown N** at test time, under reverb / noise / codec degradation
+**Core strategy:** One **frozen** SR-CorrNet var-2-5 backbone; three small **LoRA adapters** (reverb, noise, codec) blended in weight space by a supervised **two-level condition analyzer** + **gate**; speaker count read from the backbone's **attractor probabilities `p_k`**; **band recovery** head extends 8 kHz output to 16 kHz; residual-energy **completeness** detector guards missed speakers.
+**Trainable budget:** ~3–4M new parameters (condition analyzer, gate MLP, counting fusion, calibration heads, 3 LoRA adapters) against a **13.6M frozen** base.
+**Fixed constraints (never revisited):**
+- Base checkpoint `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` — downloaded once, frozen forever, never fine-tuned.
+- Speaker count N = 2–5 only.
+- Sample rate **8 kHz** internal (128/64 STFT), locked by the checkpoint.
+- Quality path = band recovery (Option B) only. No backbone retraining.
+
+**Hardware:** Kaggle T4 / Colab T4 (free tier). Largest single run ≈ one adapter, 20–40 GPU-hours. Total < 150 GPU-hours.
+**Published base performance (clean WSJ0-mix):** count 100/99.7/97.7/96.9% and 24.8/24.4/21.9/19.9 dB SI-SDRi at N=2/3/4/5.
 
 ---
 
@@ -73,30 +80,26 @@ _The badge is the colour layer; the `[x]`/`[~]`/`[ ]` marker is the data layer (
 
 | Dev | Primary vertical | Secondary | Folder ownership |
 |-----|------------------|-----------|------------------|
-| **A** | Data pipeline, augmentation, dynamic mixer | Eval harness (contributes) | `data/` |
-| **B** | Expert integration, cascade gate, fusion head, training | Speaker counting (features) | `models/`, `train/` |
-| **C** | Evaluation harness, metrics, counting, demo | Augmentation robustness | `eval/`, `align/`, `demo/` |
+| **A** | Data & synthesis: dynamic 8 kHz mixing, RIR bank, WHAM!/DNS-4 staging, codec transforms, fixed+hashed eval sets | Eval data hygiene | `data/` |
+| **B** | Model core: SR-CorrNet wrapper patches, LoRA library, adapters (Stage 1/2/4), condition analyzer, gate, attractor counting | Confidence/completeness | `models/`, `train/` |
+| **C** | Evaluation & pipeline: metrics matrix, stats, band-recovery guard, calibration, chunker/stitcher, demo | Robustness ablations | `eval/`, `pipeline/`, `calibration/`, `align/`, `demo/` |
 | **All** | Configs, tests, docs, interface contracts | — | `configs/`, `tests/`, `docs/`, `schemas/` |
-
-**Ownership rotation:** P3–P4 deliberately move each dev outside their primary vertical (counting, robustness training, ablations).
 
 ---
 
 ## Critical path (longest dependency chain)
 
 ```
-P0 Data (A) ──┐
-              ├──► P1 Expert integration (B) ──► P2 Cascade core (B) ──┬──► P3 Counting ──► P5 Differentiators ──► P6 Demo/Report
-P0 Eval (C) ──┘                                                          │
-                                                                         └──► P4 Robustness ──► P5 Differentiators
+P0 Verify checkpoint + expose p_k/E(0) (B) ──► P1 Adapter library (B) ──► P1b Universal-adapter gate (B) ──► P2 Condition analyzer + gate (B/C) ──► P3 Joint polish + band recovery + calibration (B/C) ──► P4 Demo/CLI/efficiency ──► P5 Full eval + report
+        ▲                                                              ▲
+P0 Synthesis pipeline + hashed eval sets (A) ──────────────────────────┘ (feeds every training/eval stage)
 ```
 
-**Protected slice:** Model integration (P1 → P2) is on the critical path. Dev B PRs here get **fastest review (within 1 day)**.
+**Protected slice:** The Phase 0 wrapper patches (expose `p_k`, `E(0)`, decoder-stage features) block **everything**. `attractor_test.py` is the gate; nothing downstream starts until it passes.
 
 **Parallelism rule:**
-- **P0:** All three work in parallel, zero cross-dependencies.
-- **P1:** Dev B on critical path; Dev A and Dev C front-load independent augmentation/metrics work.
-- **P2+:** Sequential gates dominate; parallel work only where explicitly marked 🔄.
+- **P0:** Dev B (wrapper patches) and Dev A (synthesis + eval sets) run fully parallel. Zero GPU spent.
+- **P1+:** Adapter training is sequential per adapter; Dev A/C front-load eval matrix and band-recovery tooling.
 
 ---
 
@@ -106,532 +109,313 @@ P0 Eval (C) ──┘                                                          �
 
 | When | Activity | Why |
 |------|----------|-----|
-| Day 1 (P0) | Repository structure, config schema, `SeparationResult` interface contract | Bad contracts → weeks of integration pain |
-| Start of P2 | Cascade architecture review (all three) | Integration seam of entire system |
-| During P2 | Training-loop PR review (all three) | Everyone must understand training |
-| M0–M6 | Milestone integration session after each gate | Catch drift; run full pipeline together |
-| P5 | Real-room recording session (all three as speakers) | Physically needs simultaneous voices |
-| P6 | Report writing (each dev writes their section) | — |
+| Day 1 (P0) | Repo structure, config schema, `SeparationResult` contract (add `p_k`, gate vector, completeness) | Bad contracts → integration pain |
+| Start of P1 | LoRA attachment + adapter-training review (all three) | Weight-space composition is the whole thesis |
+| Before P1b | Universal-adapter decision protocol (pre-commit the verdict rule) | The verdict is irreversible; agree it first |
+| Start of P2 | Condition-analyzer / gate review (all three) | Circularity resolution must be understood |
+| M0–M5 | Milestone integration session after each gate | Catch drift; run pipeline together |
+| P4 | Real-recording session (all three as speakers) | Physically needs simultaneous voices |
+| P5 | Report writing (each dev writes their section) | — |
 | **Every week** | Weekly sync — blockers, rebalance | Surface slips early |
 
 ### Git workflow (all phases)
 
 - ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `main` always runnable and passing CI; **no direct commits to main** — CI workflow active; all merges via PR
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every change via PR with **1 review from a non-owner** — done 2026-07-09/10, PRs #1–#4
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] P2 training-loop PR + shared interface changes → **review from all three** — PR #22 merged to master; confirmed by Parv 2026-07-13
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every change via PR with **1 review from a non-owner**
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Model-core PRs (wrapper patches, LoRA, gate) → **review from all three** (they are the integration seam)
 
 ### Codebase standards (all phases)
 
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Formatter + linter (Black + Ruff) via pre-commit + CI — done 2026-07-09, `.pre-commit-config.yaml` + `ci.yml`
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Type hints on all public function signatures — confirmed across all modules
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `SeparationResult` schema defined once in `schemas/` — never redefined ad hoc — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every module: header docstring (purpose, inputs, outputs) — confirmed across all modules
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Each owner maintains one-page design note in `docs/` — `docs/models.md`, `docs/DEVC_DESIGN.md` done
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason) — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unit and integration test suite — **416 tests passing** as of 2026-07-11; real-weight/real-data acceptance checks remain separately gated
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Shared end-to-end integration coverage — `tests/test_p0_e2e.py` proves config → baseline → PIT SI-SDRi and `tests/test_e2e_forward.py` covers the P2 train/inference chains
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Formatter + linter (Black + Ruff) via pre-commit + CI — `.pre-commit-config.yaml` + `ci.yml`
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Type hints on all public function signatures
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `SeparationResult` schema defined once in `schemas/` — never redefined ad hoc
+- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Extend `SeparationResult` with `p_k`, gate vector, completeness probability, OOD flag (BLUEPRINT §6.5)
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Every module: header docstring (purpose, inputs, outputs)
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] `docs/decisions.md` updated for every architecture choice (date + one-line reason)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Config-hash in every artifact** — SHA-256 of the producing config recorded on every checkpoint/result (BLUEPRINT §13)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Every mechanism ships with its off switch** — adapters, gate, residual sweep, band recovery each disabled by config; baselines are one-line runs
 
 ### Data split discipline (mandatory, all phases)
 
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] **No speaker identity** in more than one of train / val / test splits — enforced in `DynamicMixer` via `train_speaker_ids` / `test_speaker_ids`; no standalone validation script yet
+- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] **Three-way holdout** (BLUEPRINT §7.5): (1) speaker holdout — `dev-clean`/`test-clean` never in training (enforced in `DynamicMixer`); (2) condition-combination holdout — reverb+codec & noise+codec never in gate/joint training; (3) severity holdout — T60>0.9s and SNR<−4dB underrepresented in training. Only (1) is currently enforced.
 
 ---
 
-# 🏗️ PHASE P0 — Foundation (Weeks 1–2)
+## Migration from CA-MoSE (what changed)
 
-**Milestone:** Data pipeline produces mixtures with ground truth; eval harness computes SI-SDRi on a known model  
-**🚧 GATE M0:** All three independently reproduce the **same SI-SDRi baseline** on Libri3Mix. If numbers differ → fix harness or data before anyone builds on top.
+The cascade design is retired. This table is the authority for the file audit.
 
-**Parallelism:** **🔄 FULL PARALLEL** — all tasks below can start day 1 with zero cross-team blocking (except noted).
+| CA-MoSE concept | CALM-Sep replacement | Fate of old code |
+|-----------------|----------------------|------------------|
+| MossFormer2 cheap expert | (none — single frozen backbone) | **deleted** |
+| SepFormer / TF-GridNet experts + fallback | (none — SR-CorrNet is sole foundation) | **deleted** |
+| REAL-M blind gate | attractor `p_k` + residual energy | **deleted** |
+| Cascade gate / escalation (tau) | continuous LoRA gate (no escalation) | **deleted** |
+| CRRR fusion head | (none — one forward pass, one split) | **deleted** |
+| Scene analyzer (log-mel → scene weights) | two-level condition analyzer (DSP + E(0)) | **deleted / re-designed** |
+| Two-level router (w_TF/w_TD/w_NULL) | gate MLP scaling LoRA in weight space | **deleted / re-designed** |
+| Stop-classifier + count coordinator (peel-off) | attractor readout + bounded residual sweep | **deleted; residual/VAD features salvaged** |
+| Frozen-expert output cache | dynamic on-the-fly mixing (no pre-render) | **deleted** |
+| SR-CorrNet 2-3spk @ resampled 16 kHz | SR-CorrNet **var-2-5** @ native 8 kHz + p_k/E(0) patches | **rewritten** |
+| Eval metrics / alignment / data-prep / augmentation / mixer | unchanged in role | **reused** |
 
 ---
 
-## 🤝 P0 Day 1 — COLLAB (1 hour, all three)
+# 🏗️ PHASE P0 — Verify checkpoint & build synthesis pipeline (Weeks 1–2)
 
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree repository directory structure — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree YAML config schema (top-level keys, paths, device, sample_rate=16000) — done 2026-07-09, `configs/baseline.yaml` + `configs/default.yaml`
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree `SeparationResult` interface: `streams [K,T]`, `speaker_count`, `confidence`, per-stream metadata, `mixture`, `escalated`, `expert_used` — done 2026-07-09, `schemas/separation_result.py`
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree formatter/linter (Black + Ruff) — done 2026-07-09, logged in `docs/decisions.md`
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Log decisions in `docs/decisions.md` — done 2026-07-09
+**Milestone:** Frozen checkpoint loads and exposes `p_k`/`E(0)`/decoder-stage features; 8 kHz synthesis pipeline produces labelled mixtures; all evaluation sets generated once, seeded, and hashed.
+**🚧 GATE M0:** `attractor_test.py` passes (p_k varies with true count at N=2,3,4,5); eval sets hashed; frozen-base corpus-transfer SI-SDRi recorded. **Zero GPU hours.**
+
+**Parallelism:** **🔄 FULL PARALLEL** — Dev B on wrapper patches, Dev A on synthesis + eval sets.
 
 ---
 
-## 🔄 PARALLEL — Dev A tasks (P0)
+## 🤝 P0 Day 1 — COLLAB (all three)
+
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree repository directory structure (BLUEPRINT §13 layout) — inherited; extend with `pipeline/`, `calibration/`, `models/srcorrnet/`, `models/lora.py`
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Agree config schema: `base_checkpoint.yaml` (locked path + SHA), `adapters/*.yaml`, `gate.yaml`, `band_recovery.yaml`, `eval.yaml`; **sample_rate = 8000**
+- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Agree extended `SeparationResult` contract: streams `[K,T]` @16 kHz (band-recovered), `p_k`, per-stream confidence, completeness prob, per-chunk gate values, OOD flag
+- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Log decisions in `docs/decisions.md`
+
+## ⛓ SEQUENTIAL — Dev B: checkpoint & wrapper (P0, BLOCKING)
 
 | ID | Task | Depends on | Deliverable | Status |
 |----|------|------------|-------------|--------|
-| P0-A1 | Dynamic mixer: sample N∈{2,3,4,5} speakers, per-speaker level offsets 0–5 dB, output mixture + clean stems | none | `data/mixer.py` + unit tests | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, PR #3 |
-| P0-A2 | LibriMix + Libri3Mix download and preparation scripts | none | Reproducible data-prep script | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `data/prepare_librimix.py`, PR #3 |
-| P0-A3 | LibriSpeech source setup (`openslr.org/12`) | none | Clean speaker pool for mixer | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, integrated in `prepare_librimix.py` |
-| P0-A4 | VCTK accent diversity pool (`openslr.org`) | none | Extended speaker pool | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/prepare_vctk.py` + tests: download + 16 kHz resample + LibriSpeech-style rename so it drops into DynamicMixer with speaker-disjoint splits (via Edinburgh DataShare; not yet run on this machine) |
-| P0-A5 | Enforce speaker-disjoint train/val/test splits | P0-A2 | Split manifest / validation script | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — functionally enforced by DynamicMixer (`train_speaker_ids`/`test_speaker_ids`); no separate deliverable in either doc, so no standalone script required |
-| P0-A6 | Overlap scheduler stub (100% → 40% → 20% curriculum placeholder) | P0-A1 | `data/overlap_scheduler.py` or config hook | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/overlap_scheduler.py` (OverlapScheduler curriculum + `apply_overlap`) + config hook in `configs/default.yaml`; wired opt-in into `DynamicMixer` (`mix(overlap_ratio=, progress=)`, default unchanged) |
+| P0-B1 | Download & verify frozen checkpoint (`export.py --download --variant SS --config 1ch_WSJ_var_2_5spk.yaml`); confirm YAML constants (sr 8000, max_n_spks 5, N_Enc 2, N_Dec 4, d_model 128) | none | Verified `model.pt` + SHA in `base_checkpoint.yaml` | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-B2 | **Patch A** — expose `p_k` through `_single_pass_session` / `process_waveform` / `process_stft` | P0-B1 | `models/srcorrnet/` wrapper returns `pres["probs"]` `(1,7)` | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-B3 | **Patch B** — forward hook on `model.encoder` capturing `E(0)` `(1,T,65,128)` | P0-B1 | Pooled `E(0)` available to Level-2 analyzer | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-B4 | **Patch C** — hooks on each `dec_block[i]` capturing decoder-stage features for inter-stage consistency | P0-B1 | Stage features `(B,K,T,65,128)` | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-B5 | Expose `prob_thres` (attractor 0.5) as a configurable parameter (monkey-patch `spk_split.forward`) | P0-B2 | Configurable count threshold | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-B6 | **`attractor_test.py`** — assert `p_k` shape `(1,7)` and active-slot count == true N at N=2,3,4,5 | P0-B2 | BLOCKING test green | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-B7 | Corpus-transfer baseline: `process_waveform` on 20 LibriSpeech `dev-clean` 2-spk mixtures; record mean SI-SDRi (the floor every adapter must beat) | P0-B1, P0-A2 | Baseline number logged | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
-**MASTER spec for mixer:** On-the-fly mixing at each training step; new unique mix every step; ground truth = clean stems before augmentation.
-
----
-
-## 🔄 PARALLEL — Dev B tasks (P0)
+## 🔄 PARALLEL — Dev A: synthesis & eval sets (P0)
 
 | ID | Task | Depends on | Deliverable | Status |
 |----|------|------------|-------------|--------|
-| P0-B1 | Repository skeleton, environment, dependency lockfile | none | Cloneable, runnable repo | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
-| P0-B2 | Pre-commit hooks (Black + Ruff) + CI workflow | P0-B1 | `.pre-commit-config.yaml`, CI passing | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
-| P0-B3 | Shared `SeparationResult` schema | P0 Day 1 collab | `schemas/separation_result.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
-| P0-B4 | Mixer stub for baseline (loads pre-mixed Libri3Mix from disk) | none | `data/mixer_stub.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
-| P0-B5 | SepFormer baseline wrapper (control) | P0-B3 | `models/experts/sepformer.py` — SpeechBrain `sepformer-wsj03mix` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
-| P0-B6 | SR-CorrNet baseline wrapper (or TF-GridNet fallback if weights unavailable) | P0-B3 | `models/experts/srcorrnet.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
-| P0-B7 | Baseline runner: SepFormer + SR-CorrNet on Libri3Mix test | P0-B4 (stub), P0-B5, P0-B6 | `models/baseline_runner.py`, `scripts/run_baseline.py`, baseline table | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
-| P0-B8 | Models area design note | P0-B1 | `docs/models.md` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #1 |
+| P0-A1 | Dynamic on-the-fly mixer at **8 kHz**, N∈{2,3,4,5}, per-speaker level offsets, clean-stem ground truth | none | `data/mixer.py` (retarget 16k→8k) + tests | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — mixer reused from CA-MoSE; retarget sample rate to 8 kHz |
+| P0-A2 | LibriSpeech source at 8 kHz (`train-clean-100`, `dev-clean`, `test-clean`), keep 16 kHz copies for band-recovery targets | none | Speaker pool + prep script | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `data/prepare_librimix.py` reused; add 8 kHz downsample + 16 kHz retention |
+| P0-A3 | RIR bank: 10k RIRs via `pyroomacoustics`, 1k per T60 interval 0.1s (0.2–1.0s), cached to `data/rirs/` | none | Cached RIR bank | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — pyroomacoustics reverb stage exists in `data/augmentation.py`; bank generation new |
+| P0-A4 | Noise staging: WHAM! (~17 GB) + DNS-4 stratified 20 GB subset | none | `data/prepare_wham.py` + DNS-4 fetch | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — WHAM! prep reused; DNS-4 stratified fetch new |
+| P0-A5 | Codec transforms: ffmpeg Opus 6–24k / AAC 16–48k / AMR-NB/WB on mixtures | none | `data/codec_augmentation.py` (reused) | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — reused from CA-MoSE; codec is a label-free transform |
+| P0-A6 | **Fixed evaluation matrix** — generate once, seed, hash: clean 2–3, sparse overlap, primary reverb-noisy (N=2, n=500), high-count, real-RIR (BUT ReverbDB SLR17), codec, held-out combos, LibriCSS | P0-A1..A5 | `data/fixed_eval/` + manifests + hashes | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — prep scripts exist per-tier; unified hashed matrix new |
+| P0-A7 | Reverb reference policy: **wet source**, truncated at `n_peak+512` (BLUEPRINT §7.6) | P0-A3 | Reference generator | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
-**MASTER Phase 0 deliverable:** Baseline results table on 3-speaker Libri3Mix test clips.
-
----
-
-## 🔄 PARALLEL — Dev C tasks (P0)
+## 🔄 PARALLEL — Dev C: eval & condition-input tooling (P0)
 
 | ID | Task | Depends on | Deliverable | Status |
 |----|------|------------|-------------|--------|
-| P0-C1 | Evaluation harness: SI-SDRi computation | none | `eval/metrics.py` + unit tests | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, PR #2 |
-| P0-C2 | Permutation-invariant matching (uPIT / PIT) | P0-C1 | PIT matching in harness | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, `scipy.optimize.linear_sum_assignment` in `eval/metrics.py` |
-| P0-C3 | Per-tier reporting (L0–L5 tier labels) | P0-C1 | Tier-aware metric reporting | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, `eval/reporting.py` |
-| P0-C4 | Shared YAML config loader + logging | P0-B1 (repo skeleton) | Config loader used by all modules | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, `utils/config.py` |
-| P0-C5 | DNSMOS integration stub (for L5 / no-reference cases) | P0-C1 | Reference-free quality metric hook | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `eval/dnsmos.py`, PR #5 (interface frozen, availability-gated; ONNX activation pending model file) |
-| P0-C6 | Count accuracy + confusion matrix reporting stubs | P0-C1 | `eval/counting.py` or equivalent | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, `count_accuracy` + `count_confusion_matrix` in `eval/metrics.py` + `eval/reporting.py` |
-| P0-C7 | Eval area design note | P0-C1 | `docs/eval.md` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09, `docs/DEVC_DESIGN.md` |
-
-**MASTER Phase 0 deliverable:** Harness covering SI-SDRi, DNSMOS, count accuracy, confusion matrix.
-
----
-
-## ⛓ SEQUENTIAL — P0 integration (after parallel work)
-
-| ID | Task | Depends on | Owner | Status |
-|----|------|------------|-------|--------|
-| P0-INT1 | Wire baseline runner to shared eval harness (not ad-hoc metrics) | P0-B7, P0-C1 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, baseline_runner uses eval.metrics.pit_si_sdr |
-| P0-INT2 | Wire baseline runner to shared config loader | P0-B7, P0-C4 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, run_baseline.py uses utils.config.load_config |
-| P0-INT3 | Replace mixer stub with Dev A mixer (optional upgrade) | P0-A1, P0-B7 | A + B | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/dynamic_mix_dataset.py` (DynamicMixDataset + collate); `baseline_runner.py` gains dynamic path via `source_files`; `--source-files/--n-dynamic/--allowed-n` CLI flags |
-| P0-INT4 | Shared end-to-end integration test (tiny input → baseline → SI-SDRi) | P0-INT1 | All | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `tests/test_p0_e2e.py` exercises layered YAML config loading, the baseline runner, PIT matching, SI-SDRi, and report artifacts without external weights |
-
----
+| P0-C1 | Cardinality-aware SI-SDR/SI-SDRi + PIT (Hungarian; missed speaker = 0 dB; −1 dB per hallucinated stream) | none | `eval/metrics.py` (reused) | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — reused; verify cardinality penalty matches §9.2 |
+| P0-C2 | Shared 8 kHz STFT preprocessing (window 128 / hop 64) + parallel 16 kHz mixture STFT for band recovery | none | `models/preprocess.py` (retarget) | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — preprocess reused; retarget STFT to 128/64 @8k + add 16k branch |
+| P0-C3 | SileroVAD (8 kHz native) voiced-frame-density proxy; validate discriminative power on LibriCSS overlap subsets; fallback = voiced-energy fraction | none | Level-1 VAD feature + validation note | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P0-C4 | DNSMOS ONNX activation on 16 kHz band-recovered output (download `sig_bak_ovrl.onnx`) | none | `eval/dnsmos.py` live (was stub) | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — interface frozen; ONNX file pending |
+| P0-C5 | Config loader + logging (reused) | none | `utils/config.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — reused |
 
 ## 🚧 GATE M0 — Acceptance criteria
 
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Dev A: `data/mixer.py` produces valid mixture + stems for N=2,3 — done 2026-07-10
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Dev C: `eval/metrics.py` computes SI-SDRi with PIT on known tensors — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Dev B: baseline runner produces results table — done 2026-07-09
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **All three independently run baseline on same Libri3Mix test set → identical SI-SDRi (±0.1 dB tolerance)** — confirmed 2026-07-10
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Integration test passes — P0-INT4 is covered by `tests/test_p0_e2e.py` (merge this Dev C completion patch through PR before treating the branch as the new `main` baseline)
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Joint integration session completed — 2026-07-10
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] `attractor_test.py` passes: `p_k` shape `(1,7)`, active slots == true N at N=2,3,4,5
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Patches A/B/C load cleanly (`e0_hook_test.py` confirms `E(0)` shape `(1,T,65,128)`)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] All evaluation sets generated, seeded, hashed; manifests committed
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Frozen-base corpus-transfer SI-SDRi recorded (the adapter floor)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] SileroVAD proxy validated (or fallback selected)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Zero GPU hours spent** — inference only
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
 
 ---
 
-# 🔌 PHASE P1 — Expert Integration & Alignment (Weeks 3–4)
+# 🧩 PHASE P1 — Adapter library (Stage 1)
 
-**Milestone:** Both experts run and produce aligned streams on test input  
-**🚧 GATE M1:** Given one 3-speaker test clip, both experts run and outputs are correctly aligned to the same speaker order (shared integration test).
+**Milestone:** Three LoRA adapters (reverb, noise, codec) trained individually with co-activation warm-up; cross-interference matrix measured.
+**🚧 GATE M1:** Each adapter shows statistically significant SI-SDRi gain on its matched condition (Wilcoxon p<0.05) and no degradation on clean Libri2Mix; off-diagonal cross-interference harm < 0.3 dB.
 
-**Parallelism:** Dev B on **⛓ critical path**; Dev A and Dev C run **🔄 PARALLEL** independent front-loaded work.
-
----
+**Ownership:** Dev B leads (critical path); Dev A supplies matched-condition data; Dev C runs interference matrix.
 
 ## ⛓ SEQUENTIAL — Dev B critical path (P1)
 
 | ID | Task | Depends on | Deliverable | Status |
 |----|------|------------|-------------|--------|
-| P1-B1 | MossFormer2 inference wrapper (cheap expert, E_TD) | M0 | Wrapper → `SeparationResult`; ModelScope / ClearerVoice-Studio; RTF ~0.05; max 3 streams | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `models/experts/mossformer2.py` |
-| P1-B2 | SR-CorrNet inference wrapper (expensive expert, E_TF) + attractor output | M0 | Wrapper with count + confidence; TDA attractors; RTF ~0.31 | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, enhanced `models/experts/srcorrnet.py` |
-| P1-B3 | SR-CorrNet fallback: TF-GridNet via ESPnet if weights unavailable | P1-B2 blocked | Fallback expert wrapper | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `models/experts/tfgridnet.py` + `get_expensive_expert()` |
-| P1-B4 | REAL-M blind SI-SNR estimator integration | none 🔄 | Quality scoring function; SpeechBrain `REAL-M-sisnr-estimator` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `models/realm_quality.py` |
-| P1-B5 | Preprocessing module: resample 16 kHz, peak-normalize -26 dBFS, STFT branch (512 FFT, 128 hop), waveform branch | M0 | `models/preprocess.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10 |
-| P1-B6 | Expert integration test: both experts on same 3-speaker clip | P1-B1, P1-B2, P1-B5 | Integration test | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `tests/test_expert_integration.py` |
+| P1-B1 | `models/lora.py` — parallel-branch LoRA wrapper (`y = W0 x + Σ g·B(Ax)`), co-activation warm-up sampler, 17 target Linear layers per adapter (§5.3) | M0 | LoRA library + unit tests | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P1-B2 | Freeze-and-attach harness: register LoRA on targets, freeze all base params, only adapter params in optimizer (`strict=False` load order) | P1-B1 | Training scaffold | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P1-B3 | Reuse sr_corrnet engine losses: `PIT_SISNR_time` + `0.5·PIT_SISNR_mag` + `BCEWithLogitsLoss` on `pres["logits"]` (§8.2 / §15.6) | P1-B2 | Loss wiring | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P1-B4 | Train **`adapter_noise`** first (widest data; best LoRA plumbing debug) with co-activation warm-up U(0.0,0.2) | P1-B3, P1-A1 | Adapter weights + val curve | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P1-B5 | Train **`adapter_reverb`** (RIR/wet references, T60 0.2–1.0s) | P1-B4, P1-A2 | Adapter weights | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P1-B6 | Train **`adapter_codec`** (Opus/AAC/AMR) | P1-B5, P1-A3 | Adapter weights | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
-**MASTER weights reference:**
-- MossFormer2: `github.com/modelscope/ClearerVoice-Studio` (~55.7M params, frozen)
-- SR-CorrNet-B[2-5]: `github.com/dmlguq456/SR_CorrNet` (~7–20M params, frozen)
-- SepFormer remains control baseline only
+## 🔄 PARALLEL — Dev A / Dev C (P1)
 
----
-
-## 🔄 PARALLEL — Dev C (P1, while B integrates)
-
-| ID | Task | Depends on | Deliverable | Status |
-|----|------|------------|-------------|--------|
-| P1-C1 | ECAPA-TDNN embedding wrapper | none | SpeechBrain `spkrec-ecapa-voxceleb` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `align/embeddings.py`, PR #5 |
-| P1-C2 | Hungarian stream alignment via ECAPA embeddings | P1-C1 | `align/hungarian.py` — cost = 1 − cosine sim | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-09 (PR #2), fully active now that P1-C1 (ECAPA wrapper) is complete |
-| P1-C3 | Cross-chunk identity lock (4s chunks, 1s overlap) | P1-C2 | Chunk-stitching module in `align/` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-12. Root cause of the phantom-track bug found and fixed: `ChunkStitcher` had no cap on the track bank, so a single unstable output slot minted a new persistent track every chunk (reproduced exactly: `[[0,1],[0,2],[0,3]]`, 4 tracks for 3 speakers). Added `max_tracks`: at cap, an unmatched stream force-assigns to its best Hungarian partner instead of spawning, without polluting that track's embedding EMA. `tests/test_chunking_cap.py`, 9 tests. Real >4s LibriMix acceptance evidence is tracked separately as P1-INT2 |
-| P1-C4 | Alignment unit tests including same-gender stress case | P1-C2 | Tests in `tests/` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `tests/test_align_same_gender.py`, PR #5 |
-
----
-
-## 🔄 PARALLEL — Dev A (P1, while B integrates)
-
-| ID | Task | Depends on | Deliverable | Status |
-|----|------|------------|-------------|--------|
-| P1-A1 | Augmentation stage 1: RIR reverb (pyroomacoustics / FAST-RIR) | P0-A1 (mixer) | `data/augmentation/rir.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, Stage 1 in `data/augmentation.py`, PR #4 |
-| P1-A2 | Augmentation stage 2: WHAM! noise | P0-A1 | `data/augmentation/noise.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, Stage 2 in `data/augmentation.py`, PR #4 |
-| P1-A3 | WHAM! + WHAMR! dataset download | none | Data prep scripts | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/prepare_wham.py` (WHAM! download + verify) + `data/make_reverb_eval.py` (Tier 1 license-free reverb-noisy eval) + `data/prepare_whamr.py` (Tier 2 gated real-WHAMR!, gracefully deferred without WSJ0/LDC); all tested |
-| P1-A4 | Codec augmentation prototype (Opus, AAC low bitrate) | none | `data/augmentation/codec.py` prototype | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `data/codec_augmentation.py`, PR #4 |
-| P1-A5 | Libri4Mix + Libri5Mix extension scripts | P0-A2 | `github.com/shakeddovrat/librimix` integration | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `data/prepare_librimix_highn.py` + tests (N-aware disk loader is the P3-A1 follow-up) |
-
----
-
-## 🤝 P1 COLLAB — Dev B + Dev C pairing
-
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Define alignment interface: expert `SeparationResult` → aligner input format — `Engine` protocol + `run_and_align` in `align/integration.py`, 2026-07-11
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Dev C understands model output format — confirmed by running real MossFormer2/TF-GridNet wrappers end-to-end 2026-07-11
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Alignment and reporting decisions documented in `docs/decisions.md` — updated 2026-07-11
-
----
-
-## ⛓ SEQUENTIAL — P1 integration
-
-| ID | Task | Depends on | Owner | Status |
-|----|------|------------|-------|--------|
-| P1-INT1 | Align MossFormer2 + SR-CorrNet outputs on same 3-speaker clip | P1-B6, P1-C2 | B + C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — integration module and opt-in real-expert acceptance test restored 2026-07-11 (`align/integration.py`, `tests/test_m1_real_experts.py`). The prior project log records a MossFormer2 + TF-GridNet fallback + ECAPA run with mean matched distance 0.57; this audit re-verified the deterministic, weight-free path. Use `scripts/validate_alignment.py` for fresh machine-verifiable evidence |
-| P1-INT2 | Cross-chunk lock verified on >4s audio | P1-C3, P1-INT1 | C | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-13. The identity-lock logic (the actual Dev C deliverable) is now proven deterministically in CI: `tests/test_p1_int2_identity_lock.py` drives the **real** `run_and_align_long` + `ChunkStitcher` + xcorr-scoring path over 12s audio with a separator that emits perfect per-speaker streams in a **permuted order per chunk** (the realistic challenge the lock must undo), and asserts 0 identity switches for both 2 and 3 speakers across 4 seeds. The original `passed: false` (RunPod 2026-07-11) had three causes, all now fixed: (1) the switch metric was unsound (Hungarian-matched silent tracks; compared every window to window 0) — rewritten to exclude sub-RMS-floor tracks and count switches only between consecutive active windows; (2) `run_and_align_long` never forwarded `max_tracks` to `ChunkStitcher`, so the P1-C3 cap was dead in the integration path and the validator's `max_tracks=` kwarg would have raised `TypeError` — now threaded through; (3) the "failure" regime (MossFormer2, a 2-speaker model, on 3 speakers) was an **invalid experiment** — it tests the lock with a separator that structurally cannot feed it 3 stable streams. That is an escalation concern (the cascade routes 3-speaker audio to SR-CorrNet), not an alignment bug. Real-speech confirmation on MossFormer2's genuine 2-speaker regime: **confirmed passed 2026-07-13 on Kaggle T4 real speech** — `identity_switches: 0`, `passed: true`, 3 chunks (0–4s, 3–7s, 6–10s), both tracks `[0,1]` across all chunks, mean xcorr costs 0.006/0.006/0.004. The CI proof is the claim; this is the Kaggle real-speech confirmation. |
-| P1-INT3 | REAL-M scores MossFormer2 output on test clip | P1-B1, P1-B4 | B | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, covered in test_expert_integration.py (mocked) |
-
----
-
-### Latest P1 real-data acceptance evidence
-
-- **Dataset:** one official Libri3Mix `wav16k/max/test/mix_both` sample generated from official Libri3Mix metadata, LibriSpeech `test-clean`, and WHAM! noise.
-- **Command:** `python scripts/validate_alignment.py --librimix-root "$LIBRIMIX_ROOT" --device cuda --output-dir outputs/p1_alignment --skip-pair --strict`
-- **Result:** the long-form pipeline ran and produced artifacts, but the gate did **not** pass: `identity_switches=2`, `passed=false`.
-- **Interpretation:** environment, data loading, MossFormer2 inference, chunking, stitching, and report generation are operational. The 2 switches are **not** an identity-stability bug: MossFormer2_SS_16K returns K=2 streams on a 3-speaker mixture, so one slot cannot hold a consistent speaker. Fixed downstream via `MossFormer2Expert(target_speakers=3)` residual padding (P2-INT3); the switch metric was also rewritten (P1-INT2). Re-run against the padded expert is the remaining step before this gate can pass.
-- **Evidence file:** `outputs/p1_alignment/alignment_validation.json` (keep the compact JSON; do not commit generated WAVs or model weights).
-
----
+| ID | Task | Depends on | Owner | Deliverable | Status |
+|----|------|------------|-------|-------------|--------|
+| P1-A1 | Noisy training mixtures (WHAM!+DNS-4, SNR −6..+10 dB) at 8 kHz, label-free | P0-A4 | A | Noise-condition data | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — noise augmentation stage reused |
+| P1-A2 | Reverb training mixtures (RIR bank convolution, wet refs) | P0-A3, P0-A7 | A | Reverb-condition data | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — RIR reverb stage reused |
+| P1-A3 | Codec training mixtures (ffmpeg transforms) | P0-A5 | A | Codec-condition data | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — codec transform reused |
+| P1-C1 | **Cross-interference matrix**: each adapter alone on every condition; off-diagonal harm threshold 0.3 dB | P1-B4..B6 | C | Interference table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P1-C2 | O-LoRA orthogonality penalty (escalation only, if harm > 0.3 dB) | P1-C1 | C | Optional penalty term | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
 ## 🚧 GATE M1 — Acceptance criteria
 
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] MossFormer2 wrapper returns 3 streams + embeddings — verified on the live Kaggle T4 run 2026-07-13 (residual-padded to 3 + ECAPA; fed all 500 cached samples with 0 skips)
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] SR-CorrNet-SS wrapper returns K streams + confidence — real `SSInference` API, loaded `shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk` on Kaggle GPU 2026-07-13 (`sr_corrnet import OK`) and produced the expensive-expert streams for all 500 cached samples. NOTE: the published checkpoint exposes vad/doa, not TDA attractor vectors, so the original design's attractor output is N/A for this model
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] REAL-M produces per-stream blind SI-SNR without reference — fixed the 2-source `estimate_batch` constraint 2026-07-13 (`_reduce_to_two`); produced `quality_db` for all 500 cached samples on real audio
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Hungarian alignment matches streams to consistent speaker order — verified on real experts 2026-07-11 (P1-INT1)
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Cross-chunk identity lock — closed 2026-07-13 (see P1-INT2): proven in CI (`tests/test_p1_int2_identity_lock.py`, 0 switches, 2+3 spk, 4 seeds) through the real stitcher path; the earlier 2-switch result was expert inadequacy + a dead `max_tracks` cap, both fixed
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **Shared integration test: one 3-speaker clip, both experts, aligned output** — the frozen-expert cache build (`scripts/build_train_cache.py`) is exactly this: MossFormer2 + SR-CorrNet run + Hungarian-aligned on real 3-speaker mixtures, 500/500 samples on Kaggle 2026-07-13
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Joint integration session completed — confirmed by Parv 2026-07-13 (team sit-together; all M1 engineering criteria met)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Each adapter significant on matched condition (Wilcoxon p<0.05)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] No degradation on clean Libri2Mix for any adapter
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Cross-interference matrix measured; off-diagonal harm < 0.3 dB (else O-LoRA applied)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
 
 ---
 
-# 🧩 PHASE P2 — Cascade Core (Weeks 5–6)
+# ⚖️ PHASE P1b — Universal-adapter calibration gate (Stage 2)
 
-**Milestone:** Scene analyzer, router, cascade gate, fusion head train and beat best single expert  
-**🚧 GATE M2:** Full CA-MoSE forward pass runs end-to-end, trains a few epochs, **beats best single expert** on mixed-condition validation, reports **measured escalation rate**. Everyone can explain single-input flow.
-
-**Fallback trigger (MASTER §5.3):** If cascade cannot beat MossFormer2 alone by end of P2 → fall back to always-run-both ensemble, train fusion only, present routing as interpretability.
-
----
-
-## 🤝 P2 COLLAB — Before any implementation (all three)
-
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Cascade architecture review session — confirmed by Parv 2026-07-13
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree tensor flow: [B,T] → Scene Analyzer → MossFormer2 → REAL-M → gate → SR-CorrNet → align → fuse — confirmed by Parv 2026-07-13
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree quality threshold `tau` tuning strategy (conservative: borderline inputs escalate) — confirmed by Parv 2026-07-13
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Agree composite loss weights (initial lambdas from MASTER §7.2) — confirmed by Parv 2026-07-13
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Log decisions in `docs/decisions.md` — confirmed by Parv 2026-07-13
-
----
-
-## 🔄 PARALLEL — Trainable sub-components (P2)
+**Milestone:** One universal adapter (full library budget ~2.5M, trained on the union of all conditions) evaluated against the eventual routing target on the primary benchmark.
+**🚧 GATE M1b:** Verdict **logged before the gate network is built**. If the universal adapter matches learned gating within 0.5 dB SI-SDRi on the primary benchmark and within CIs on degraded cells → adopt the simpler system and report it as the honest headline. Otherwise proceed to P2. **This decision is irreversible.**
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P2-A1 | Scene Analyzer (~1.5M params): log-mel + handcrafted features → reverb proxy, noise floor, overlap density, spectral flatness, modulation rate, K_coarse | M1 | A | `models/scene_analyzer.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11; full ~1.55M-param implementation replacing Dev B stub: pure-PyTorch log-mel (no torchaudio), BiGRU, all 5 handcrafted features, count head, scene-weight head; 26 tests passing; feature_dim default aligned to 64 across SceneAnalyzer + TwoLevelRouter |
-| P2-C1 | Two-level Adaptive Router (~0.5M params): sequence gate + segment gate (1–2s windows), sigmoid (not softmax), w_TF/w_TD/w_NULL | P2-A1 | C | `models/router.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — router implementation is wired to `SceneAnalyzer.segment_features` in `train/trainer.py`; forward, loss, gradient, and inference composition are covered by `tests/test_e2e_forward.py` |
-| P2-C2 | Load-balance auxiliary loss for router | P2-C1 | C | Loss term + collapse monitoring | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
-| P2-C3 | Null-expert sparsity loss | P2-C1 | C | Anti-hallucination loss term | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wired in `train/losses.py` CompositeLoss, 2026-07-11 |
-| P2-B1 | Cascade gate: compare REAL-M score to threshold `tau`; escalate if below | P1-B4 | B | Cascade controller | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/cascade_gate.py` |
-| P2-B2 | Escalation-rate instrumentation | P2-B1 | C | Dashboard / logging | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `eval/cascade_logging.py` (`CascadeRunLogger`, `build_cascade_record`); per-sample escalation records + session summary, PR `c81449b` |
-| P2-B3 | Fusion head CRRR (~1M params): `s_fused_k = s_SR_k + alpha_k(t) * R_theta`; alpha from confidence, mask entropy, local SI-SDRi proxy, scene weights | M1 alignment | B | `models/fusion.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/fusion.py` |
-| P2-B4 | Residual regularization loss (L2 on fusion correction) | P2-B3 | B | Loss term | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `train/losses.py` |
-
-**Router design (MASTER §4.4):**
-- Sigmoid gating (multiple experts can be active)
-- Null expert routes silence / low-overlap (prevents hallucinated speakers)
-- Load-balance prevents collapse to one expert
-
-**Cascade compute target (MASTER §4.3):** ~30% escalation → RTF ~0.14 vs ~0.36 always-both.
+| P1b-B1 | Train universal adapter on union of single-condition datasets | M1 | B | Universal adapter weights | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P1b-C1 | Evaluate on primary benchmark (reverb-noisy N=2) + ≥2 multi-condition cells; **commit verdict** | P1b-B1 | C | Verdict logged in `docs/decisions.md` | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
 ---
 
-## ⛓ SEQUENTIAL — Training loop (P2, after sub-components)
+# 🎛️ PHASE P2 — Condition analyzer & gate (Stage 3)
+
+**Milestone:** Two-level condition analyzer + gate MLP trained; learned gating beats the best single adapter on co-occurring conditions; never-worse-than-base holds on clean.
+**🚧 GATE M2:** Learned gating > best single adapter on co-occurring cells; **Principle-2 smoke test** passes (full system ≥ frozen base − 0.1 dB on clean Libri2Mix); held-out combination cells do not collapse.
+
+## 🔄 PARALLEL / ⛓ SEQUENTIAL — P2 tasks
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P2-B5 | Composite loss assembly (all 7 terms) | P2-A1, P2-C1, P2-B3 | B | `train/losses.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11 |
-| P2-B6 | Training loop | P2-B5, all P2 components | B (leads) | `train/trainer.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11 |
-| P2-B7 | Multi-resolution STFT loss | P2-B5 | B | Loss term (lambda=0.5) | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `train/losses.py` |
-| P2-B8 | Speaker-consistency loss (ArcFace-style) | P2-B5 | B | Loss term (lambda=0.1) | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `train/losses.py` |
-| P2-INT1 | **Whole-team review of training-loop PR** | P2-B6 | All | Approved PR | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — approved + merged (PR #22 → master); team review confirmed by Parv 2026-07-13 |
-| P2-INT2 | End-to-end forward pass integration test | P2-B6 | All | E2E test | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `tests/test_e2e_forward.py` (196 lines, full forward-pass through trainable heads), PR `c81449b` |
-| P2-INT3 | Short training run (few epochs) on mixed conditions | P2-INT2 | B | Checkpoint + logs | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — **done 2026-07-13 (mixed-N, Kaggle T4).** 30 epochs on 500-sample mixed 2–5 spk frozen-expert cache, loss -1.99 → -2.50 (SI-SDRi scale). Cache: 4 shards × 128 + 1 × 116 = 500 train + 100 dev samples, N∈{2,3,4,5} with K=5 slots, `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` as expensive expert. Checkpoint saved. Escalation stable at 56.8% across all 30 epochs. 10 live bugs fixed to get here (see history). |
-| P2-INT4 | Validate: beats best single expert on val set | P2-INT3 | B + C | Metric comparison table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — **CONFIRMED NEGATIVE on both regimes (2026-07-13).** Mixed 2–5 spk, 100 dev samples. **Fusion sweep** (tau=6→100): cascade 12.51→15.79 dB; SR-CorrNet 16.22 dB throughout; `beats=False` at every tau. **SR-primary sweep** (escalated→raw SR-CorrNet, else MossFormer2): cascade 12.67→16.22 dB; at tau=100 sr-primary = SR-CorrNet exactly (100% escalation = pure expensive expert). MossFormer2 alone: 8.24 dB. No tau, no mode beats SR-CorrNet. Root cause: CRRR fusion degrades SR-CorrNet by 0.4–3.7 dB; at full escalation cascade equals but never exceeds SR-CorrNet. **The honest M2 story is compute-adaptive routing:** at tau=6 (49% escalation), 51% of utterances use only MossFormer2 (cheap, RTF ~0.05), with cascade 12.67 dB vs SR-CorrNet 16.22 dB (−3.55 dB quality/compute trade). |
-| P2-INT5 | Measure and report escalation rate | P2-B2, P2-INT3 | C | Escalation rate per tier | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — **measured 2026-07-13 on mixed-N checkpoint.** Tau sweep: tau=6→49%, tau=8→52%, tau=10→55%, tau=12→60%, tau=16→62%, tau=20→68%, tau=100→100%. At tau=6: E[RTF] ≈ 0.05 + 0.49×0.31 ≈ **0.20** vs always-expensive 0.31 (~36% compute reduction). |
-
-**Composite loss (MASTER §7.2):**
-```
-L_total = L_SI-SDR-uPIT (1.0)
-        + 0.5 * L_multi-res-STFT
-        + 0.3 * L_count-BCE
-        + 0.1 * L_load-balance
-        + 0.1 * L_null-sparsity
-        + 0.1 * L_residual-reg
-        + 0.1 * L_speaker-consistency
-```
-
----
+| P2-B1 | `models/condition.py` **Level 1** — raw-STFT DSP features (SNR, codec family+bitrate, voiced density via SileroVAD); deterministic, no training | M1b, P0-C3 | B | Level-1 analyzer | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-B2 | `models/condition.py` **Level 2** — E(0) heads: reverberation strength (T60, attention-pooled CNN) + speaker-count prior (MLP) | P2-B1, P0-B3 | B | Level-2 analyzer | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-B3 | `models/gate.py` — gate MLP (2×256 GELU, sigmoid×1.5), per-layer gates, L1 sparsity 1e-3, EMA smoothing 0.7 | P2-B1 | B | Gate network | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-B4 | Supervised condition-head losses (L1 regressions + CE classifications) + separation loss through gates + gate sparsity | P2-B2, P2-B3 | B | Stage-3 training | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-C1 | Per-layer vs per-adapter gate ablation (simpler wins if no gain) | P2-B3 | C | Ablation result | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P2-C2 | **Principle-2 smoke test** (`principle2_test.py`) — full system vs frozen base on clean Libri2Mix; raise sparsity 2× until it passes | P2-B4 | C | Never-worse proof | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
 ## 🚧 GATE M2 — Acceptance criteria
 
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Full CA-MoSE forward pass: preprocess → scene → MossFormer2 → REAL-M → gate → (SR-CorrNet + fuse if escalated) → postprocess — proven end to end with real gradients in `tests/test_e2e_forward.py`; the frozen-expert half ran over 500 real Kaggle mixtures 2026-07-13
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Trained heads (~3M params) converge in few-epoch test run — 30 epochs on Kaggle T4 2026-07-13 (mixed-N cache), loss -1.99 → -2.50, checkpoint saved (see P2-INT3)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Beats best single expert on mixed-condition validation** — CONFIRMED NEGATIVE on both regimes and both modes 2026-07-13. Fusion best: 15.79 dB @ tau=100 < SR-CorrNet 16.22 dB. SR-primary best: 16.22 dB @ tau=100 = SR-CorrNet exactly (100% escalation). `beats=False` at every tau, every mode. The honest M2 claim is compute-adaptive routing: tau=6 routes 51% to cheap-only (E[RTF] ≈ 0.20 vs 0.31) at −3.55 dB quality cost. See P2-INT4.
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Escalation rate measured and logged (target ~30–40%) — tau sweep measured 49%–100%; at tau=6: 49% escalation (see P2-INT5). Above target at tau=12 (60%); tau=6 is closest to the 30–40% design point.
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Expected RTF computed at measured escalation rate — at tau=6 (49% escalation): E[RTF] ≈ 0.05 + 0.49×0.31 ≈ **0.20** vs always-expensive 0.31 (~36% compute reduction). Quality cost at this operating point: cascade 12.67 dB vs SR-CorrNet 16.22 dB (−3.55 dB). At tau=20 (68% escal): E[RTF] ≈ 0.26, cascade 14.10 dB (−2.12 dB gap).
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] All three can explain single-input flow through system — confirmed by Parv 2026-07-13 (flow walk-through)
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Training-loop PR reviewed by all three — PR #22 merged; confirmed by Parv 2026-07-13
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Joint integration session completed — confirmed by Parv 2026-07-13
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] **Novelty N1 proof started:** the single-expert-vs-cascade ablation is implemented as `scripts/evaluate_cascade.py` (PIT SI-SDRi for cascade vs MossFormer2 vs SR-CorrNet + escalation rate); it emits the verdict the moment a trained checkpoint exists
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Learned gating beats best single adapter on co-occurring cells
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Principle-2 smoke test passes (≥ base − 0.1 dB on clean)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Held-out combination cells (reverb+codec, noise+codec) do not collapse
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Condition heads inspectable (each supervised dimension traceable)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
 
 ---
 
-# 🔢 PHASE P3 — Speaker Counting (Week 7)
+# 🔧 PHASE P3 — Joint polish, band recovery, calibration (Stage 4)
 
-**Milestone:** Learned stop-classifier produces confusion matrix and calibration curve  
-**🚧 GATE M3:** System estimates speaker count on unknown-N inputs; produces **confusion matrix + calibration curve**.
+**Milestone:** Mandatory joint fine-tune of all adapters + gate on compound conditions; band-recovery head trained and dual-metric-guarded; all probabilities calibrated.
+**🚧 GATE M3:** Dual-metric guard validated on held-out; count ECE < 0.05; dropped-speaker recall > 90% at 10% false-alarm rate.
 
-**Ownership rotation:** Dev C **leads** counting; Dev B supports features; Dev A supports N=2..5 mixtures.
-
-> **Status note (2026-07-13):** **P2 trained on real mixed-N audio and evaluated** — 30 epochs on Kaggle T4, checkpoint saved, P2-INT4 (both modes) confirmed negative, P2-INT5 tau sweep done (see those rows). **P3 counting pipeline has now run end-to-end** — `scripts/train_stop_classifier.py` + `scripts/eval_counting.py` + `eval/counting_infer.py` were executed on Kaggle; stop-classifier checkpoint + confusion matrix + calibration curve all produced. count_accuracy=10% (pipeline works; accuracy needs a re-run with min_count=2 fix and more data — see M3 gate). Blockers down: (1) the 2-vs-3-stream fusion crash is fixed (see P2-INT3); (2) data-prep is guarded — `scripts/preflight_data.py` + `scripts/prepare_all_data.sh`; (3) **the frozen-expert output cache is now built and merged**, not prototyped off-repo: `train/cached_dataset.py` (`CachedExpertDataset` + shard format), `scripts/build_train_cache.py` (MossFormer2 padded to K + expensive expert Hungarian-aligned + REAL-M gate signal + ECAPA + blind mask-entropy/trivial-mask, from a LibriMix layout **or** a dynamic LibriSpeech mix), and `scripts/evaluate_cascade.py` (cascade vs best single expert, P2-INT4/INT5). Verified locally: `tests/test_cached_dataset.py` (8 tests) proves the cache round-trip and a real `train_step` that moves parameters on cached data; the full `train.trainer --cache-dir --val-cache-dir` CLI runs end to end on CPU and emits the P2-INT4 verdict. What remains is genuinely just the GPU run: `notebooks/kaggle_p2.py` is the one-shot T4 driver (build cache → train → eval → P1 validation). Expert stack: MossFormer2 via `clearvoice` (cheap), **SR-CorrNet-SS strictly** as the expensive expert — `models/experts/srcorrnet.py` now wraps the real `SSInference` API and loads `shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk` from the HF Hub (8 kHz model; the wrapper resamples to/from 16 kHz). SepFormer fallback is intentionally disabled on the cascade path; the builder errors if SR-CorrNet cannot load.
->
-> **2026-07-13, live Kaggle run:** `notebooks/kaggle_p2.py` is now actually running on Kaggle T4 (Parv's first Kaggle session). Cells 1-3 confirmed clean: private-repo clone via a Kaggle Secret (`GH_TOKEN`), LibriSpeech dev-clean split into 32/8 speaker-disjoint train/dev pools (2217/486 files), and **`sr_corrnet import OK`** — the one thing that couldn't be checked locally. Cell 4 (cache build) surfaced two real bugs on the first attempt, both root-caused from the live traceback/skip log and fixed same-session:
-> - `SRCorrNetExpert` passed the HF Hub model id to `SSInference.from_pretrained`'s `config=` kwarg, which only resolves *local* config names (`SS/<id>.yaml`) — every one of the first ~60 samples failed with `Config not found`, meaning the cache would have written zero real samples. Fixed: the Hub id now goes through `checkpoint_path=`, which the API documents as accepting both a local path and a Hub id.
-> - `MossFormer2Expert.separate()` constructed a fresh `ECAPAEmbedder` on every call instead of once per instance, so the full SpeechBrain ECAPA-TDNN model reloaded from disk/network on every sample — this is what made the run look hung on sample 0 badly enough that it was manually interrupted. Fixed: embedder is now cached on the instance.
->
-> Both fixes shipped with regression tests (`tests/test_srcorrnet_wrapper.py`, `tests/test_mossformer2_wrapper.py`) — full suite 455 passed / 4 skipped. The cache build (500 train / 100 dev) was re-launched after the fix but **has not finished** — no shard count, no manifest, no P2-INT4/INT5 numbers yet. That is the next real evidence to capture, not a done state.
-
----
-
-## 🔄 PARALLEL — P3 tasks
+## ⛓ SEQUENTIAL — P3 tasks
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P3-B1 | Feature extractors for stop-classifier: (1) residual energy ratio, (2) VAD prob on residual, (3) ECAPA embedding distance to prior stems, (4) mixture-consistency error | M2 | B | `models/counting_features.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `CountingFeatureExtractor` + unit tests |
-| P3-C1 | Learned stop-classifier MLP (~0.3M params): 4 features + attractor stop logit → P(more speakers) | M2 | C | `models/stop_classifier.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — model/interface deliverable is implemented and unit-tested; real Libri2–5Mix training remains the separate P3-C5 compute/data task |
-| P3-C2 | Count BCE loss integration into trainer | P3-C1 | C | `L_count-BCE` active in trainer | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — `SceneAnalyzer.count_logits` flows through `CAMoSETrainer` into `CompositeLoss`; the weighted count term is finite and gradient-connected in `tests/test_e2e_forward.py` |
-| P3-C3 | Count confusion matrix report generator | P0-C6, P3-C1 | C | `eval/counting_report.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — reproducible generator implemented 2026-07-11; writes JSON, CSV, Markdown, and SVG artifacts from `RunLog` records and is unit-tested. Producing the final real-data matrix remains an M3/P3-INT2 gate |
-| P3-C4 | Calibration curve report (estimated prob vs actual accuracy) | P3-C3 | C | Calibration plot + metrics | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — calibration bins, CSV, SVG, summary metrics, and no-confidence fallback are implemented in `eval/counting_report.py`; final classifier calibration evidence remains an M3/P3-INT2 gate |
-| P3-A1 | Mixer support for N=2..5 (Libri2Mix–Libri5Mix) | P0-A1, P1-A5 | A | On-the-fly 2–5 speaker mixtures | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — DynamicMixer supports arbitrary N; `discover_librimix_samples` auto-detects `s1`–`s5`; N=2..5 loader tests pass |
-| P3-A2 | SparseLibriMix download (test-only, 6 overlap ratios) | none | A | `github.com/popcornell/SparseLibriMix` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-10, `data/prepare_sparselibrimix.py` + `tests/test_prepare_sparselibrimix.py`, PR #7 |
-| P3-C5 | Stop-classifier training on Libri2–5Mix | P3-C1, P3-A1 | C | Trained classifier checkpoint | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — **first run done 2026-07-13** on Kaggle T4: 80 epochs, val_step_accuracy=61.4%, temperature=8.54. Checkpoint exists. Utterance-level count_accuracy=10% (random-level) due to min_count=1 bug (now fixed to 2) and over-temperature-scaling collapsing predictions. Needs a second run with the fix + more data to demonstrate better than random. |
-| P3-INT1 | Speaker-count coordinator: SR-CorrNet TDA attractors + stop-classifier fusion | P3-B1, P3-C1, P1-B2 | B + C | `models/count_coordinator.py` | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — done 2026-07-11, `models/count_coordinator.py` (`SpeakerCountCoordinator.decide()` fusing attractor logits + stop-classifier; graceful fallback when weights absent), PR `c81449b` |
-| P3-INT2 | Unknown-N evaluation across N=2,3,4,5 | P3-INT1, P3-C3 | C | Count accuracy results | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — coordinator and report generators are ready; blocked on P3-C5 trained classifier evidence plus an N-aware 2–5 speaker evaluation set/run |
-
-**MASTER §4.5:** Stop when P(more speakers) falls below calibrated threshold. Report full confusion matrix (which mistakes: merge vs split).
-
----
-
-## 🤝 P3 COLLAB — Dev A supports counting training data
-
-- ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] Dev A delivers 2–5 speaker mixture pipeline for classifier training — DynamicMixer ready; Libri4/5Mix prep scripts done (P1-A5)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Verify no speaker leakage across splits
-
----
+| P3-B1 | **Joint polish (mandatory)** — unlock 3 adapters + gate, train 15–20 epochs at 0.1× Stage-1 LR on compound-condition data; base frozen; O-LoRA if harm >0.3 dB | M2 | B | Polished adapters | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P3-B2 | `models/counting.py` — attractor readout (Vote 1 `p_k`) + count prior (Vote 2) + **bounded residual sweep** (Vote 3, max 3 candidates {mode−1,mode,mode+1} clipped [2,5], decoder-only) + logistic fusion | M2, P0-B4 | B | Counting subsystem | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P3-C1 | `models/band_recovery.py` — 2-conv high-band (4–8 kHz) mask head; input low-band 8 kHz STFT + mixture 16 kHz high-band; SI-SNR loss on 16 kHz recon | P3-B1 | C | Band-recovery head | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P3-C2 | **Dual-metric guard** — per-chunk bypass unless both SI-SDRi and DNSMOS improve; worst case = 8 kHz pass-through zero-padded to 16 kHz | P3-C1, P0-C4 | C | Guarded quality stage | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P3-B3 | `models/confidence.py` — per-stream confidence (p_k + inter-stage consistency + blind DNSMOS) + **completeness** (residual energy + SileroVAD-on-residual + attractor mass) + OOD Mahalanobis discount | P3-B2 | B | Confidence/completeness | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P3-C3 | **Calibration** (`calibration/`) — temperature scaling for count posterior; per-stream confidence logistic; completeness logistic (manufactured N−1 failures); counting fusion logistic; band-recovery guard thresholds. All on held-out. | P3-B3, P3-C2 | C | Fitted+hashed calibrators | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
 ## 🚧 GATE M3 — Acceptance criteria
 
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Stop-classifier trained on Libri2–5Mix — **done 2026-07-13** on Kaggle T4: 80 epochs on mixed-N (2–5 spk) dev-clean cache (500 train / 100 dev), BCE + AdamW + post-hoc temperature scaling. val_step_accuracy=61.4%, temperature=8.54. Checkpoint saved. **Caveat: count_accuracy at utterance level is 10% (random-level)** — temperature=8.54 collapses all step predictions toward P=0.5, and the peel-off with min_count=1 (since fixed to min_count=2) stopped at k=1 for most samples. More training data and a tighter temperature search needed to push past random. The pipeline itself is correct; accuracy requires scale.
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Unknown-N inference works at test time (N not given) — peel-off runs over K=5 stems, stopping when P(more speakers) < threshold. End-to-end proven on Kaggle 2026-07-13 (100 dev samples, all artifacts produced).
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Manual count override exposed (MASTER §1.3 assumption)
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **Confusion matrix produced** — produced 2026-07-13: `count_confusion_matrix.csv` + `.svg`. True-N rows = {2,3,4,5}, estimated-N cols = {2,3,4,5}. Matrix: [[17,0,0,1],[25,4,0,2],[20,4,1,0],[22,4,0,0]]. Most predictions collapse to N=2 (classifier stops early). ECE=0.514 (near-random calibration). Will improve with more training data and min_count=2 fix.
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] **Calibration curve produced** — produced 2026-07-13: `count_calibration_curve.csv` + `.svg`. ECE=0.514, reflects severe over-temperature scaling (temperature=8.54 → logits crushed toward 0.5).
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Oracle-count vs learned-count ablation planned (for P5)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Novelty N3 + N6:** counting contribution + mixture-consistency feature documented
-- ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] Joint integration session completed — confirmed by Parv 2026-07-13
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint polish complete; adapters composable at realistic co-activation
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Confusion matrix + calibration curve** produced; count ECE < 0.05
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Dropped-speaker recall > 90% at 10% FAR
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Dual-metric band-recovery guard validated (ships disabled if it cannot pass)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Residual-sweep trigger frequency measured (< 30% or threshold raised)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
 
 ---
 
-# 🛡️ PHASE P4 — Robustness (Week 8)
+# 🚀 PHASE P4 — Demo, CLI, efficiency (Weeks —)
 
-**Milestone:** Reverb, noise, codec augmentation integrated; clean performance preserved  
-**🚧 GATE M4:** Robustness table across conditions; clean-vs-augmented ablation confirms clean performance not degraded.
-
-**Ownership rotation:** Dev A **leads** augmented training run; Dev B supports; Dev C runs ablation.
-
----
-
-## 🔄 PARALLEL — P4 tasks
+**Milestone:** End-to-end CLI + Gradio demo with condition-routing visualization; RTF measured including worst-case residual sweep and 16 kHz band-recovery STFT.
+**🚧 GATE M4:** Demo runs end to end on a held-out real recording; RTF documented.
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P4-A1 | Integrate full 3-stage augmentation into training loop (RIR → WHAM noise → codec) | P1-A1, P1-A2, P1-A4, P2-B6 | A | Augmented training runs | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — augmentation modules ready; blocked on P2-B6 (training loop) |
-| P4-A2 | Re-tune trainable heads on augmented data | P4-A1 | A (leads), B support | Retrained checkpoint | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P4-A3 | Codec degradation evaluation table | P1-A4, P0-C1 | A | Clean-to-codec degradation table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P4-C1 | Clean-vs-augmented ablation | P4-A2, P0-C1 | C | Ablation table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P4-C2 | L3 evaluation: WHAMR! + Libri3Mix-noisy (SI-SDRi + DNSMOS) | P4-A2 | C | L3 results | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — reverb-noisy eval set tooling ready (`data/make_reverb_eval.py`); still blocked on P4-A2 (retrained model) |
-| P4-INT1 | Verify mixed-condition training (not worst-case-only) | P4-A2 | A | Training condition distribution log | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-
-**MASTER augmentation pipeline (§6.2):** Each stage probabilistic; ground truth = clean stems before augmentation; SI-SDRi against original clean.
-
----
+| P4-C1 | `pipeline/chunker.py` — 2.4 s chunks / 0.8 s step @8k + parallel 16 kHz mixture STFT | M3 | C | Chunker | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P4-C2 | `pipeline/stitcher.py` — max-correlation continuity + ECAPA tie-break + crossfade; global count via ECAPA clustering | M3 | C | Stitcher | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `align/chunking.py` + `align/integration.py` + ECAPA reused; rewire to single-backbone streams |
+| P4-C3 | `pipeline/infer.py` — §6.2 per-chunk order (Level-1 → Pass 1 → Level-2 → gate → Pass 2 → counting → band recovery → guarded quality) | P4-C1, P4-C2 | C | Inference pipeline | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P4-A1 | CLI entry point + reproducibility bundle (configs, hashed artifacts) | P4-C3 | A | CLI + bundle | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P4-C4 | Gradio demo: upload → count, N waveforms, spectrograms, condition/gate visualization, optional Whisper | P4-C3 | C | `demo/app.py` (rewire) | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — MockEngine skeleton reused; wire real CALM-Sep engine |
+| P4-B1 | Efficiency report — RTF at average and worst-case residual sweep (0.9 extra passes/uncertain chunk) + 16 kHz STFT | P4-C3 | B | RTF table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
 ## 🚧 GATE M4 — Acceptance criteria
 
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Three-stage augmentation active in training
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Retrained checkpoint evaluated on reverb + noise + codec conditions
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Robustness table** across conditions (project vs baselines)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Clean-vs-augmented ablation** confirms no clean regression
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Novelty N5:** codec robustness degradation table
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Demo runs end to end on a held-out real recording
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] RTF documented (average + worst case)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Any post-processor failing its guard ships disabled
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
 
 ---
 
-# 🏆 PHASE P5 — Differentiating Results (Weeks 9–10)
+# 🏆 PHASE P5 — Full evaluation & report (Weeks —)
 
-**Milestone:** Sparse-overlap curve, real-room eval, break-point curve produced  
-**🚧 GATE M5:** All three flagship results locked. Tier-3 work (N9, N10) unlocked only after this gate.
+**Milestone:** Full measurement matrix, all mandatory baselines, all headline analyses, reproducibility bundle.
+**🚧 GATE M5:** Every claim carries a bootstrap interval; universal-adapter verdict stated plainly. The only failure mode is dishonesty.
 
-**All three collaborate; each owns one flagship result.**
-
----
-
-## 🔄 PARALLEL — P5 flagship results
+## 🔄 PARALLEL — P5 tasks
 
 | ID | Task | Depends on | Owner | Deliverable | Status |
 |----|------|------------|-------|-------------|--------|
-| P5-C1 | **Flagship 1:** Sparse-overlap curve on SparseLibriMix — SI-SDRi vs overlap at {0, 20, 40, 60, 80, 100}% | M3 eval harness, P3-A2 | C | Overlap curve figure + table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P5-A1 | **Flagship 2:** Real-room recording session (2–5 speakers, scripted overlap) | M4 | A (leads) | Recorded real-room set | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P5-A2 | Real-room per-stream Whisper WER evaluation | P5-A1 | A | Real-room WER table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P5-A3 | LibriCSS WER evaluation (up to 2 concurrent) | P0-C1 | A | LibriCSS results | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P5-B1 | **Flagship 3:** Break-point curve — SI-SDRi vs speaker count 2→7 | P3-A1 (mixer high N) | B | Break-point figure | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P5-B2 | Document MossFormer2→SR-CorrNet handoff above 3 speakers | P5-B1 | B | Transition boundary note | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P5-ALL1 | Full ablation table (all 9 mandatory conditions) | M2, M3, M4 | All (split) | Ablation table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P5-C1 | `eval/matrix.py` + `eval/stats.py` — full matrix (SI-SDRi, DNSMOS, PESQ, count acc, ECE) with bootstrap CIs (10k) + Wilcoxon | M4 | C | Results matrix | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P5-C2 | Primary-benchmark headline: reverb-noisy LibriMix N=2 SI-SDRi over mixture | P5-C1 | C | Headline number | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P5-A1 | Real-RIR eval (BUT ReverbDB SLR17) — sim-to-real gap (mandatory) | P5-C1 | A | Real-RIR table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P5-A2 | Real recordings (team-recorded + LibriCSS) — DNSMOS + Whisper WER | M4 | A | Real-audio results | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P5-B1 | Break-point curve (every metric vs N=2→5) + band-recovery contribution (matched pairs) | P5-C1 | B | Curves | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| P5-ALL1 | Report: each dev writes their section; reproducibility bundle (content-addressed) | P5-C1 | All | Final report | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
----
+## Mandatory baselines (BLUEPRINT §9.6)
 
-## 🤝 P5 COLLAB — Real-room recording (all three as speakers)
-
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Script overlapping dialogue (2–5 speakers)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Record in real room on phones
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Known transcripts for WER ground truth
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Held-out from training data
-
----
-
-## Mandatory ablations checklist (MASTER §10.2)
-
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] MossFormer2-only vs full cascade
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] SR-CorrNet-only vs full cascade
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Static equal-weight ensemble vs cascade
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Fixed threshold vs learned gatekeeper
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Router with null expert vs without
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] 100% overlap training vs sparse overlap curriculum
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Oracle speaker count vs learned count
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Without codec augmentation vs with
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Without mixture-consistency feature vs with
-
----
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Frozen base alone (8 kHz; zero-padded to 16 kHz for DNSMOS) — quality floor
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Universal adapter (P1b) — whether routing is needed
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Uniform blend, no gate — whether the gate earns its complexity
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Oracle gating — upper bound on routing
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Frozen base + band recovery, no adapters — isolates band recovery
 
 ## 🚧 GATE M5 — Acceptance criteria
 
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] SparseLibriMix curve complete (6 ratios) — **Novelty N4**
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Real-room WER table complete — **Novelty N7** (if chosen over N8)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Break-point curve 2–7 speakers — **Novelty N9**
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] All 9 ablation rows filled
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
-
----
-
-# 🚀 PHASE P6 — Demo & Report (Weeks 11–12)
-
-**Milestone:** Gradio demo, ablation table, written report complete  
-**🚧 GATE M6:** Submission package complete — demo runs, report written, results reproduce from bundle.
-
----
-
-## 🔄 PARALLEL — P6 tasks
-
-| ID | Task | Depends on | Owner | Deliverable | Status |
-|----|------|------------|-------|-------------|--------|
-| P6-C1 | Gradio demo: upload audio → speaker count, N waveforms, spectrograms, Whisper transcripts | M5 full system | C | `demo/gradio_app.py` | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — MockEngine skeleton in `demo/app.py` done 2026-07-09; real engine pending M5 |
-| P6-B1 | Routing-weight interpretability panel in demo | P6-C1 | B | Demo panel | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-B2 | Mixture-consistency self-grade display in demo | P6-C1 | B | Demo panel | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-B3 | Auto-flag low-confidence outputs in demo | P6-B2 | B | Demo feature (N6) | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-A1 | Demo audio processing backend | M5 full system | A | Demo backend API | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-A2 | Reproducibility package: configs, checkpoints, instructions | All phases | A | Reproducibility bundle | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-ALL1 | Technical report — Dev A section | M5 results | A | Report section | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-ALL2 | Technical report — Dev B section | M5 results | B | Report section | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-ALL3 | Technical report — Dev C section (calibration, curves) | M5 results | C | Report section | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-ALL4 | Final ablation table in report | P5-ALL1 | All | Report table | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| P6-ALL5 | Demo video or hosted demo link | P6-C1 | C | Demo artifact | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-
-**Demo must show (MASTER §9 Phase 6):** estimated count, N waveforms, spectrograms, per-stream Whisper transcripts, routing-weight visualization, mixture-consistency self-grade.
-
----
-
-## 🚧 GATE M6 — Acceptance criteria
-
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Gradio demo runs end-to-end on uploaded audio
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Report complete with all three sections
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Full matrix filled; every cell has a bootstrap interval
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] All 5 mandatory baselines reported
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] All 8 headline analyses complete (interference matrix, composition, compositional generalization, break-point, calibration, risk-coverage, band-recovery contribution, efficiency)
+- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Universal-adapter verdict stated plainly
 - ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Reproducibility bundle reproduces key numbers
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] All reporting checklist items below addressed
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Joint integration session completed
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] **Submission package delivered**
 
 ---
 
-# Reporting checklist (MASTER §10.3)
+# Evaluation matrix (BLUEPRINT §7.4 / §9.4)
 
-Track at M6; start collecting artifacts from M0.
+Conditions × N ∈ {2,3,4,5}. Separation scored at 8 kHz; DNSMOS on 16 kHz band-recovered output.
 
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Libri3Mix + WSJ0-3mix SI-SDRi (known + unknown N)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] SparseLibriMix SI-SDRi at {0, 20, 40, 60, 80, 100}% overlap
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Speaker-count accuracy + confusion matrix + calibration curve
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] WHAMR! + reverberant Libri3Mix SI-SDRi + DNSMOS
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Clean-to-codec degradation table
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Real-room scripted per-stream WER
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Break-point curve: SI-SDRi vs speaker count 2→7
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Cascade escalation rate per tier
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Inference RTF at average and worst-case escalation
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Ablation table (≥9 conditions)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Router weight interpretability panel
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Gradio demo link or recorded demo video
-
----
-
-# Evaluation tiers (MASTER §1.4 / §10.1)
-
-| Tier | Speakers | Overlap | Conditions | Expected SI-SDRi | Benchmark | Metrics |
-|------|----------|---------|------------|------------------|-----------|---------|
-| L0 | 2 | 100% | clean anechoic | 18–24 dB | — | SI-SDRi |
-| L1 | 3 | 100% | clean anechoic | 15–20 dB | Libri3Mix, WSJ0-3mix | SI-SDRi |
-| L2 | 3–4 | 40–60% | clean / mild noise | 10–15 dB | SparseLibriMix | SI-SDRi vs overlap |
-| L3 | 4–5 | 20–40% sparse | WHAM! noise | 8–12 dB | WHAMR!, Libri3Mix-noisy | SI-SDRi, DNSMOS |
-| L4 | 5–7 | variable | noise + reverb | 5–10 dB | WSJ0-4/5Mix, Libri5Mix | SI-SDRi, count accuracy |
-| L5 | any | any | no reference | — | REAL-M, real audio | DNSMOS, listening test |
-| Real | 2–5 | scripted | real room | — | Real-room set, LibriCSS | WER, DNSMOS |
+| Tier | Source | Measures | N | n/cell |
+|------|--------|----------|---|--------|
+| Clean 2–3 | Libri2Mix / Libri3Mix (8k) | SI-SDRi, PESQ | 2,3 | 500 |
+| Sparse overlap | SparseLibriMix (8k) | quality vs overlap 0–100% | 2 | 200 |
+| Sparse overlap 3-spk | custom | extends SparseLibriMix to N=3 | 3 | 200 |
+| **Primary: noise+reverb** | custom WHAMR!-style (8k) | **headline SI-SDRi + DNSMOS** | 2 | **500** |
+| Reverb-noisy high count | same | count acc + quality | 3,4,5 | 200 |
+| Reverb only | clean-reverb LibriMix | isolates `adapter_reverb` | 2,3 | 200 |
+| **Real-RIR (mandatory)** | **BUT ReverbDB SLR17** | sim-to-real gap | 2 | 200 |
+| Codec only | LibriMix + ffmpeg | isolates `adapter_codec` | 2 | 200 |
+| Reverb+codec (held-out) | never in gate training | compositional generalization | 2,4 | 200 |
+| Noise+codec (held-out) | never in gate training | compositional generalization | 2,4 | 200 |
+| High count clean | Libri4Mix / Libri5Mix | break-point N=4–5 | 4,5 | 200 |
+| High count degraded | + reverb-noisy | count under degradation | 4,5 | 200 |
+| Real recordings | LibriCSS 1ch | DNSMOS + Whisper WER | 2+ | full |
+| Band-recovery gain | matched 8k vs 16k pairs | isolates band recovery | 2 | 500 |
 
 ---
 
-# Novelty ledger tracker (MASTER §12)
+# Novelty ledger (BLUEPRINT §1.3 / §9.5)
 
-| ID | Contribution | Tier | Proof artifact | Target phase | Status |
-|----|-------------|------|----------------|--------------|--------|
-| N1 | Conditional cascade routing | Mandatory | Ablation + escalation rate + compute curve | P2, P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — pending cascade gate (P2-B1) and ablation run |
-| N2 | Two-level router + null expert + load-balance | Mandatory | Router ablation + demo panel | P2, P6 | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `models/router.py` done 2026-07-09; ablation run pending M2 |
-| N3 | Calibrated stop-classifier + confusion matrix | Mandatory | Confusion matrix + calibration curve | P3 | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `models/stop_classifier.py` + training script done 2026-07-09; full training run on real data pending M2 |
-| N4 | Sparse-overlap curve (SparseLibriMix) | Mandatory | SI-SDRi vs overlap table | P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| N5 | Codec augmentation robustness | Mandatory | Clean-to-codec degradation table | P4 | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `data/codec_augmentation.py` prototype done 2026-07-10; degradation table pending P4-A3 |
-| N6 | Mixture-consistency self-grading | With N3 | Stop-classifier ablation + demo flag | P3, P6 | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — mixture-consistency feature in stop_classifier 2026-07-09; demo display pending P6-B2 |
-| N7 | Real-room WER evaluation | Tier 2 (pick one) | Real-room WER table | P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| N8 | Enrollment-based target extraction demo | Tier 2 (alt) | Interactive demo mode | P6 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| N9 | Break-point curve 2–7 speakers | Tier 3 | SI-SDRi vs N curve | P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — locked until M5 |
-| N10 | Generative flow post-corrector | Tier 3 | DNSMOS ablation | Post-M5 only | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — locked until M5 |
-
-**Commit set:** N1–N5 mandatory; N6 with N3; pick N7 or N8; N9 nearly free; N10 only if all stable.
+| ID | Contribution | Proof artifact | Target phase | Status |
+|----|-------------|----------------|--------------|--------|
+| C1 | Condition-aware LoRA mixture on a frozen backbone (weight-space composition) | Composition analysis + learned-vs-oracle gating | P2, P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| C2 | Supervised, inspectable two-level condition analyzer | Per-dimension trace + gate ablation | P2 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| C3 | Never-worse-than-base, empirically verified | Principle-2 smoke test | P2 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| C4 | Attractor `p_k` counting + bounded residual sweep | Confusion matrix + ECE + risk-coverage | P3, P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| C5 | Residual-energy completeness detector (missed-speaker guard) | Dropped-speaker recall > 90% @10% FAR | P3 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| C6 | Dual-metric-guarded band recovery (8→16 kHz) | Matched-pair SI-SDRi + DNSMOS delta | P3, P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| C7 | Universal-adapter honesty gate | Pre-committed verdict (P1b) | P1b, P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
 ---
 
@@ -639,37 +423,48 @@ Track at M6; start collecting artifacts from M0.
 
 | Dataset | Role | Owner phase | Status |
 |---------|------|-------------|--------|
-| LibriSpeech | Source audio for mixer | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — official `test-clean` downloaded and used on RunPod for P1 validation; full training source pool not yet prepared |
-| Libri2Mix / Libri3Mix | Primary train/eval | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — one official Libri3Mix test sample generated and consumed successfully on RunPod; full train/dev/test corpus is not yet prepared |
-| Libri4Mix / Libri5Mix | N=4,5 training | P1-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep script ready (`data/prepare_librimix_highn.py`, P1-A5); not yet run on this machine |
-| SparseLibriMix | L2 overlap eval (test only) | P3-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep script ready (`data/prepare_sparselibrimix.py`, PR #7); generation requires LibriSpeech test-clean at runtime |
-| WHAM! | Noise augmentation | P1-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — official WHAM! archive downloaded and extracted on RunPod; used to generate the official one-sample Libri3Mix P1 validation input |
-| WHAMR! | Reverb eval + RIR source | P1-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — license-free reverb-noisy eval ready (`data/make_reverb_eval.py`); real WHAMR! gated on WSJ0/LDC (`data/prepare_whamr.py`) |
-| VCTK | Accent diversity | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep script ready (`data/prepare_vctk.py`, P0-A4); not yet run on this machine |
-| WSJ0-*Mix | Literature comparison (LDC license) | Optional | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| LibriheavyMix | Large-scale reverb (if compute) | Optional | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| REAL-M | Real 2-speaker, no reference | P1-C | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| LibriCSS | Real-room WER | P5-A | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
-| Real-room set | Team-recorded flagship | P5-A | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| LibriSpeech (8k + 16k copies) | Source speech (train-clean-100 pool; dev/test held out) | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep reused; 8 kHz downsample + 16 kHz retention pending |
+| RIR bank (pyroomacoustics, 10k) | `adapter_reverb` + reverb eval | P0-A | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| WHAM! (~17 GB) | `adapter_noise` | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep reused |
+| DNS-4 (stratified 20 GB) | `adapter_noise` variety | P0-A | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| Libri2/3Mix | Clean + primary eval | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep reused |
+| Libri4/5Mix | High-count eval | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `prepare_librimix_highn.py` reused |
+| SparseLibriMix | Overlap eval (test only) | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — prep reused |
+| **BUT ReverbDB (SLR17)** | Mandatory real-RIR eval | P0-A / P5-A | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — **note: SLR28 is AISHELL-2, NOT a RIR set** |
+| LibriCSS | Real-room DNSMOS + WER | P5-A | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| Real-room set | Team-recorded flagship | P4/P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| VCTK | Optional extended pool | P0-A | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — `prepare_vctk.py` reused (optional) |
+| WSJ0-mix / WHAMR! (LDC) | Literature comparison only | Optional | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — excluded from training (license) |
 
 ---
 
-# Risk register & fallback triggers
+# Pretrained tools (used at inference, never retrained)
 
-| Risk | Severity | Mitigation | Trigger action | Status |
-|------|----------|------------|----------------|--------|
-| SR-CorrNet weights unavailable | High | TF-GridNet via ESPnet | P1-B3 fallback | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| REAL-M too noisy for gate | Medium | Scene-analyzer reverb proxy as primary gate signal | Reprioritize P2-B1 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| Alignment / identity tracking fails on real long audio | High | Inspect chunk assignments; strengthen ECAPA continuity/track birth-death logic; rerun official Libri3Mix gate | P1-C3 / P1-INT2 | ![resolved](https://img.shields.io/badge/resolved-brightgreen?style=flat-square) [x] — resolved 2026-07-13. The 2 switches (2026-07-11) were MossFormer2 failing to emit 3 stable streams (expert inadequacy → escalation), plus an unsound metric and a dead `max_tracks` cap. Lock now proven in CI (`tests/test_p1_int2_identity_lock.py`, 0 switches, 2+3 spk, 4 seeds). See P1-INT2 |
-| Router collapse | Medium | Increase load-balance loss weight | Monitor P2-C2 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| MossFormer2 max 3 speakers | Medium | Hand off to SR-CorrNet for N>3 | Document P5-B2 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| Fusion loses to SR-CorrNet alone | High | Fall back to ensemble / SR-CorrNet-primary | MASTER §5.3 at M2 | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — **confirmed on clean AND mixed-N 2026-07-13**, and it is not marginal: even at 100% escalation the fused output is ~3–4 dB below raw SR-CorrNet (mixed-N: ~12.5 vs ~16.2). The CRRR fusion actively degrades a strong expert on this smoke-scale training. This is the central M2 blocker. Real mitigations to try: (a) route escalated samples to raw SR-CorrNet, bypassing fusion (SR-primary), (b) much larger fusion training set, (c) test on noisy/reverberant data where the residual has something to correct |
-| Scope creep | High | Tier 3 only after M5 | Enforce gate | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| 6–7 speaker quality poor | Expected | Graceful degradation framing | P5-B1 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| Train-test domain gap | High | Mixed-condition aug + real-room eval | P4, P5 | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
-| Dev B bottleneck | Planning | Fast review P1/P2; A/C front-load | Ongoing | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring; A and C have front-loaded P1 work |
-| Expert deps missing from requirements | Low | Add clearvoice + TF-GridNet deps to requirements.txt | Found 2026-07-11 running real experts | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — flagged to Dev B |
-| SR-CorrNet weights still unconfirmed | High | TF-GridNet fallback active and verified working | Confirmed falling back 2026-07-11 | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — fallback verified, weights still absent |
+| Tool | Source | Purpose | Status |
+|------|--------|---------|--------|
+| SR-CorrNet var-2-5 | HF `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` | Frozen base (8k, K0=5) | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — download + patch (P0-B1) |
+| SileroVAD | silero-vad (8k native) | Level-1 voiced density | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| ECAPA-TDNN | SpeechBrain VoxCeleb | Stitching + global count clustering | ![done](https://img.shields.io/badge/done-brightgreen?style=flat-square) [x] — wrapper reused (`models/experts/embeddings.py`, `align/embeddings.py`) |
+| DNSMOS ONNX | Microsoft DNS Challenge | Quality on 16 kHz output | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — stub reused; ONNX activation pending |
+| PESQ | `pesq` pip | Reference-based quality | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| Whisper (optional) | OpenAI | Demo transcripts / LibriCSS WER | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+
+---
+
+# Risk register & fallback triggers (BLUEPRINT §11)
+
+| Risk | Likelihood | Impact | Mitigation | Status |
+|------|-----------|--------|------------|--------|
+| `p_k` not exposed by wrapper | Low-Med | Blocker (counting) | First P0 task; patch before any other code | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| LoRA composition interference > 0.3 dB | High (expected) | Medium | Co-activation warm-up (P1) + mandatory joint polish (P3) + O-LoRA (escalation) | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| Universal adapter matches full routing | Medium | Reframes headline | Trained first; pre-commit to adopt if within 0.5 dB | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| Gate collapse to uniform activation | Medium | Quality plateau | Supervised heads + sparsity + oracle-gap analysis | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| SileroVAD proxy uninformative | Medium | Minor | Validate in P0; fallback voiced-energy fraction | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| Never-worse fails on clean | Medium | Credibility | Principle-2 smoke test; raise sparsity until it passes | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| Sim-to-real reverb gap | Medium | Real-RIR cells | BUT ReverbDB tier mandatory | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| Count degrades under combined degradation | Medium | Half the grade | Residual sweep; degraded-val count from start | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| Band recovery hurts SI-SDRi | Medium | Quality regression | Dual-metric guard; per-chunk bypass | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
+| Residual sweep triggers too often | Unknown | RTF budget | Measure; raise threshold or drop to 2 candidates if >30% | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — monitoring |
 
 ---
 
@@ -677,48 +472,49 @@ Track at M6; start collecting artifacts from M0.
 
 | Item | Target | Actual | Status |
 |------|--------|--------|--------|
-| Frozen expert params | ~60–75M | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — not yet measured |
-| Trainable params | ~3.3M | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — not yet measured |
-| Training time (all heads) | 2–4 days on 1 GPU | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — not yet run |
-| RTF @ 30% escalation | ~0.14 | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — not yet measured |
-| RTF worst case (100% escalation) | ~0.40 | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — not yet measured |
-| Inference memory | ≤16 GB T4 | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — not yet measured |
-| Development GPUs | 2× T4 16GB | 1× RTX 4090 RunPod used for P1 validation | ![in progress](https://img.shields.io/badge/in_progress-yellow?style=flat-square) [~] — temporary validation pod provisioned; planned 2×T4 development setup not yet established |
-| Final run GPU | A100 40GB (if available) | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] — not yet provisioned |
+| Frozen base params | 13.6M | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| New trainable params | ~3–4M | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| Per-adapter params | ~0.4–0.6M | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| Total GPU-hours | < 150 (T4) | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| RTF (avg, incl. residual sweep + 16k STFT) | measured | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
+| Inference memory | ≤ 16 GB T4 | — | ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] |
 
-**Trainable component sizes:**
-- Scene Analyzer: ~1.5M
-- Router: ~0.5M
-- Stop-Classifier: ~0.3M
-- Fusion Head (CRRR): ~1.0M
+**New trainable component sizes (target):** condition analyzer + gate + counting fusion + calibration ≈ 1–1.5M; 3 LoRA adapters < 2M; band recovery ~0.1M.
 
 ---
 
 # Phase timeline summary
 
-| Phase | Weeks | Gate | Parallel? | Critical owner |
-|-------|-------|------|-----------|----------------|
-| **P0** Foundation | 1–2 | M0 | 🔄 Full parallel | All |
-| **P1** Expert integration | 3–4 | M1 | B sequential; A,C parallel | B |
-| **P2** Cascade core | 5–6 | M2 | Sub-components parallel; training sequential | B |
-| **P3** Counting | 7 | M3 | 🔄 Mostly parallel | C (leads) |
-| **P4** Robustness | 8 | M4 | 🔄 Mostly parallel | A (leads) |
-| **P5** Differentiators | 9–10 | M5 | 🔄 Parallel flagship results | All |
-| **P6** Demo & report | 11–12 | M6 | 🔄 Parallel | All |
+| Phase | Gate | Parallel? | Critical owner |
+|-------|------|-----------|----------------|
+| **P0** Verify checkpoint + synthesis | M0 | 🔄 Full parallel (B patches / A data) | B |
+| **P1** Adapter library (Stage 1) | M1 | Adapters sequential; A/C parallel | B |
+| **P1b** Universal-adapter gate (Stage 2) | M1b | ⛓ Irreversible verdict | B |
+| **P2** Condition analyzer + gate (Stage 3) | M2 | 🔄 Mostly parallel | B |
+| **P3** Joint polish + band recovery + calibration (Stage 4) | M3 | ⛓ Sequential | B/C |
+| **P4** Demo, CLI, efficiency | M4 | 🔄 Parallel | C |
+| **P5** Full eval + report | M5 | 🔄 Parallel | All |
 
 ---
 
-# Optional / stretch (do not start until M5 unless noted)
+# New source files CALM-Sep must add (gap list)
 
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] MambaDeflate stretch expert (E_DEF) for 5+ speakers — SPMamba / ReSepNet
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] LibriheavyMix large-scale reverb training
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] WSJ0-*Mix literature comparison (requires LDC license)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Backbone fine-tuning (adds 1–2 weeks; only if ablation justifies)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Wiener filter postprocessing
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] One-step generative flow corrector (N10, Tier 3)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Enrollment-based demo mode (N8, Tier 2 alternative)
-- ![not done yet](https://img.shields.io/badge/not_done_yet-red?style=flat-square) [ ] Real-time streaming demo mode
+Not present in the repo yet; each is a Phase deliverable above.
+
+- `models/srcorrnet/` — wrapper exposing `p_k`, `E(0)`, decoder-stage features (Patches A/B/C)
+- `models/lora.py` — parallel-branch LoRA + co-activation sampler
+- `models/condition.py` — two-level condition analyzer
+- `models/gate.py` — gate MLP + EMA + sparsity
+- `models/counting.py` — attractor readout + residual sweep + fusion
+- `models/confidence.py` — per-stream confidence + completeness + OOD
+- `models/band_recovery.py` — high-band head + dual-metric guard
+- `pipeline/chunker.py`, `pipeline/stitcher.py`, `pipeline/infer.py`
+- `eval/matrix.py`, `eval/stats.py`
+- `calibration/` — fitted temperature scalars + logistic models (hashed)
+- `data/synthesis/`, `data/fixed_eval/`, `data/rirs/`
+- `tests/attractor_test.py`, `tests/e0_hook_test.py`, `tests/principle2_test.py`, `tests/smoke_test.py`
+- configs: `base_checkpoint.yaml`, `adapters/{reverb,noise,codec}.yaml`, `gate.yaml`, `band_recovery.yaml`, `eval.yaml`
 
 ---
 
-*End of PROJECT_TODO.md — edit this file as the project progresses.*
+*End of PROJECT_TODO.md (CALM-Sep) — edit as the project progresses. When implementation and `BLUEPRINT` disagree, one is wrong; record the resolution in `BLUEPRINT` §15.*
