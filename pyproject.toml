@@ -3,9 +3,9 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ca-mose"
-version = "0.1.0"
-description = "Condition-Aware Mixture-of-Separation-Experts for multi-speaker speech separation"
+name = "calm-sep"
+version = "0.2.0"
+description = "Condition-Aware LoRA Mixture for Multi-Speaker Speech Separation (CALM-Sep)"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -30,16 +30,36 @@ dev = [
     "black>=24.0",
     "pre-commit>=3.6",
 ]
+demo = [
+    "gradio>=4.0",
+]
+eval = [
+    "onnxruntime>=1.16",
+    "pesq>=0.0.4",
+]
 experts = [
     "clearvoice>=0.1.2",
 ]
 
 [project.scripts]
+calm-sep = "scripts.calmsep_infer:main"
 ca-mose-baseline = "scripts.run_baseline:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
-include = ["data*", "models*", "eval*", "train*", "align*", "demo*", "schemas*", "scripts*", "utils*"]
+include = [
+    "data*",
+    "models*",
+    "eval*",
+    "train*",
+    "align*",
+    "demo*",
+    "schemas*",
+    "scripts*",
+    "utils*",
+    "pipeline*",
+    "calibration*",
+]
 
 [tool.black]
 line-length = 100

@@ -26,6 +26,9 @@ from schemas.separation_result import SeparationResult
 EPS: float = 1e-8
 """Numerical guard for log/divide. Not a tunable; tests reference this exact value."""
 
+HALLUCINATION_PENALTY_DB: float = 1.0
+"""Per-hallucinated-stream penalty for cardinality-aware scoring (BLUEPRINT §9.2)."""
+
 MissingPolicy = Literal["mixture_fallback", "silence_floor"]
 
 
@@ -38,6 +41,8 @@ class PitResult:
         si_sdri_per_stream: Improvement over the mixture per reference stream.
         mean_si_sdr: Mean SI-SDR across reference streams.
         mean_si_sdri: Mean SI-SDRi across reference streams.
+        penalized_si_sdri: Cardinality-aware score: mean SI-SDRi minus 1 dB per
+            hallucinated (unassigned) estimate stream (BLUEPRINT §9.2).
         assignment: Matched (estimate_index, reference_index) pairs.
         unassigned_estimates: Estimate indices left unmatched (over-separation).
         missing_references: Reference indices with no estimate (under-separation).
@@ -54,6 +59,7 @@ class PitResult:
     missing_references: list[int] = field(default_factory=list)
     n_estimated: int = 0
     n_reference: int = 0
+    penalized_si_sdri: float = 0.0
 
 
 def _validate_1d(x: np.ndarray, name: str) -> np.ndarray:
@@ -190,17 +196,48 @@ def pit_si_sdr(
     sdr = [sdr_by_ref[j] for j in range(n_ref)]
     sdri = [sdr[j] - mixture_sdr_per_ref[j] for j in range(n_ref)]
 
+    mean_sdri = float(np.mean(sdri))
+    penalized = cardinality_aware_score(mean_sdri, n_hallucinated=len(unassigned))
+
     return PitResult(
         si_sdr_per_stream=[float(v) for v in sdr],
         si_sdri_per_stream=[float(v) for v in sdri],
         mean_si_sdr=float(np.mean(sdr)),
-        mean_si_sdri=float(np.mean(sdri)),
+        mean_si_sdri=mean_sdri,
+        penalized_si_sdri=penalized,
         assignment=assignment,
         unassigned_estimates=unassigned,
         missing_references=missing,
         n_estimated=n_est,
         n_reference=n_ref,
     )
+
+
+def cardinality_aware_score(
+    mean_si_sdri: float,
+    n_hallucinated: int,
+    penalty_db: float = HALLUCINATION_PENALTY_DB,
+) -> float:
+    """
+    Cardinality-aware penalized SI-SDRi (BLUEPRINT §9.2).
+
+    Each matched pair contributes via mean_si_sdri (missed speakers already
+    scored at 0 dB improvement under mixture_fallback). Each hallucinated
+    (unassigned) estimate stream subtracts ``penalty_db`` from the mean.
+
+    Args:
+        mean_si_sdri: Mean SI-SDRi over reference streams after Hungarian match.
+        n_hallucinated: Number of unassigned estimate streams.
+        penalty_db: Penalty per hallucinated stream (default 1.0 dB).
+
+    Returns:
+        Penalized score in dB.
+    """
+    if n_hallucinated < 0:
+        raise ValueError(f"n_hallucinated must be non-negative, got {n_hallucinated}")
+    if penalty_db < 0:
+        raise ValueError(f"penalty_db must be non-negative, got {penalty_db}")
+    return float(mean_si_sdri - penalty_db * n_hallucinated)
 
 
 def score_result(

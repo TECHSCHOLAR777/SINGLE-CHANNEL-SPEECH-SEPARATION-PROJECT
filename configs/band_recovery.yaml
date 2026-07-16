@@ -1,0 +1,11 @@
+# Band recovery Option B (BLUEPRINT §5.9)
+enabled: true
+channels: 32
+n_fft_8k: 128
+hop_8k: 64
+n_fft_16k: 256
+hop_16k: 128
+guard_sisdri_db: 0.0
+guard_dnsmos: 0.0
+lr: 1.0e-3
+epochs: 20

@@ -1,10 +1,8 @@
-"""
-Audio preprocessing for CA-MoSE inference (Dev B, Phase 1).
+"""Audio preprocessing for CALM-Sep (8 kHz) and legacy 16 kHz paths.
 
-Resamples to 16 kHz, peak-normalizes to -26 dBFS, and produces dual branches:
-waveform for time-domain experts (MossFormer2) and STFT for time-frequency
-experts (SR-CorrNet). All downstream modules should consume PreprocessedAudio
-rather than reimplementing normalization.
+CALM-Sep operates at 8 kHz internally (STFT window 128, hop 64) with a parallel
+16 kHz mixture STFT for band recovery. The legacy ``preprocess`` API remains for
+older 16 kHz expert code.
 """
 
 from __future__ import annotations
@@ -14,22 +12,24 @@ from dataclasses import dataclass
 import numpy as np
 import torch
 
+# Legacy CA-MoSE constants (kept for backward compatibility).
 PROJECT_SAMPLE_RATE = 16000
 TARGET_PEAK_DBFS = -26.0
 STFT_N_FFT = 512
 STFT_HOP_LENGTH = 128
 
+# CALM-Sep constants (BLUEPRINT fixed constraints).
+CALMSEP_SR = 8000
+OUTPUT_SR = 16000
+CALMSEP_N_FFT = 128
+CALMSEP_HOP = 64
+BAND_N_FFT = 256
+BAND_HOP = 128
+
 
 @dataclass
 class PreprocessedAudio:
-    """Dual-branch preprocessed mixture ready for expert inference.
-
-    Attributes:
-        waveform: Mono float32 waveform [T] at PROJECT_SAMPLE_RATE.
-        stft: Complex STFT [F, frames] with n_fft=512, hop=128.
-        sample_rate: Always PROJECT_SAMPLE_RATE after preprocessing.
-        original_length: Sample count before any padding applied for STFT.
-    """
+    """Dual-branch preprocessed mixture ready for legacy 16 kHz expert inference."""
 
     waveform: np.ndarray
     stft: np.ndarray
@@ -51,12 +51,31 @@ class PreprocessedAudio:
         return float(self.waveform.shape[0]) / float(self.sample_rate)
 
     def waveform_torch(self, device: str | torch.device = "cpu") -> torch.Tensor:
-        """Return waveform as [T] float tensor on device."""
         return torch.from_numpy(self.waveform).to(device)
 
     def stft_torch(self, device: str | torch.device = "cpu") -> torch.Tensor:
-        """Return complex STFT as [F, frames] tensor on device."""
         return torch.from_numpy(self.stft).to(device)
+
+
+@dataclass
+class CalmSepPreprocessed:
+    """CALM-Sep dual-rate preprocessed mixture (BLUEPRINT §5.2)."""
+
+    wav_8k: np.ndarray
+    stft_8k: np.ndarray
+    wav_16k: np.ndarray
+    stft_16k: np.ndarray
+    sample_rate_internal: int = CALMSEP_SR
+    sample_rate_output: int = OUTPUT_SR
+    original_length_8k: int = 0
+
+    def __post_init__(self) -> None:
+        self.wav_8k = np.asarray(self.wav_8k, dtype=np.float32).squeeze()
+        self.wav_16k = np.asarray(self.wav_16k, dtype=np.float32).squeeze()
+        self.stft_8k = np.asarray(self.stft_8k, dtype=np.complex64)
+        self.stft_16k = np.asarray(self.stft_16k, dtype=np.complex64)
+        if self.original_length_8k <= 0:
+            self.original_length_8k = int(self.wav_8k.shape[0])
 
 
 def resample_audio(
@@ -78,21 +97,28 @@ def resample_audio(
     from scipy import signal
 
     n_out = int(round(wav.shape[0] * target_sr / orig_sr))
+    if n_out <= 0:
+        return np.zeros(0, dtype=np.float32)
     return signal.resample(wav, n_out).astype(np.float32)
 
 
 def peak_normalize_dbfs(waveform: np.ndarray, target_dbfs: float = TARGET_PEAK_DBFS) -> np.ndarray:
-    """
-    Peak-normalize waveform so the absolute peak equals target_dbfs dBFS.
-
-    dBFS = 20 * log10(peak / full_scale). Full scale is 1.0 for float audio.
-    """
+    """Peak-normalize waveform so the absolute peak equals target_dbfs dBFS."""
     wav = np.asarray(waveform, dtype=np.float32).squeeze()
     peak = float(np.max(np.abs(wav)))
     if peak < 1e-8:
         return wav
     target_linear = 10.0 ** (target_dbfs / 20.0)
     return (wav * (target_linear / peak)).astype(np.float32)
+
+
+def rms_normalize(waveform: np.ndarray, target_rms: float = 0.1) -> np.ndarray:
+    """RMS-normalize to a fixed target (BLUEPRINT §5.2)."""
+    wav = np.asarray(waveform, dtype=np.float32).squeeze()
+    rms = float(np.sqrt(np.mean(wav**2) + 1e-12))
+    if rms < 1e-8:
+        return wav
+    return (wav * (target_rms / rms)).astype(np.float32)
 
 
 def compute_stft(
@@ -119,17 +145,7 @@ def preprocess(
     sample_rate: int,
     target_dbfs: float = TARGET_PEAK_DBFS,
 ) -> PreprocessedAudio:
-    """
-    Full preprocessing pipeline: resample → peak normalize → STFT branch.
-
-    Args:
-        mixture: Mono mixture [T] or [1, T].
-        sample_rate: Input sample rate in Hz.
-        target_dbfs: Peak normalization target (default -26 dBFS per MASTER §4.2).
-
-    Returns:
-        PreprocessedAudio with waveform and STFT branches at 16 kHz.
-    """
+    """Legacy 16 kHz preprocessing pipeline."""
     wav = resample_audio(mixture, sample_rate, PROJECT_SAMPLE_RATE)
     orig_len = int(wav.shape[0])
     wav = peak_normalize_dbfs(wav, target_dbfs)
@@ -139,4 +155,25 @@ def preprocess(
         stft=stft,
         sample_rate=PROJECT_SAMPLE_RATE,
         original_length=orig_len,
+    )
+
+
+def preprocess_calmsep(
+    mixture: np.ndarray | torch.Tensor,
+    sample_rate: int,
+    target_rms: float = 0.1,
+) -> CalmSepPreprocessed:
+    """CALM-Sep dual-rate preprocess: 8 kHz ops + parallel 16 kHz mixture STFT."""
+    wav_8k = resample_audio(mixture, sample_rate, CALMSEP_SR)
+    wav_8k = rms_normalize(wav_8k, target_rms)
+    wav_16k = resample_audio(mixture, sample_rate, OUTPUT_SR)
+    wav_16k = rms_normalize(wav_16k, target_rms)
+    stft_8k = compute_stft(wav_8k, n_fft=CALMSEP_N_FFT, hop_length=CALMSEP_HOP)
+    stft_16k = compute_stft(wav_16k, n_fft=BAND_N_FFT, hop_length=BAND_HOP)
+    return CalmSepPreprocessed(
+        wav_8k=wav_8k,
+        stft_8k=stft_8k,
+        wav_16k=wav_16k,
+        stft_16k=stft_16k,
+        original_length_8k=int(wav_8k.shape[0]),
     )

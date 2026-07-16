@@ -1,9 +1,7 @@
 """
-Shared separation result schema.
+Shared separation result schema for CALM-Sep (and legacy CA-MoSE fields).
 
-Defines the standard object returned by every expert wrapper, the fusion head,
-and the full CA-MoSE pipeline. All modules must use this schema — never redefine
-ad hoc result types.
+All modules must use this schema — never redefine ad hoc result types.
 """
 
 from __future__ import annotations
@@ -20,31 +18,18 @@ class StreamMetadata:
     """Per-stream metadata attached to a separation result."""
 
     expert_source: str = ""
-    """Which expert produced this stream (e.g. 'mossformer2', 'srcorrnet', 'fused')."""
-
     confidence: float = 1.0
-    """Calibrated confidence score in [0, 1]."""
-
     embedding: np.ndarray | None = None
-    """Optional speaker-identity embedding (e.g. ECAPA-TDNN), shape [D]."""
-
     extra: dict[str, Any] = field(default_factory=dict)
-    """Extension slot for expert-specific fields (attractor vectors, mask entropy, etc.)."""
 
 
 @dataclass
 class SeparationResult:
     """
-    Standard separation output consumed by alignment, fusion, evaluation, and demo.
+    Standard separation output consumed by alignment, evaluation, and demo.
 
-    Attributes:
-        streams: Separated waveforms, shape [K, T] as float32 numpy array.
-        sample_rate: Audio sample rate in Hz (project standard: 16000).
-        speaker_count: Estimated number of active speakers K_hat.
-        metadata: Per-stream metadata list, length K.
-        mixture: Optional original mixture waveform [T], for quality estimation.
-        escalated: Whether the expensive expert was invoked (cascade path).
-        expert_used: Primary expert label for non-escalated (cheap-only) path.
+    CALM-Sep fields (p_k, gate_vector, completeness, ood_flag, ...) default to
+    None/False so legacy callers remain valid.
     """
 
     streams: np.ndarray
@@ -54,6 +39,13 @@ class SeparationResult:
     mixture: np.ndarray | None = None
     escalated: bool = False
     expert_used: str = ""
+    # CALM-Sep extensions (BLUEPRINT §6.5)
+    p_k: np.ndarray | None = None
+    gate_vector: dict[str, Any] | list[float] | None = None
+    completeness: float | None = None
+    ood_flag: bool = False
+    condition_estimates: dict[str, Any] | None = None
+    count_posterior: np.ndarray | dict[int, float] | None = None
 
     def __post_init__(self) -> None:
         self.streams = np.asarray(self.streams, dtype=np.float32)
@@ -74,6 +66,8 @@ class SeparationResult:
                 f"metadata length ({len(self.metadata)}) must match speaker_count "
                 f"({self.speaker_count})"
             )
+        if self.p_k is not None:
+            self.p_k = np.asarray(self.p_k, dtype=np.float32)
 
     @property
     def num_streams(self) -> int:
@@ -84,8 +78,25 @@ class SeparationResult:
         return float(self.streams.shape[1]) / float(self.sample_rate)
 
     def to_torch(self) -> torch.Tensor:
-        """Return streams as a PyTorch tensor [K, T]."""
         return torch.from_numpy(self.streams)
+
+    def to_report_dict(self) -> dict[str, Any]:
+        """JSON-serializable report (waveforms excluded)."""
+        post = self.count_posterior
+        if isinstance(post, np.ndarray):
+            post = {int(i + 2): float(v) for i, v in enumerate(post.tolist())}
+        return {
+            "speaker_count": self.speaker_count,
+            "sample_rate": self.sample_rate,
+            "expert_used": self.expert_used,
+            "completeness": self.completeness,
+            "ood_flag": self.ood_flag,
+            "p_k": None if self.p_k is None else self.p_k.reshape(-1).tolist(),
+            "gate_vector": self.gate_vector,
+            "condition_estimates": self.condition_estimates,
+            "count_posterior": post,
+            "stream_confidence": [m.confidence for m in self.metadata],
+        }
 
     @classmethod
     def from_torch(
@@ -94,8 +105,8 @@ class SeparationResult:
         sample_rate: int,
         expert_used: str = "",
         mixture: np.ndarray | torch.Tensor | None = None,
+        **kwargs: Any,
     ) -> SeparationResult:
-        """Construct from a PyTorch tensor [K, T] or [B, K, T] (batch size 1 only)."""
         if streams.ndim == 3:
             if streams.shape[0] != 1:
                 raise ValueError("from_torch supports batch size 1 only")
@@ -110,4 +121,5 @@ class SeparationResult:
             speaker_count=arr.shape[0],
             mixture=mixture_arr,
             expert_used=expert_used,
+            **kwargs,
         )

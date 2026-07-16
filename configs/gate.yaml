@@ -1,0 +1,10 @@
+# Gate MLP + condition analyzer Stage-3 (BLUEPRINT §5.5, §8.4)
+mode: per_layer  # or per_adapter — ablation chooses simpler if no gain
+hidden: 256
+max_gate: 1.5
+sparsity_weight: 1.0e-3
+ema_coeff: 0.7
+lr: 1.0e-3
+epochs: 15
+enabled: true
+principle2_tolerance_db: 0.1

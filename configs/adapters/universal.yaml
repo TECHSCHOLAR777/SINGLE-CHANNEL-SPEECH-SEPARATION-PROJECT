@@ -1,0 +1,11 @@
+# Universal adapter Stage-2 calibration gate (BLUEPRINT §8.3)
+adapter: universal
+rank_attn: 16
+rank_filter: 8
+lr: 3.0e-4
+weight_decay: 0.01
+epochs: 30
+segment_seconds: 4.0
+decision_tolerance_db: 0.5
+primary_benchmark: reverb_noisy_n2
+enabled: true

@@ -1,0 +1,15 @@
+# adapter_reverb Stage-1 training (BLUEPRINT §5.3, §8.2)
+adapter: reverb
+rank_attn: 8
+rank_filter: 4
+lr: 3.0e-4
+weight_decay: 0.01
+epochs: 25
+segment_seconds: 4.0
+coactivation_low: 0.0
+coactivation_high: 0.2
+t60_min_s: 0.2
+t60_max_s: 1.0
+wet_reference: true
+grad_clip: 5.0
+enabled: true

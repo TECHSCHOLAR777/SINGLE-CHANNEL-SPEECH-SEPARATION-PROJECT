@@ -7,7 +7,7 @@ done, what is in progress, and what is left. The full design lives in
 `BLUEPRINT`, which is the source of truth. When this tracker and `BLUEPRINT`
 disagree, `BLUEPRINT` wins.
 
-Last updated: 2026-07-17
+Last updated: 2026-07-17 (branch `suryansh`: full codebase scaffold A/B/C; training notebooks untrained)
 
 ---
 
@@ -96,24 +96,20 @@ Rules:
 
 ## Progress at a glance
 
-Done: 12 &nbsp; In progress: 6 &nbsp; Not started: 61
-
-Foundation pieces that already exist and pass tests: data mixing and corpus
-prep, evaluation metrics (cardinality-aware SI-SDR and PIT), speaker
-embeddings, stream alignment and stitching, augmentation stages, config
-loader, and the result schema. Every CALM-Sep-specific component (backbone
-patches, LoRA library, condition analyzer, gate, attractor counting, band
-recovery, calibration) is still to build.
+Done (code): most P0–P5 deliverables implemented on branch `suryansh`.
+Training weights: not produced (notebooks/scripts ready; user trains on GPU).
+Live checkpoint gates (`attractor_test` N-accuracy, corpus-transfer SI-SDRi):
+require downloaded `sr_corrnet` weights.
 
 | Milestone | Phase | State |
 |---|---|---|
-| M0 | Verify checkpoint and build synthesis pipeline | In progress |
-| M1 | Adapter library | Locked |
-| M1b | Universal-adapter decision | Locked |
-| M2 | Condition analyzer and gate | Locked |
-| M3 | Joint polish, band recovery, calibration | Locked |
-| M4 | Demo, CLI, efficiency | Locked |
-| M5 | Full evaluation and report | Locked |
+| M0 | Verify checkpoint and build synthesis pipeline | Code complete; live gate pending checkpoint |
+| M1 | Adapter library | Code + notebooks ready; untrained |
+| M1b | Universal-adapter decision | Code + notebook ready; untrained |
+| M2 | Condition analyzer and gate | Code + notebook ready; untrained |
+| M3 | Joint polish, band recovery, calibration | Code + notebook ready; untrained |
+| M4 | Demo, CLI, efficiency | Code complete (mock/base_only smoke) |
+| M5 | Full evaluation and report | `eval/matrix.py` + `eval/stats.py` ready |
 
 ---
 

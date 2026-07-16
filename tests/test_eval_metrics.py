@@ -4,6 +4,8 @@ import numpy as np
 import pytest
 
 from eval.metrics import (
+    HALLUCINATION_PENALTY_DB,
+    cardinality_aware_score,
     count_accuracy,
     count_confusion_matrix,
     pairwise_si_sdr,
@@ -80,6 +82,13 @@ def test_pit_over_separation_reported_not_scored() -> None:
     assert res.n_estimated == 3 and res.n_reference == 2
     assert len(res.unassigned_estimates) == 1
     assert res.mean_si_sdr > 60.0
+    assert res.penalized_si_sdri == pytest.approx(res.mean_si_sdri - HALLUCINATION_PENALTY_DB)
+
+
+def test_cardinality_aware_score_penalty() -> None:
+    assert cardinality_aware_score(10.0, n_hallucinated=0) == pytest.approx(10.0)
+    assert cardinality_aware_score(10.0, n_hallucinated=2) == pytest.approx(8.0)
+    assert cardinality_aware_score(10.0, n_hallucinated=2, penalty_db=0.5) == pytest.approx(9.0)
 
 
 def test_pit_under_separation_mixture_fallback() -> None:

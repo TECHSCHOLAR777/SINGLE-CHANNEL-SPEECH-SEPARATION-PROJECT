@@ -1,0 +1,30 @@
+# CALM-Sep evaluation configuration (BLUEPRINT §9).
+# Layered over configs/default.yaml via utils.config.load_config.
+
+eval:
+  fixed_eval_dir: data/fixed_eval
+  seed: 42
+  n_bootstrap: 10000
+  wilcoxon_alpha: 0.05
+
+  dnsmos:
+    model_path: null    # set to local sig_bak_ovrl.onnx for L5 / band-recovered scoring
+
+  scoring:
+    missing_policy: mixture_fallback   # or: silence_floor
+    silence_floor_db: -30.0
+    hallucination_penalty_db: 1.0
+
+  counting:
+    count_range: [2, 5]
+
+  matrix:
+    max_items: null       # null = score full manifests; set int for smoke tests
+    primary_tier: reverb_noisy_primary
+
+  run_log: outputs/run_log.jsonl
+  calibration_bins: 10
+
+  holdout_tiers:
+    - reverb_codec_holdout
+    - noise_codec_holdout
