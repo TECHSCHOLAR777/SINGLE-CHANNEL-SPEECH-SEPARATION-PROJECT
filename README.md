@@ -211,11 +211,11 @@ labelled mixtures. All evaluation sets are generated once, seeded, and hashed.
 | ID | Task | Deliverable | Status |
 |---|---|---|---|
 | P0-A1 | Dynamic 8 kHz mixer, N in {2, 3, 4, 5}, per-speaker level offsets, clean-stem ground truth | `data/mixer.py` at 8 kHz plus tests | [~] |
-| P0-A2 | LibriSpeech source at 8 kHz (train-clean-100, dev-clean, test-clean); keep 16 kHz copies for band-recovery targets | Speaker pool and prep script | [~] |
+| P0-A2 | LibriSpeech source at 8 kHz (train-clean-100, dev-clean, test-clean); keep 16 kHz copies for band-recovery targets | Speaker pool and prep script | [x] `data/prepare_librispeech_8k.py` (parvA) |
 | P0-A3 | RIR bank: 10k RIRs with pyroomacoustics, 1k per 0.1 s T60 step over 0.2 to 1.0 s, cached to `data/rirs/` | Cached RIR bank | [ ] |
-| P0-A4 | Noise staging: WHAM (about 17 GB) plus a stratified 20 GB DNS-4 subset | Noise prep scripts | [~] |
+| P0-A4 | Noise staging: WHAM (about 17 GB) plus a stratified 20 GB DNS-4 subset | Noise prep scripts | [x] `data/prepare_noise_staging.py` (parvA) |
 | P0-A5 | Codec transforms: ffmpeg Opus 6 to 24k, AAC 16 to 48k, AMR-NB and AMR-WB | `data/codec_augmentation.py` | [x] |
-| P0-A6 | Fixed evaluation matrix, generated once, seeded, and hashed (see the evaluation table below) | `data/fixed_eval/` plus manifests and hashes | [ ] |
+| P0-A6 | Fixed evaluation matrix, generated once, seeded, and hashed | `data/fixed_eval/` plus manifests and hashes | [x] `data/fixed_eval_generator.py` (parvA) |
 | P0-A7 | Reverb reference policy: wet source, truncated at n_peak plus 512 samples | Reference generator | [ ] |
 
 ## PARALLEL: Dev C, evaluation and condition-input tooling
@@ -380,7 +380,7 @@ analysis, and a reproducibility bundle.
 |---|---|---|---|---|
 | P5-C1 | `eval/matrix.py` and `eval/stats.py`: the full matrix (SI-SDRi, DNSMOS, PESQ, count accuracy, ECE) with bootstrap intervals (10k resamples) and Wilcoxon tests | C | Results matrix | [ ] |
 | P5-C2 | Primary-benchmark headline: reverb-noisy LibriMix, N = 2, SI-SDRi over the mixture | C | Headline number | [ ] |
-| P5-A1 | Real-RIR evaluation on BUT ReverbDB (SLR17), the sim-to-real gap (mandatory) | A | Real-RIR table | [ ] |
+| P5-A1 | Real-RIR evaluation on BUT ReverbDB (SLR17), the sim-to-real gap (mandatory) | A | Real-RIR table | [x] `data/prepare_but_reverbdb.py` (parvA) |
 | P5-A2 | Real recordings (team-recorded plus LibriCSS): DNSMOS and Whisper WER | A | Real-audio results | [ ] |
 | P5-B1 | Break-point curve (each metric versus N from 2 to 5) and the band-recovery contribution from matched pairs | B | Curves | [ ] |
 | P5-ALL1 | Report: each dev writes their section, plus a content-addressed reproducibility bundle | All | Final report | [ ] |
