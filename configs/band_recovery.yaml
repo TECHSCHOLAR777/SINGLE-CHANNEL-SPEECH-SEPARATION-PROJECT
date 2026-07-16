@@ -1,0 +1,40 @@
+# Band recovery head configuration (Dev C, Option B — fixed).
+# Produces 16 kHz output from 8 kHz separated streams + 16 kHz mixture.
+
+band_recovery:
+  # Two-conv architecture (BLUEPRINT §8.1).
+  hidden_dim: 64
+  # Input channels: 65 (8 kHz low-band) + 129 (16 kHz high-band) = 194.
+  in_channels: 194
+  # Output mask: 129 bins covering 4-8 kHz (bins 128-256 with n_fft=512).
+  out_channels: 129
+
+stft:
+  # 8 kHz STFT — matches SR-CorrNet (BLUEPRINT §15.8).
+  sr_8k: 8000
+  n_fft_8k: 128
+  hop_8k: 64
+  bins_8k: 65
+  # 16 kHz STFT — for band recovery and DNSMOS.
+  sr_16k: 16000
+  n_fft_16k: 512
+  hop_16k: 128
+  bins_16k: 257
+  # High-band range (4-8 kHz in 16 kHz STFT).
+  high_band_start_bin: 128
+  high_band_end_bin: 256
+
+guard:
+  # Dual-metric guard: apply only if BOTH improve (BLUEPRINT §8.2).
+  require_sisdr_improvement: true
+  require_dnsmos_improvement: true
+
+training:
+  optimizer: "adamw"
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  batch_size: 16
+  epochs: 30
+  gradient_clip: 5.0
+  # BAND_RECOVERY_SAMPLE_RATE — 16 kHz input to the head.
+  target_sample_rate: 16000

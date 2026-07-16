@@ -17,10 +17,12 @@ def test_mock_engine_returns_valid_schema() -> None:
 def test_run_separation_payload_shape() -> None:
     mix = np.random.default_rng(0).standard_normal(16000).astype(np.float32)
     payload = run_separation((16000, mix), MockEngine())
-    badge, *slots_and_diag = payload
+    badge, *rest = payload
     assert "MOCK" in badge
-    assert len(slots_and_diag) == 6  # 5 audio slots + diagnostics json
-    assert slots_and_diag[0] is not None and slots_and_diag[3] is None
+    # 5 audio slots + gate_md + transcript_md + diagnostics json = 8
+    assert len(rest) == 8
+    assert rest[0] is not None   # first audio slot occupied
+    assert rest[3] is None       # 4th slot empty (only 3 mock streams)
 
 
 def test_run_separation_handles_no_audio() -> None:
