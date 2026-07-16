@@ -55,6 +55,25 @@ class SeparationResult:
     escalated: bool = False
     expert_used: str = ""
 
+    # CALM-Sep pipeline extensions (set by SRCorrNetExpert and the inference pipeline)
+    attractor_probs: "torch.Tensor | None" = field(default=None, repr=False)
+    """(1, 7) attractor probability vector from pres["probs"] (Patch A)."""
+
+    encoder_e0: "torch.Tensor | None" = field(default=None, repr=False)
+    """(1, T, 65, 128) encoder output from forward hook (Patch B)."""
+
+    decoder_features: "list[torch.Tensor]" = field(default_factory=list, repr=False)
+    """N_Dec decoder stage feature tensors from hooks (Patch C)."""
+
+    gate_vector: "dict[str, float]" = field(default_factory=dict)
+    """{'reverb': g, 'noise': g, 'codec': g} from GateNetwork."""
+
+    completeness_prob: float = 1.0
+    """P(all speakers captured) from CompletenessHead."""
+
+    ood_flag: bool = False
+    """True when the Mahalanobis OOD distance exceeds the calibrated threshold."""
+
     def __post_init__(self) -> None:
         self.streams = np.asarray(self.streams, dtype=np.float32)
         if self.streams.ndim != 2:
