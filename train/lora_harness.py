@@ -60,7 +60,22 @@ def si_sdr_loss(est: torch.Tensor, ref: torch.Tensor, eps: float = 1e-8) -> torc
 
 
 def pit_si_sdr_loss(estimates: list[torch.Tensor], targets: list[torch.Tensor]) -> torch.Tensor:
-    """Brute-force PIT over permutations for N≤5."""
+    """Brute-force PIT over permutations for N≤5.
+
+    Prefers SR-CorrNet engine ``PIT_SISNR_time`` when installed; otherwise
+    falls back to a local SI-SDR PIT (CPU/GPU safe).
+    """
+    try:
+        from sr_corrnet.models.SR_CorrNet_SS.loss import PIT_SISNR_time  # type: ignore
+
+        criterion = PIT_SISNR_time(scale_inv=True)
+        # Engine expects list of (B, L); ensure batch dim.
+        est_b = [e.unsqueeze(0) if e.dim() == 1 else e for e in estimates]
+        tgt_b = [t.unsqueeze(0) if t.dim() == 1 else t for t in targets]
+        return criterion(est_b, tgt_b)
+    except Exception:
+        pass
+
     import itertools
 
     n = len(targets)

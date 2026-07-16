@@ -112,10 +112,29 @@ def run_separation(
     if with_whisper and result.num_streams:
         transcript = _optional_whisper(result.streams[0], result.sample_rate)
 
+    def _spec_image(wav_t: np.ndarray) -> np.ndarray | None:
+        frame, hop = 256, 128
+        if len(wav_t) < frame:
+            return None
+        frames = 1 + (len(wav_t) - frame) // hop
+        mat = np.stack(
+            [np.abs(np.fft.rfft(wav_t[j * hop : j * hop + frame])) for j in range(min(frames, 200))],
+            axis=1,
+        )
+        db = 20.0 * np.log10(mat + 1e-6)
+        db = (db - db.min()) / (db.max() - db.min() + 1e-8)
+        img = (db * 255).astype(np.uint8)
+        # (F, T) → (F, T, 3) for Gradio Image
+        return np.stack([img, img, img], axis=-1)
+
+    specs = [_spec_image(result.streams[i]) for i in range(min(result.num_streams, 3))]
+    while len(specs) < 3:
+        specs.append(None)
+
     diagnostics = result.to_report_dict()
     if transcript is not None:
         diagnostics["whisper_transcript_spk1"] = transcript
-    return (badge, *slots, json.dumps(diagnostics, indent=2))
+    return (badge, *slots, specs[0], specs[1], specs[2], json.dumps(diagnostics, indent=2))
 
 
 def build_demo(engine: Engine, with_whisper: bool = False):
@@ -125,7 +144,7 @@ def build_demo(engine: Engine, with_whisper: bool = False):
         gr.Markdown("# CALM-Sep")
         gr.Markdown(
             "Condition-Aware LoRA Mixture for multi-speaker separation. "
-            "Shows count, gates, condition estimates, and completeness."
+            "Shows count, gates, condition estimates, spectrograms, and completeness."
         )
         audio_in = gr.Audio(label="Mixture", type="numpy")
         run_btn = gr.Button("Separate", variant="primary")
@@ -133,13 +152,17 @@ def build_demo(engine: Engine, with_whisper: bool = False):
         outputs = [
             gr.Audio(label=f"Speaker {i + 1}", type="numpy") for i in range(MAX_DISPLAY_STREAMS)
         ]
+        with gr.Row():
+            spec0 = gr.Image(label="Spec spk1", type="numpy")
+            spec1 = gr.Image(label="Spec spk2", type="numpy")
+            spec2 = gr.Image(label="Spec spk3", type="numpy")
         with gr.Accordion("Diagnostics (gates / conditions / p_k)", open=True):
             diag = gr.Code(language="json", label="Run diagnostics")
 
         run_btn.click(
             fn=lambda a: run_separation(a, engine, with_whisper=with_whisper),
             inputs=[audio_in],
-            outputs=[badge, *outputs, diag],
+            outputs=[badge, *outputs, spec0, spec1, spec2, diag],
         )
     return demo
 

@@ -53,6 +53,7 @@ class CalmSepStitcher:
         embedder: object | None = None,
         cluster_threshold: float = 0.4,
         min_duration_sec: float = 1.0,
+        max_tracks: int = 5,
     ) -> None:
         self.sample_rate = sample_rate
         self.chunk_sec = chunk_sec
@@ -61,6 +62,7 @@ class CalmSepStitcher:
         self.embedder = embedder
         self.cluster_threshold = cluster_threshold
         self.min_duration_sec = min_duration_sec
+        self.max_tracks = max(1, int(max_tracks))
         self._tracks: list[_Track] = []
         self._chunk_i = 0
 
@@ -89,7 +91,7 @@ class CalmSepStitcher:
         streams = np.atleast_2d(np.asarray(streams_16k, dtype=np.float32))
         start = self._chunk_i * self.hop_samples
         if not self._tracks:
-            for s in streams:
+            for s in streams[: self.max_tracks]:
                 emb = self._embed(s)
                 self._tracks.append(_Track(pieces=[(start, s)], embedding=emb))
             self._chunk_i += 1
@@ -132,8 +134,13 @@ class CalmSepStitcher:
 
         for i in range(n_new):
             if i not in assigned_new:
-                emb = self._embed(streams[i])
-                self._tracks.append(_Track(pieces=[(start, streams[i])], embedding=emb))
+                if len(self._tracks) >= self.max_tracks:
+                    # Force-assign to best existing track (no spawn beyond K0=5).
+                    j_best = int(np.argmin(cost[i]))
+                    self._tracks[j_best].pieces.append((start, streams[i]))
+                else:
+                    emb = self._embed(streams[i])
+                    self._tracks.append(_Track(pieces=[(start, streams[i])], embedding=emb))
 
         self._chunk_i += 1
 

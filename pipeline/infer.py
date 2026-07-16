@@ -221,7 +221,8 @@ class CalmSepEngine:
         """Full recording: chunk → process → stitch → SeparationResult at 16 kHz."""
         prep = preprocess_calmsep(mixture, sample_rate)
         chunks = chunk_audio(mixture, sample_rate)
-        stitcher = CalmSepStitcher(sample_rate=OUTPUT_SR)
+        # Hard cap tracks to K0=5 (BLUEPRINT fixed constraint: N ∈ {2..5}).
+        stitcher = CalmSepStitcher(sample_rate=OUTPUT_SR, max_tracks=5)
         last: dict[str, Any] = {}
 
         if len(chunks) == 1:
@@ -236,10 +237,27 @@ class CalmSepEngine:
             if streams.shape[0] == 0:
                 streams = last.get("streams_16k", np.zeros((2, 1), dtype=np.float32))
 
+        streams = np.atleast_2d(np.asarray(streams, dtype=np.float32))
+        # Enforce project speaker-count range after stitching.
+        if streams.shape[0] > 5:
+            # Keep highest-energy tracks.
+            energy = (streams**2).sum(axis=1)
+            keep = np.argsort(-energy)[:5]
+            streams = streams[np.sort(keep)]
+        if streams.shape[0] == 1:
+            # Duplicate is invalid; pad a near-silent second stream rather than claim N=1.
+            pad = np.zeros_like(streams[:1]) * 0.0
+            streams = np.concatenate([streams, pad], axis=0)
+        if streams.shape[0] == 0:
+            streams = np.zeros((2, max(prep.wav_16k.shape[0], 1)), dtype=np.float32)
+
         k = int(streams.shape[0])
+        assert 2 <= k <= 5, f"speaker_count must be in {{2..5}}, got {k}"
         confs = last.get("per_stream_confidence") or [1.0] * k
         if len(confs) < k:
             confs = (confs + [0.5] * k)[:k]
+        else:
+            confs = confs[:k]
         metadata = [
             StreamMetadata(expert_source="calm-sep", confidence=float(confs[i]))
             for i in range(k)

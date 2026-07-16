@@ -1,0 +1,208 @@
+{
+  "manifest_version": "calmsep-fixed-eval-v1",
+  "manifests": [
+    {
+      "gate_holdout": false,
+      "manifest": "clean_2_3_n2.jsonl",
+      "n_items": 500,
+      "n_speakers": 2,
+      "sha256": "9d1298fcc39e9935b74d028748ccc7457f5c4e99710cad3101561f654531e109",
+      "tier": "clean_2_3"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "clean_2_3_n3.jsonl",
+      "n_items": 500,
+      "n_speakers": 3,
+      "sha256": "3f1e1fa058283a3814311fee05b34193193d1a8fc94a6d97cda07f02b61788fb",
+      "tier": "clean_2_3"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "sparse_overlap_n2.jsonl",
+      "n_items": 200,
+      "n_speakers": 2,
+      "sha256": "3d80d2f8ee68384786bd3f3d3e80f92c6c1e1ae0f17c3def1fde4ead4a4711a5",
+      "tier": "sparse_overlap"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "sparse_overlap_3spk_n3.jsonl",
+      "n_items": 200,
+      "n_speakers": 3,
+      "sha256": "eae6f626c0812b6f104f8b08ed3851c1d8dc1f8be595baf281080f606e40e2b0",
+      "tier": "sparse_overlap_3spk"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "reverb_noisy_primary_n2.jsonl",
+      "n_items": 500,
+      "n_speakers": 2,
+      "sha256": "ca4c04cdf9583eeb207d077df78cec8d960768c04e6281c3347583fe68a29bd4",
+      "tier": "reverb_noisy_primary"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "reverb_noisy_highn_n3.jsonl",
+      "n_items": 200,
+      "n_speakers": 3,
+      "sha256": "63567ed1e9405ca6b08a5e90c564cf1b40f5e9a709c2873655770f15e7a15dd9",
+      "tier": "reverb_noisy_highn"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "reverb_noisy_highn_n4.jsonl",
+      "n_items": 200,
+      "n_speakers": 4,
+      "sha256": "87138a107be2e8753257f177a3557706cb3f7db226476cfa39ab51969f6acf8a",
+      "tier": "reverb_noisy_highn"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "reverb_noisy_highn_n5.jsonl",
+      "n_items": 200,
+      "n_speakers": 5,
+      "sha256": "4494a3de6330156da7d4a71f07d0407c62730f21a2f449a19b6230bd99e451b1",
+      "tier": "reverb_noisy_highn"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "reverb_only_n2.jsonl",
+      "n_items": 200,
+      "n_speakers": 2,
+      "sha256": "7c5598cc9000e1a4100c552f6b1423f2c3c244f04d7ff6a5dd8db050fc2315dc",
+      "tier": "reverb_only"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "reverb_only_n3.jsonl",
+      "n_items": 200,
+      "n_speakers": 3,
+      "sha256": "fa74f956cdf43980a9a8f0caf08f83d86991b57ca74b046f7a20c349a29e33e1",
+      "tier": "reverb_only"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "real_rir_reverb_n2.jsonl",
+      "n_items": 200,
+      "n_speakers": 2,
+      "sha256": "a99398e0c0ade504ccb2e746fd98ab0e236ec9a011cb9466c91db2fd4f8fed9f",
+      "tier": "real_rir_reverb"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "codec_only_n2.jsonl",
+      "n_items": 200,
+      "n_speakers": 2,
+      "sha256": "9e724f69445926eb5087d2cd8e643876e1cc786ed515d877e931b9e0267bcc6c",
+      "tier": "codec_only"
+    },
+    {
+      "gate_holdout": true,
+      "manifest": "reverb_codec_holdout_n2.jsonl",
+      "n_items": 200,
+      "n_speakers": 2,
+      "sha256": "6eec9376d3ff98e14bf8cf8d45f00e4dcee94dfc76817cb747f41e541843687c",
+      "tier": "reverb_codec_holdout"
+    },
+    {
+      "gate_holdout": true,
+      "manifest": "reverb_codec_holdout_n4.jsonl",
+      "n_items": 200,
+      "n_speakers": 4,
+      "sha256": "3d67986d36e4970900d39fd8123cdcdb128763d95428fda4dc208e94c0c818aa",
+      "tier": "reverb_codec_holdout"
+    },
+    {
+      "gate_holdout": true,
+      "manifest": "noise_codec_holdout_n2.jsonl",
+      "n_items": 200,
+      "n_speakers": 2,
+      "sha256": "c3b63df2bd222f7f8b22045ce20d893ff10da33a5f16c62b376d001a2f8a4668",
+      "tier": "noise_codec_holdout"
+    },
+    {
+      "gate_holdout": true,
+      "manifest": "noise_codec_holdout_n4.jsonl",
+      "n_items": 200,
+      "n_speakers": 4,
+      "sha256": "c127df26174b9901e0783fd25f9f99907c6fffd83c67e604f92e24f4ec0204cd",
+      "tier": "noise_codec_holdout"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "high_count_clean_n4.jsonl",
+      "n_items": 200,
+      "n_speakers": 4,
+      "sha256": "c47d57e28157d923d672b20265da0dbd34fc607d8c4d015447cee4348c4557fa",
+      "tier": "high_count_clean"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "high_count_clean_n5.jsonl",
+      "n_items": 200,
+      "n_speakers": 5,
+      "sha256": "17a2e825218ccf300de15adea96535ebde664314d8e6bc841ef84f2b081c24d9",
+      "tier": "high_count_clean"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "high_count_degraded_n4.jsonl",
+      "n_items": 200,
+      "n_speakers": 4,
+      "sha256": "aa94ec8daf4ed4cc55b1878be717f4022b9057a0bf066a6cc82581857c5b9614",
+      "tier": "high_count_degraded"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "high_count_degraded_n5.jsonl",
+      "n_items": 200,
+      "n_speakers": 5,
+      "sha256": "64047e4447a22adf012c6df7ed3b3498686f8af7bb46ccb413c74d3140481f54",
+      "tier": "high_count_degraded"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "libricss_real_n2.jsonl",
+      "n_items": 0,
+      "n_speakers": 2,
+      "sha256": "0dfd861c4936e36bfee0b3d924f70930cdf993509e1f84d782925d6c3cb2c05e",
+      "tier": "libricss_real"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "libricss_real_n3.jsonl",
+      "n_items": 0,
+      "n_speakers": 3,
+      "sha256": "c0a2d3cbfb983d9cbc1881313d4ae67f832257d25d34087ab3b2293998e02778",
+      "tier": "libricss_real"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "libricss_real_n4.jsonl",
+      "n_items": 0,
+      "n_speakers": 4,
+      "sha256": "5f0a1401ee58f1938a72aa7d204997c36154a7e6a05485048a3c5312341bc963",
+      "tier": "libricss_real"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "libricss_real_n5.jsonl",
+      "n_items": 0,
+      "n_speakers": 5,
+      "sha256": "8f2f5f4afee6212e0dfabb30c6e859f03b854a6df3f63b4ca96ecd18308c7660",
+      "tier": "libricss_real"
+    },
+    {
+      "gate_holdout": false,
+      "manifest": "band_recovery_gain_n2.jsonl",
+      "n_items": 500,
+      "n_speakers": 2,
+      "sha256": "8eb59cd2ba77be552c6fada157fe59bf817a4b98c63528322382234b287b300c",
+      "tier": "band_recovery_gain"
+    }
+  ],
+  "matrix_hash": "823487ccd0d61b31eb077d77b8fd98c505dce7b1a56b389863516e9cf9327cd5",
+  "n_manifests": 25,
+  "seed": 42
+}

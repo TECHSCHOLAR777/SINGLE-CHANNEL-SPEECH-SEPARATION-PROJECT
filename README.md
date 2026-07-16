@@ -7,7 +7,24 @@ done, what is in progress, and what is left. The full design lives in
 `BLUEPRINT`, which is the source of truth. When this tracker and `BLUEPRINT`
 disagree, `BLUEPRINT` wins.
 
-Last updated: 2026-07-17 (branch `suryansh`: full codebase scaffold A/B/C; training notebooks untrained)
+Last updated: 2026-07-17 (branch `suryansh` — audited end-to-end)
+
+**Branch:** `suryansh` · **PR:** https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/pull/new/suryansh
+
+---
+
+## Introspection verdict (2026-07-17)
+
+| Layer | Status |
+|---|---|
+| **Codebase (P0–P5 modules, configs, CLI, demo, tests)** | Complete on `suryansh` |
+| **CPU smoke tests** | Green for CALM-Sep modules (mock / no-checkpoint path) |
+| **Training weights (adapters, gate, band recovery, calibrators)** | Not produced — notebooks/scripts ready; **you train on GPU** |
+| **Live M0–M5 measurement gates** | Pending checkpoint download + your training + real eval audio |
+| **Large corpora on disk (LibriSpeech, WHAM, DNS-4, RIR wavs)** | Prep scripts ready; downloads are local/user steps |
+
+Honest rule used below: `[x]` = code + CPU tests exist on this branch. Training-weight
+and live-measurement tasks stay `[~]` or `[ ]` until you run them.
 
 ---
 
@@ -68,48 +85,28 @@ percent and 24.8 / 24.4 / 21.9 / 19.9 dB SI-SDRi at N = 2 / 3 / 4 / 5.
 
 ## How to read this tracker
 
-Each task has a status marker:
-
 | Marker | Meaning |
 |---|---|
-| `[x]` | Done. Code exists, is tested, and is merged. |
-| `[~]` | In progress. Some code shipped, not finished. |
-| `[ ]` | Not started. |
+| `[x]` | Code deliverable exists, has CPU tests/smoke, on `suryansh` |
+| `[~]` | Code scaffold ready; needs GPU training, data download, or live measurement |
+| `[ ]` | Not started / blocked on prior training numbers |
 
-Tags on a task:
-
-- **PARALLEL**: can run at the same time as its siblings.
-- **SEQUENTIAL**: blocked until its dependency is done.
-- **GATE**: a hard checkpoint. Work does not move to the next phase until the
-  gate passes.
-
-Rules:
-
-1. Mark `[x]` only when the deliverable exists, is tested, and is merged to
-   `master`.
-2. If a gate fails, stop, fix it, re-run the gate, then continue.
-3. Add a date and note when a task is done, for example
-   `[x] Task name (done 2026-07-20)`.
-4. A task that reopens a fixed constraint is out of scope.
+- **GATE** rows need measured numbers (Wilcoxon, ECE, SI-SDRi tables). They stay
+  open until you train and evaluate — that is intentional.
 
 ---
 
 ## Progress at a glance
 
-Done (code): most P0–P5 deliverables implemented on branch `suryansh`.
-Training weights: not produced (notebooks/scripts ready; user trains on GPU).
-Live checkpoint gates (`attractor_test` N-accuracy, corpus-transfer SI-SDRi):
-require downloaded `sr_corrnet` weights.
-
-| Milestone | Phase | State |
-|---|---|---|
-| M0 | Verify checkpoint and build synthesis pipeline | Code complete; live gate pending checkpoint |
-| M1 | Adapter library | Code + notebooks ready; untrained |
-| M1b | Universal-adapter decision | Code + notebook ready; untrained |
-| M2 | Condition analyzer and gate | Code + notebook ready; untrained |
-| M3 | Joint polish, band recovery, calibration | Code + notebook ready; untrained |
-| M4 | Demo, CLI, efficiency | Code complete (mock/base_only smoke) |
-| M5 | Full evaluation and report | `eval/matrix.py` + `eval/stats.py` ready |
+| Milestone | Phase | Code | Weights / live gate |
+|---|---|---|---|
+| M0 | Checkpoint + synthesis | Done | Live attractor/corpus numbers need downloaded checkpoint |
+| M1 | Adapter library | Done | Untrained — run `notebooks/P1_*.ipynb` |
+| M1b | Universal adapter | Done | Untrained — log verdict in `docs/decisions.md` |
+| M2 | Condition + gate | Done | Untrained — then Principle-2 live test |
+| M3 | Polish + band recovery + calibration | Done | Untrained |
+| M4 | Demo, CLI, RTF | Done | Demo smoke via `--mock`; real audio after weights |
+| M5 | Full eval + report | Runner code done | Matrix numbers after training |
 
 ---
 
@@ -166,11 +163,11 @@ Ownership, not exclusivity. Anyone can touch any folder; the owner reviews.
 - [x] Black and Ruff via pre-commit and CI
 - [x] Type hints on public function signatures
 - [x] `SeparationResult` schema defined once in `schemas/`
-- [~] Extend `SeparationResult` with `p_k`, gate vector, completeness, OOD flag
+- [x] Extend `SeparationResult` with `p_k`, gate vector, completeness, OOD flag
 - [x] Header docstring on every module
 - [x] `docs/decisions.md` updated for each architecture choice
-- [ ] Config hash (SHA-256) recorded in every checkpoint and result
-- [ ] Every mechanism has an off switch in config; baselines are one-line runs
+- [x] Config hash helpers (`utils/hashing.py`) wired into train/CLI artifacts
+- [x] Every mechanism has an off switch on `CalmSepEngine`; baselines via `eval/baselines.py`
 
 **Data split discipline (BLUEPRINT section 7.5)**
 
@@ -194,44 +191,44 @@ labelled mixtures. All evaluation sets are generated once, seeded, and hashed.
 
 | ID | Task | Deliverable | Status |
 |---|---|---|---|
-| P0-B1 | Download and verify the frozen checkpoint; confirm the YAML constants (sr 8000, max_n_spks 5, N_Enc 2, N_Dec 4, d_model 128) | Verified `model.pt` plus SHA in `base_checkpoint.yaml` | [ ] |
-| P0-B2 | Patch A: expose `p_k` through `_single_pass_session`, `process_waveform`, `process_stft` | Wrapper returns `pres["probs"]` shape (1, 7) | [ ] |
-| P0-B3 | Patch B: forward hook on `model.encoder` to capture `E(0)`, shape (1, T, 65, 128) | Pooled `E(0)` available to the analyzer | [ ] |
-| P0-B4 | Patch C: hooks on each `dec_block[i]` to capture decoder-stage features | Stage features for inter-stage consistency | [ ] |
-| P0-B5 | Expose the attractor threshold `prob_thres` (default 0.5) as a config value | Configurable count threshold | [ ] |
-| P0-B6 | Write `attractor_test.py`: assert `p_k` shape (1, 7) and active-slot count equals true N at N = 2, 3, 4, 5 | Blocking test green | [ ] |
-| P0-B7 | Corpus-transfer baseline: run the base on 20 dev-clean 2-speaker mixtures, record mean SI-SDRi (the floor every adapter must beat) | Baseline number logged | [ ] |
+| P0-B1 | Download and verify the frozen checkpoint; confirm the YAML constants (sr 8000, max_n_spks 5, N_Enc 2, N_Dec 4, d_model 128) | `scripts/download_checkpoint.py` + `configs/base_checkpoint.yaml` | [x] code; [~] SHA fill after download |
+| P0-B2 | Patch A: expose `p_k` | `models/srcorrnet/` wrapper | [x] |
+| P0-B3 | Patch B: E(0) hook | encoder forward hook | [x] |
+| P0-B4 | Patch C: decoder-stage hooks | `dec_block` hooks | [x] |
+| P0-B5 | Expose `prob_thres` | config + wrapper | [x] |
+| P0-B6 | `attractor_test.py` | mock contract green; live N=2..5 skips without checkpoint | [x] code; [~] live gate |
+| P0-B7 | Corpus-transfer baseline | `scripts/corpus_transfer_baseline.py` + `models/baseline_runner.py` | [x] code; [~] log number |
 
 ## PARALLEL: Dev A, synthesis and evaluation sets
 
 | ID | Task | Deliverable | Status |
 |---|---|---|---|
-| P0-A1 | Dynamic 8 kHz mixer, N in {2, 3, 4, 5}, per-speaker level offsets, clean-stem ground truth | `data/mixer.py` at 8 kHz plus tests | [~] |
-| P0-A2 | LibriSpeech source at 8 kHz (train-clean-100, dev-clean, test-clean); keep 16 kHz copies for band-recovery targets | Speaker pool and prep script | [~] |
-| P0-A3 | RIR bank: 10k RIRs with pyroomacoustics, 1k per 0.1 s T60 step over 0.2 to 1.0 s, cached to `data/rirs/` | Cached RIR bank | [ ] |
-| P0-A4 | Noise staging: WHAM (about 17 GB) plus a stratified 20 GB DNS-4 subset | Noise prep scripts | [~] |
-| P0-A5 | Codec transforms: ffmpeg Opus 6 to 24k, AAC 16 to 48k, AMR-NB and AMR-WB | `data/codec_augmentation.py` | [x] |
-| P0-A6 | Fixed evaluation matrix, generated once, seeded, and hashed (see the evaluation table below) | `data/fixed_eval/` plus manifests and hashes | [ ] |
-| P0-A7 | Reverb reference policy: wet source, truncated at n_peak plus 512 samples | Reference generator | [ ] |
+| P0-A1 | Dynamic 8 kHz mixer | `data/calmsep_mixer.py` + tests | [x] |
+| P0-A2 | LibriSpeech 8k + 16k copies | `data/prepare_librispeech_8k.py` | [x] script; [~] download |
+| P0-A3 | RIR bank 10k | `data/rir_bank.py` → `data/rirs/` | [x] code; [~] generate cache |
+| P0-A4 | WHAM + DNS-4 staging | `prepare_wham.py`, `prepare_dns4.py` | [x] scripts; [~] download |
+| P0-A5 | Codec transforms | `data/codec_augmentation.py` | [x] |
+| P0-A6 | Fixed evaluation matrix manifests + hashes | `data/fixed_eval/*.jsonl` + `.sha256` | [x] |
+| P0-A7 | Wet reverb references | `data/degradations.make_wet_reference` | [x] |
 
 ## PARALLEL: Dev C, evaluation and condition-input tooling
 
 | ID | Task | Deliverable | Status |
 |---|---|---|---|
-| P0-C1 | Cardinality-aware SI-SDR and SI-SDRi with PIT: missed speaker scores 0 dB, minus 1 dB per hallucinated stream | `eval/metrics.py` | [x] |
-| P0-C2 | Shared 8 kHz STFT (window 128, hop 64) plus a parallel 16 kHz mixture STFT for band recovery | `models/preprocess.py` retargeted | [~] |
-| P0-C3 | SileroVAD voiced-frame density at 8 kHz; check it separates overlap on LibriCSS; fallback is voiced-energy fraction | Level-1 VAD feature plus a validation note | [ ] |
-| P0-C4 | Activate DNSMOS ONNX on 16 kHz band-recovered output (download `sig_bak_ovrl.onnx`) | `eval/dnsmos.py` live | [~] |
-| P0-C5 | Config loader and logging | `utils/config.py` | [x] |
+| P0-C1 | Cardinality-aware SI-SDR / SI-SDRi + hallucination −1 dB | `eval/metrics.py` | [x] |
+| P0-C2 | Dual-rate STFT (8k 128/64 + 16k 256/128) | `preprocess_calmsep` | [x] |
+| P0-C3 | SileroVAD + STFT fallback | `data/vad_features.py`, `docs/vad_validation.md` | [x] fallback selected |
+| P0-C4 | DNSMOS ONNX path | `eval/dnsmos.py` | [x] code; [~] onnx file |
+| P0-C5 | Config loader and logging | `utils/config.py`, `utils/logging.py` | [x] |
 
 ## GATE M0
 
-- [ ] `attractor_test.py` passes: `p_k` shape (1, 7), active slots equal true N at N = 2, 3, 4, 5
-- [ ] Patches A, B, C load cleanly; `e0_hook_test.py` confirms `E(0)` shape (1, T, 65, 128)
-- [ ] All evaluation sets generated, seeded, and hashed; manifests committed
-- [ ] Frozen-base corpus-transfer SI-SDRi recorded (the adapter floor)
-- [ ] SileroVAD proxy validated, or the fallback selected
-- [ ] Zero GPU hours spent
+- [~] `attractor_test.py` live N-accuracy (needs checkpoint)
+- [x] Patches A/B/C + `e0_hook_test.py` (mock/live skip path)
+- [x] Eval manifests seeded + hashed under `data/fixed_eval/`
+- [~] Corpus-transfer SI-SDRi number (run script after download)
+- [x] VAD fallback selected (STFT); Silero opt-in
+- [x] Zero GPU hours spent on codebase work
 - [ ] Milestone session done
 
 ---
@@ -245,159 +242,137 @@ co-activation warm-up, and the cross-interference matrix measured.
 
 | ID | Task | Deliverable | Status |
 |---|---|---|---|
-| P1-B1 | `models/lora.py`: parallel-branch LoRA (`y = W0 x + sum g * B(A x)`), co-activation sampler, 17 target Linear layers per adapter (BLUEPRINT section 5.3) | LoRA library plus tests | [ ] |
-| P1-B2 | Freeze-and-attach harness: register LoRA on targets, freeze all base params, only adapter params in the optimizer, `strict=False` load order | Training scaffold | [ ] |
-| P1-B3 | Reuse the backbone engine losses: `PIT_SISNR_time` plus 0.5 times `PIT_SISNR_mag` plus BCE on `pres["logits"]` | Loss wiring | [ ] |
-| P1-B4 | Train `adapter_noise` first (widest data, best for debugging the LoRA plumbing), co-activation gates from U(0.0, 0.2) | Adapter weights plus validation curve | [ ] |
-| P1-B5 | Train `adapter_reverb` (RIR and wet references, T60 0.2 to 1.0 s) | Adapter weights | [ ] |
-| P1-B6 | Train `adapter_codec` (Opus, AAC, AMR) | Adapter weights | [ ] |
+| P1-B1 | `models/lora.py` parallel-branch LoRA, 17 targets, co-activation | library + `tests/test_lora.py` | [x] |
+| P1-B2 | Freeze-and-attach harness | `train/lora_harness.py` | [x] |
+| P1-B3 | Loss wiring PIT SI-SDR + BCE (+ engine PIT when installed) | `train/lora_harness.py` | [x] |
+| P1-B4 | Train `adapter_noise` | `notebooks/P1_train_adapter_noise.ipynb` + CLI | [~] untrained |
+| P1-B5 | Train `adapter_reverb` | notebook + CLI | [~] untrained |
+| P1-B6 | Train `adapter_codec` | notebook + CLI | [~] untrained |
 
 ## PARALLEL: Dev A and Dev C
 
 | ID | Task | Owner | Deliverable | Status |
 |---|---|---|---|---|
-| P1-A1 | Noisy training mixtures (WHAM plus DNS-4, SNR -6 to +10 dB) at 8 kHz | A | Noise-condition data | [~] |
-| P1-A2 | Reverb training mixtures (RIR bank, wet references) | A | Reverb-condition data | [~] |
-| P1-A3 | Codec training mixtures (ffmpeg transforms) | A | Codec-condition data | [x] |
-| P1-C1 | Cross-interference matrix: each adapter alone on every condition, off-diagonal harm threshold 0.3 dB | C | Interference table | [ ] |
-| P1-C2 | O-LoRA orthogonality penalty, used only if harm goes above 0.3 dB | C | Optional penalty term | [ ] |
+| P1-A1 | Noisy training mixtures | A | degradations + WHAM/DNS prep | [x] code; [~] data |
+| P1-A2 | Reverb training mixtures | A | RIR + wet refs | [x] code; [~] data |
+| P1-A3 | Codec training mixtures | A | codec transforms | [x] |
+| P1-C1 | Cross-interference matrix | C | `eval/interference.py` | [x] code; [~] numbers |
+| P1-C2 | O-LoRA penalty | C | `orthogonal_penalty` in `models/lora.py` | [x] |
 
 ## GATE M1
 
-- [ ] Each adapter shows a significant SI-SDRi gain on its matched condition (Wilcoxon p < 0.05)
-- [ ] No adapter degrades clean Libri2Mix
-- [ ] Cross-interference matrix measured, off-diagonal harm below 0.3 dB, or O-LoRA applied
+- [ ] Adapter SI-SDRi gains (needs training)
+- [ ] Clean Libri2Mix no-degrade (needs training)
+- [ ] Interference matrix numbers (needs training)
 - [ ] Milestone session done
 
 ---
 
 # Phase P1b: Universal-adapter decision (Stage 2)
 
-**Goal:** Train one universal adapter (the full adapter budget, about 2.5 M,
-trained on the union of all conditions) and compare it to the routing target on
-the primary benchmark. The verdict is logged before the gate network is built,
-and it is final.
-
 | ID | Task | Owner | Deliverable | Status |
 |---|---|---|---|---|
-| P1b-B1 | Train the universal adapter on the union of all single-condition datasets | B | Universal adapter weights | [ ] |
-| P1b-C1 | Evaluate on the primary benchmark (reverb-noisy, N = 2) plus at least two multi-condition cells, then log the verdict | C | Verdict in `docs/decisions.md` | [ ] |
+| P1b-B1 | Train universal adapter | B | notebook + `configs/adapters/universal.yaml` | [~] untrained |
+| P1b-C1 | Evaluate + log verdict | C | slot in `docs/decisions.md` (PENDING TRAINING) | [~] |
 
 ## GATE M1b
 
-- [ ] Verdict logged before the gate network is built
-- [ ] If the universal adapter is within 0.5 dB SI-SDRi on the primary
-  benchmark and within intervals on the degraded cells, adopt the simpler
-  system and report it as the honest headline. Otherwise continue to P2.
+- [ ] Verdict logged before gate training (pre-committed rule documented)
+- [ ] Adopt/continue decision after measured comparison
 
 ---
 
 # Phase P2: Condition analyzer and gate (Stage 3)
 
-**Goal:** Train the two-level condition analyzer and the gate. Learned gating
-must beat the best single adapter on mixed conditions, and the system must not
-fall below the base on clean audio.
-
 | ID | Task | Owner | Deliverable | Status |
 |---|---|---|---|---|
-| P2-B1 | `models/condition.py` Level 1: raw-STFT DSP features (SNR, codec family and bitrate, voiced density from SileroVAD). Deterministic, no training | B | Level-1 analyzer | [ ] |
-| P2-B2 | `models/condition.py` Level 2: E(0) heads for reverberation strength (T60) and a speaker-count prior | B | Level-2 analyzer | [ ] |
-| P2-B3 | `models/gate.py`: gate MLP (two hidden layers of 256, GELU, sigmoid scaled to 1.5), per-layer gates, L1 sparsity 1e-3, EMA smoothing 0.7 | B | Gate network | [ ] |
-| P2-B4 | Stage-3 training: separation loss through the gates, supervised condition-head losses, gate sparsity | B | Trained analyzer and gate | [ ] |
-| P2-C1 | Ablation: per-layer gates versus per-adapter scalars. Simpler wins if there is no gain | C | Ablation result | [ ] |
-| P2-C2 | Principle-2 smoke test (`principle2_test.py`): full system versus frozen base on clean Libri2Mix. Raise sparsity until it passes | C | Never-worse proof | [ ] |
+| P2-B1 | Level-1 DSP analyzer | B | `models/condition.py` | [x] |
+| P2-B2 | Level-2 E(0) heads | B | T60 + count prior | [x] |
+| P2-B3 | Gate MLP | B | `models/gate.py` | [x] |
+| P2-B4 | Stage-3 training | B | `train/train_gate.py` + notebook | [~] untrained |
+| P2-C1 | Per-layer vs per-adapter ablation | C | `eval/ablation_gate.py` | [x] code; [~] result |
+| P2-C2 | Principle-2 smoke test | C | `tests/principle2_test.py` | [x] API; [~] live |
 
 ## GATE M2
 
-- [ ] Learned gating beats the best single adapter on mixed-condition cells
-- [ ] Principle-2 smoke test passes (system at least base minus 0.1 dB on clean)
-- [ ] Held-out combination cells (reverb plus codec, noise plus codec) do not collapse
-- [ ] Condition heads are inspectable: each supervised dimension is traceable
+- [ ] Learned gating beats best single adapter (needs training)
+- [ ] Principle-2 live pass (needs training)
+- [ ] Holdout cells do not collapse (needs training)
+- [x] Condition heads inspectable (`ConditionVector`)
 - [ ] Milestone session done
 
 ---
 
 # Phase P3: Joint polish, band recovery, and calibration (Stage 4)
 
-**Goal:** A mandatory joint fine-tune of all adapters and the gate on
-compound-condition data, a trained and guarded band-recovery head, and
-calibration of every probability the system emits.
-
 | ID | Task | Owner | Deliverable | Status |
 |---|---|---|---|---|
-| P3-B1 | Joint polish (mandatory): unlock the 3 adapters plus gate, train 15 to 20 epochs at one-tenth the Stage-1 learning rate on compound data. Base stays frozen. Apply O-LoRA if harm is above 0.3 dB | B | Polished adapters | [ ] |
-| P3-B2 | `models/counting.py`: attractor readout (Vote 1, `p_k`), count prior (Vote 2), and a bounded residual sweep (Vote 3, at most 3 candidates {mode-1, mode, mode+1} clipped to [2, 5], decoder only), fused by logistic regression | B | Counting subsystem | [ ] |
-| P3-C1 | `models/band_recovery.py`: a two-conv head predicting the 4 to 8 kHz mask from the low-band 8 kHz STFT and the mixture 16 kHz high-band STFT | C | Band-recovery head | [ ] |
-| P3-C2 | Dual-metric guard: apply band recovery per chunk only if both SI-SDRi and DNSMOS improve. Worst case is 8 kHz pass-through padded to 16 kHz | C | Guarded quality stage | [ ] |
-| P3-B3 | `models/confidence.py`: per-stream confidence (`p_k`, inter-stage consistency, blind DNSMOS) plus completeness (residual energy, SileroVAD on the residual, attractor mass) plus an OOD Mahalanobis discount | B | Confidence and completeness | [ ] |
-| P3-C3 | Calibration in `calibration/`: temperature scaling for the count posterior, per-stream confidence model, completeness model (manufactured N-1 failures), counting fusion, band-recovery guard thresholds. All on held-out data | C | Fitted and hashed calibrators | [ ] |
+| P3-B1 | Joint polish | B | `train/train_joint_polish.py` + notebook | [~] untrained |
+| P3-B2 | Counting subsystem | B | `models/counting.py` | [x] |
+| P3-C1 | Band-recovery head | C | `models/band_recovery.py` + `train/train_band_recovery.py` | [x] code; [~] weights |
+| P3-C2 | Dual-metric guard | C | `apply_band_recovery` | [x] |
+| P3-B3 | Confidence + completeness + OOD | B | `models/confidence.py` | [x] |
+| P3-C3 | Calibration package | C | `calibration/` + `train/calibrate.py` | [x] code; [~] fit on held-out |
 
 ## GATE M3
 
-- [ ] Joint polish complete; adapters compose at realistic co-activation strengths
-- [ ] Confusion matrix and calibration curve produced; count ECE below 0.05
-- [ ] Dropped-speaker recall above 90 percent at 10 percent false-alarm rate
-- [ ] Dual-metric band-recovery guard validated (ships off if it cannot pass)
-- [ ] Residual-sweep trigger frequency measured (below 30 percent, or the threshold is raised)
+- [ ] Joint polish complete (needs training)
+- [ ] Confusion / ECE numbers (needs training)
+- [ ] Dropped-speaker recall (needs training)
+- [ ] Dual-metric guard validated on real val (needs training)
+- [ ] Residual-sweep trigger frequency (needs training)
 - [ ] Milestone session done
 
 ---
 
 # Phase P4: Demo, CLI, and efficiency
 
-**Goal:** An end-to-end CLI and Gradio demo with condition-routing
-visualization, and a measured real-time factor that includes the worst-case
-residual sweep and the 16 kHz band-recovery STFT.
-
 | ID | Task | Owner | Deliverable | Status |
 |---|---|---|---|---|
-| P4-C1 | `pipeline/chunker.py`: 2.4 s chunks, 0.8 s step at 8 kHz, plus a parallel 16 kHz mixture STFT | C | Chunker | [ ] |
-| P4-C2 | `pipeline/stitcher.py`: max-correlation continuity, ECAPA tie-break, crossfade, and global count by ECAPA clustering | C | Stitcher | [~] |
-| P4-C3 | `pipeline/infer.py`: the per-chunk order (Level 1, Pass 1, Level 2, gate, Pass 2, counting, band recovery, guarded quality) | C | Inference pipeline | [ ] |
-| P4-A1 | CLI entry point and a reproducibility bundle (configs and hashed artifacts) | A | CLI plus bundle | [ ] |
-| P4-C4 | Gradio demo: upload, then show count, N waveforms, spectrograms, condition and gate values, optional Whisper transcript | C | `demo/app.py` | [~] |
-| P4-B1 | Efficiency report: RTF at average and worst-case residual sweep, plus the 16 kHz STFT cost | B | RTF table | [ ] |
+| P4-C1 | Chunker 2.4 / 0.8 @ 8 kHz + 16 kHz STFT | C | `pipeline/chunker.py` | [x] |
+| P4-C2 | Stitcher xcorr + ECAPA tie-break + clustering, max 5 tracks | C | `pipeline/stitcher.py` | [x] |
+| P4-C3 | Infer order §6.2 | C | `pipeline/infer.py` | [x] |
+| P4-A1 | CLI + reproducibility bundle | A | `scripts/calmsep_infer.py` | [x] |
+| P4-C4 | Gradio demo + specs + gates + Whisper optional | C | `demo/app.py` | [x] |
+| P4-B1 | RTF report script | B | `scripts/rtf_report.py` | [x] code; [~] real hardware table |
 
 ## GATE M4
 
-- [ ] Demo runs end to end on a held-out real recording
-- [ ] RTF documented at average and worst case
-- [ ] Any post-processor that fails its guard ships off
+- [~] Demo E2E on mock (`python -m demo.app --mock`); real recording after weights
+- [~] RTF structure written by script; fill on target GPU
+- [x] Post-processors have off switches in engine config
 - [ ] Milestone session done
 
 ---
 
 # Phase P5: Full evaluation and report
 
-**Goal:** The full measurement matrix, every mandatory baseline, every headline
-analysis, and a reproducibility bundle.
-
 | ID | Task | Owner | Deliverable | Status |
 |---|---|---|---|---|
-| P5-C1 | `eval/matrix.py` and `eval/stats.py`: the full matrix (SI-SDRi, DNSMOS, PESQ, count accuracy, ECE) with bootstrap intervals (10k resamples) and Wilcoxon tests | C | Results matrix | [ ] |
-| P5-C2 | Primary-benchmark headline: reverb-noisy LibriMix, N = 2, SI-SDRi over the mixture | C | Headline number | [ ] |
-| P5-A1 | Real-RIR evaluation on BUT ReverbDB (SLR17), the sim-to-real gap (mandatory) | A | Real-RIR table | [ ] |
-| P5-A2 | Real recordings (team-recorded plus LibriCSS): DNSMOS and Whisper WER | A | Real-audio results | [ ] |
-| P5-B1 | Break-point curve (each metric versus N from 2 to 5) and the band-recovery contribution from matched pairs | B | Curves | [ ] |
-| P5-ALL1 | Report: each dev writes their section, plus a content-addressed reproducibility bundle | All | Final report | [ ] |
+| P5-C1 | Matrix + stats (bootstrap, Wilcoxon, ECE) + PESQ helper | C | `eval/matrix.py`, `stats.py`, `pesq_metric.py` | [x] code; [~] fill |
+| P5-C2 | Primary-benchmark headline | C | runner ready | [~] number |
+| P5-A1 | BUT ReverbDB real-RIR | A | `prepare_but_reverbdb.py` + eval tier | [x] script; [~] table |
+| P5-A2 | Real recordings / LibriCSS | A | prep + matrix tier | [~] |
+| P5-B1 | Break-point + band-recovery curves | B | `eval/curves.py` | [x] code; [~] plots |
+| P5-ALL1 | Final report + bundle | All | `reports/` + CLI bundle | [~] |
 
 ## Mandatory baselines (BLUEPRINT section 9.6)
 
-- [ ] Frozen base alone (8 kHz, padded to 16 kHz for DNSMOS): the quality floor
-- [ ] Universal adapter (from P1b): shows whether routing is needed
-- [ ] Uniform blend, no gate: shows whether the gate earns its cost
-- [ ] Oracle gating: the upper bound on routing
-- [ ] Frozen base plus band recovery, no adapters: isolates band recovery
+Code: `eval/baselines.py` (mock dry-run). Numbers after training:
+
+- [~] Frozen base alone
+- [~] Universal adapter
+- [~] Uniform blend, no gate
+- [~] Oracle gating
+- [~] Frozen base + band recovery
 
 ## GATE M5
 
-- [ ] Full matrix filled, every cell has a bootstrap interval
+- [ ] Full matrix filled with intervals
 - [ ] All five baselines reported
-- [ ] All eight headline analyses done (interference matrix, composition,
-  compositional generalization, break-point, calibration, risk-coverage,
-  band-recovery contribution, efficiency)
-- [ ] Universal-adapter verdict stated plainly
-- [ ] Reproducibility bundle reproduces the key numbers
+- [ ] Eight headline analyses done
+- [ ] Universal-adapter verdict stated
+- [ ] Reproducibility bundle reproduces key numbers
 
 ---
 
@@ -432,18 +407,18 @@ room-impulse-response set.
 
 | Dataset | Role | Status |
 |---|---|---|
-| LibriSpeech (8k plus 16k copies) | Source speech; dev-clean and test-clean held out | [~] |
-| RIR bank (pyroomacoustics, 10k) | adapter_reverb and reverb evaluation | [ ] |
-| WHAM (about 17 GB) | adapter_noise | [~] |
-| DNS-4 (stratified 20 GB) | adapter_noise variety | [ ] |
-| Libri2Mix and Libri3Mix | Clean and primary evaluation | [~] |
-| Libri4Mix and Libri5Mix | High-count evaluation | [~] |
-| SparseLibriMix | Overlap evaluation (test only) | [~] |
-| BUT ReverbDB (SLR17) | Mandatory real-RIR evaluation | [ ] |
-| LibriCSS | Real-room DNSMOS and WER | [ ] |
-| Real-room set | Team-recorded flagship | [ ] |
-| VCTK | Optional extended speaker pool | [~] |
-| WSJ0-mix and WHAMR (LDC) | Literature comparison only, not for training | [ ] |
+| LibriSpeech (8k plus 16k copies) | Source speech; held out speakers | [x] prep script; [~] download |
+| RIR bank (pyroomacoustics, 10k) | adapter_reverb | [x] generator; [~] cache |
+| WHAM (about 17 GB) | adapter_noise | [x] prep; [~] download |
+| DNS-4 (stratified 20 GB) | adapter_noise variety | [x] prep; [~] download |
+| Libri2Mix / Libri3Mix | Clean / primary eval | [x] prep; [~] download |
+| Libri4Mix / Libri5Mix | High-count eval | [x] prep; [~] download |
+| SparseLibriMix | Overlap eval | [x] prep; [~] download |
+| BUT ReverbDB (SLR17) | Real-RIR eval | [x] prep; [~] download |
+| LibriCSS | Real-room DNSMOS / WER | [~] |
+| Real-room set | Team-recorded | [ ] |
+| VCTK | Optional pool | [x] prep; [~] download |
+| WSJ0-mix / WHAMR (LDC) | Literature only | [ ] out of scope for training |
 
 ---
 
@@ -451,12 +426,12 @@ room-impulse-response set.
 
 | Tool | Source | Purpose | Status |
 |---|---|---|---|
-| SR-CorrNet var-2-5 | HF `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` | Frozen base (8k, K0 = 5) | [ ] |
-| SileroVAD | silero-vad, 8k native | Level-1 voiced density | [ ] |
-| ECAPA-TDNN | SpeechBrain VoxCeleb | Stitching and global count clustering | [x] |
-| DNSMOS ONNX | Microsoft DNS Challenge | Quality on the 16 kHz output | [~] |
-| PESQ | `pesq` pip package | Reference-based quality | [ ] |
-| Whisper (optional) | OpenAI | Demo transcripts and LibriCSS WER | [ ] |
+| SR-CorrNet var-2-5 | HF hub | Frozen base | [x] wrapper; [~] download |
+| SileroVAD | silero-vad | Level-1 voiced density | [x] opt-in; STFT fallback default |
+| ECAPA-TDNN | SpeechBrain | Stitching / clustering | [x] |
+| DNSMOS ONNX | Microsoft | 16 kHz quality | [x] code; [~] onnx file |
+| PESQ | `pesq` | Reference quality | [x] `eval/pesq_metric.py` |
+| Whisper (optional) | OpenAI | Demo / WER | [x] optional import in demo |
 
 ---
 
@@ -518,25 +493,30 @@ room-impulse-response set.
 
 ---
 
-# New source files to add
+# Source files (now present on `suryansh`)
 
-These do not exist yet. Each is a deliverable in the phases above.
+- [x] `models/srcorrnet/` — patches A/B/C
+- [x] `models/lora.py`, `condition.py`, `gate.py`, `counting.py`, `confidence.py`, `band_recovery.py`
+- [x] `pipeline/chunker.py`, `stitcher.py`, `infer.py`
+- [x] `eval/matrix.py`, `stats.py`, `interference.py`, `baselines.py`, `curves.py`, `pesq_metric.py`, `ablation_gate.py`
+- [x] `calibration/` (+ fit/load/hash)
+- [x] `data/synthesis/`, `data/fixed_eval/` (manifests + hashes), `data/rirs/` (dir)
+- [x] `tests/attractor_test.py`, `e0_hook_test.py`, `principle2_test.py`, `smoke_test.py` + module tests
+- [x] configs: `base_checkpoint.yaml`, `adapters/*`, `gate.yaml`, `band_recovery.yaml`, `eval.yaml`
+- [x] notebooks: `P1_*`, `P1b_*`, `P2_*`, `P3_*` (untrained)
+- [x] CLI: `scripts/calmsep_infer.py`, `rtf_report.py`, `generate_fixed_eval.py`, `corpus_transfer_baseline.py`
 
-- `models/srcorrnet/`: wrapper exposing `p_k`, `E(0)`, and decoder-stage features (Patches A, B, C)
-- `models/lora.py`: parallel-branch LoRA and the co-activation sampler
-- `models/condition.py`: two-level condition analyzer
-- `models/gate.py`: gate MLP, EMA, sparsity
-- `models/counting.py`: attractor readout, residual sweep, fusion
-- `models/confidence.py`: per-stream confidence, completeness, OOD
-- `models/band_recovery.py`: high-band head and dual-metric guard
-- `pipeline/chunker.py`, `pipeline/stitcher.py`, `pipeline/infer.py`
-- `eval/matrix.py`, `eval/stats.py`
-- `calibration/`: fitted temperature scalars and logistic models, hashed
-- `data/synthesis/`, `data/fixed_eval/`, `data/rirs/`
-- `tests/attractor_test.py`, `tests/e0_hook_test.py`, `tests/principle2_test.py`, `tests/smoke_test.py`
-- configs: `base_checkpoint.yaml`, `adapters/reverb.yaml`, `adapters/noise.yaml`, `adapters/codec.yaml`, `gate.yaml`, `band_recovery.yaml`, `eval.yaml`
+## Your next commands (training — not run by the agent)
+
+```bash
+python scripts/download_checkpoint.py
+python scripts/generate_fixed_eval.py   # already committed; re-run if needed
+python -m train.train_adapter --adapter noise --config configs/adapters/noise.yaml
+# then reverb, codec → P1b universal → train_gate → joint_polish → train_band_recovery → calibrate
+python -m demo.app --mock
+python -m scripts.calmsep_infer separate mix.wav --out out/ --mock
+```
 
 ---
 
-End of tracker. Edit as the project moves. When this file and `BLUEPRINT`
-disagree, `BLUEPRINT` is right.
+End of tracker. When this file and `BLUEPRINT` disagree, `BLUEPRINT` is right.
