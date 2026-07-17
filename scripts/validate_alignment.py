@@ -49,8 +49,8 @@ if str(_ROOT) not in sys.path:
 from align.hungarian import xcorr_cost_matrix  # noqa: E402
 from align.integration import run_and_align, run_and_align_long  # noqa: E402
 from data.mixer_stub import MixtureSample, discover_librimix_samples  # noqa: E402
-from models.experts.mossformer2 import MossFormer2Expert  # noqa: E402
-from models.experts.tfgridnet import get_expensive_expert  # noqa: E402
+# MossFormer2Expert and get_expensive_expert removed in CALM-Sep pivot.
+# main() below must be rewritten to use SRCorrNetWrapper before use.
 
 
 def _rms(block: np.ndarray) -> np.ndarray:
