@@ -14,7 +14,7 @@ Usage
         --adapter reverb \
         --librispeech-8k /data/LibriSpeech_8k \
         --rir-bank data/rirs/bank.json \
-        --noise-dir /data/calmsep_noise \     # only for noise adapter
+        --noise-dir /data/calmsep_noise \
         --output-dir outputs/stage1_reverb \
         --device cuda \
         --epochs 40 \
@@ -337,10 +337,14 @@ def _save_adapter(lib: LoRALibrary, model: torch.nn.Module, adapter: str, path: 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Train a single CALM-Sep LoRA adapter")
     p.add_argument("--adapter", required=True, choices=list(ADAPTER_NAMES))
-    p.add_argument("--librispeech-8k", required=True)
+    # Accept both --librispeech-8k (direct) and --data-root (Kaggle notebook convention).
+    p.add_argument("--librispeech-8k", default="")
+    p.add_argument("--data-root", default="")          # alias used by notebooks
     p.add_argument("--rir-bank", default="data/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
-    p.add_argument("--output-dir", required=True)
+    p.add_argument("--output-dir", default="")
+    p.add_argument("--checkpoint-dir", default="")     # alias used by notebooks
+    p.add_argument("--config", default="")             # accepted but unused (config baked in)
     p.add_argument("--hf-model", default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs", type=int, default=40)
@@ -349,7 +353,17 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
-    return p.parse_args()
+    args = p.parse_args()
+    # Resolve aliases: notebook passes --data-root and --checkpoint-dir.
+    if not args.librispeech_8k and args.data_root:
+        args.librispeech_8k = args.data_root
+    if not args.output_dir and args.checkpoint_dir:
+        args.output_dir = args.checkpoint_dir
+    if not args.librispeech_8k:
+        p.error("--librispeech-8k or --data-root is required")
+    if not args.output_dir:
+        p.error("--output-dir or --checkpoint-dir is required")
+    return args
 
 
 if __name__ == "__main__":

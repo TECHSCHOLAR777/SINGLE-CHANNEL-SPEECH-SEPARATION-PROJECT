@@ -280,22 +280,45 @@ def train_gate(args: argparse.Namespace) -> None:
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--librispeech-8k", required=True)
+    p.add_argument("--librispeech-8k", default="")
+    p.add_argument("--data-root", default="")          # alias used by notebooks
     p.add_argument("--rir-bank", default="data/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
+    # Stage 1 adapter paths can be given explicitly or via --stage1-dir.
     p.add_argument("--adapter-reverb", default="")
     p.add_argument("--adapter-noise", default="")
     p.add_argument("--adapter-codec", default="")
-    p.add_argument("--output-dir", required=True)
+    p.add_argument("--stage1-dir", default="")         # used by notebooks; resolves adapter paths
+    p.add_argument("--output-dir", default="")
+    p.add_argument("--checkpoint-dir", default="")     # alias used by notebooks
     p.add_argument("--hf-model", default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=4)
-    p.add_argument("--lr", type=float, default=5e-4)
+    p.add_argument("--lr", type=float, default=5e-5)   # blueprint gate.yaml: 5e-5 (was 5e-4)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
-    return p.parse_args()
+    args = p.parse_args()
+    # Resolve aliases.
+    if not args.librispeech_8k and args.data_root:
+        args.librispeech_8k = args.data_root
+    if not args.output_dir and args.checkpoint_dir:
+        args.output_dir = args.checkpoint_dir
+    # If --stage1-dir given, infer adapter paths that weren't explicitly set.
+    if args.stage1_dir:
+        stage1 = Path(args.stage1_dir)
+        if not args.adapter_reverb:
+            args.adapter_reverb = str(stage1 / "best_reverb.pt")
+        if not args.adapter_noise:
+            args.adapter_noise = str(stage1 / "best_noise.pt")
+        if not args.adapter_codec:
+            args.adapter_codec = str(stage1 / "best_codec.pt")
+    if not args.librispeech_8k:
+        p.error("--librispeech-8k or --data-root is required")
+    if not args.output_dir:
+        p.error("--output-dir or --checkpoint-dir is required")
+    return args
 
 
 if __name__ == "__main__":
