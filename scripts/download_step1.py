@@ -2,7 +2,7 @@
 """
 CALM-Sep Phase 0 — Step 1: Download raw datasets.
 
-Downloads LibriSpeech (openslr.org) and DEMAND noise (Zenodo) automatically,
+Downloads LibriSpeech (openslr.org) and WHAM! noise (S3) automatically,
 then extracts archives in-place.  DNS-4 requires a manual step (see below).
 
 Usage
@@ -15,9 +15,9 @@ What gets downloaded
   LibriSpeech train-clean-360  23.1 GB
   LibriSpeech dev-clean         337 MB
   LibriSpeech test-clean        346 MB
-  DEMAND noise (Zenodo)        ~10.2 GB
+  WHAM! noise                  ~17.1 GB
   ─────────────────────────────────────
-  Total auto-download           ~40 GB
+  Total auto-download           ~47 GB
 
 DNS-4 is printed as instructions (requires Microsoft registration / azcopy).
 """
@@ -54,17 +54,7 @@ class Download:
 
 
 LIBRISPEECH_BASE = "https://www.openslr.org/resources/12"
-
-# DEMAND noise — 16 real environments, ~10 GB, stable Zenodo host (CC BY-SA 4.0).
-# Replaces WHAM! whose original S3 bucket (my-bucket-a8b4b49c25c811e9a7e29cec32478954
-# .s3.amazonaws.com/wham_noise.zip) is permanently offline as of 2024.
-# DEMAND covers the same SNR range and the prepare_noise_staging.py script accepts it.
-DEMAND_URLS = [
-    # Zenodo primary (DOI-stable)
-    "https://zenodo.org/record/1227121/files/DEMAND.tar.gz",
-    # Mirror via Hugging Face datasets CDN
-    "https://huggingface.co/datasets/DavidTSu/DEMAND/resolve/main/DEMAND.tar.gz",
-]
+WHAM_URL = "https://my-bucket-a8b4b49c25c811ee9a7e8bba05fa24c7" ".s3.amazonaws.com/wham_noise.zip"
 
 AUTO_DOWNLOADS: list[Download] = [
     Download(
@@ -96,11 +86,11 @@ AUTO_DOWNLOADS: list[Download] = [
         extract_subdir="LibriSpeech",
     ),
     Download(
-        name="DEMAND noise (replaces WHAM!)",
-        url=DEMAND_URLS[0],  # Zenodo primary; falls back to mirror on failure
-        filename="DEMAND.tar.gz",
-        size_bytes=10_200_000_000,
-        extract_subdir="demand_noise",
+        name="WHAM! noise",
+        url=WHAM_URL,
+        filename="wham_noise.zip",
+        size_bytes=17_116_602_368,
+        extract_subdir="wham_noise",
     ),
 ]
 
@@ -167,18 +157,13 @@ def _download_with_aria2c(url: str, dest: Path, label: str) -> int:
         dest.name,
         url,
     ]
-    # Try each URL in sequence (primary, then mirrors).
-    has_mirror = "DEMAND" in dest.name and len(DEMAND_URLS) > 1
-    urls_to_try = [url] + ([DEMAND_URLS[1]] if has_mirror else [])
-    for attempt_url in urls_to_try:
-        print(f"  ⚡ aria2c  16 connections  →  {dest.name}")
-        print(f"     {attempt_url}")
-        result = subprocess.run(cmd[:-1] + [attempt_url])
-        if result.returncode == 0:
-            after = dest.stat().st_size if dest.exists() else 0
-            return max(after - before, 0)
-        print(f"  ✗  aria2c exit {result.returncode} — trying next mirror…")
-    raise RuntimeError(f"All download URLs failed for {dest.name}")
+    print(f"  ⚡ aria2c  16 connections  →  {dest.name}")
+    print(f"     {url}")
+    result = subprocess.run(cmd)
+    if result.returncode == 0:
+        after = dest.stat().st_size if dest.exists() else 0
+        return max(after - before, 0)
+    raise RuntimeError(f"aria2c failed (exit {result.returncode}) for {dest.name}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -505,10 +490,10 @@ def main() -> None:
     print("    │   ├── train-clean-360/")
     print("    │   ├── dev-clean/")
     print("    │   └── test-clean/")
-    print("    └── demand_noise/")
-    print("        ├── DKITCHEN/  (16 environments, each with ch01–ch08 WAVs)")
-    print("        ├── NOFFICE/")
-    print("        └── ...        (DCAR, DLIVING, OOFFICE, PRESTO, SPSQUARE, etc.)")
+    print("    └── wham_noise/")
+    print("        ├── tr/   (train noise)")
+    print("        ├── cv/   (validation noise)")
+    print("        └── tt/   (test noise)")
     print()
 
     # DNS-4 instructions
@@ -522,7 +507,7 @@ def main() -> None:
     print("    --output-dir ~/Desktop/calmsep-8k/librispeech-8k")
     print()
     print("  python data/prepare_noise_staging.py \\")
-    print(f"    --demand-dir {output_dir}/demand_noise \\")
+    print(f"    --wham-dir   {output_dir}/wham_noise \\")
     print("    --output-dir ~/Desktop/calmsep-8k/noise")
     print("═" * 70)
 
