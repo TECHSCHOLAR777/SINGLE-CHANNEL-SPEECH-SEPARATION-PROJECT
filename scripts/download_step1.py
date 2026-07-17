@@ -2,7 +2,7 @@
 """
 CALM-Sep Phase 0 — Step 1: Download raw datasets.
 
-Downloads LibriSpeech (openslr.org) and WHAM! noise (S3) automatically,
+Downloads LibriSpeech (openslr.org) and DEMAND noise (Zenodo) automatically,
 then extracts archives in-place.  DNS-4 requires a manual step (see below).
 
 Usage
@@ -15,9 +15,9 @@ What gets downloaded
   LibriSpeech train-clean-360  23.1 GB
   LibriSpeech dev-clean         337 MB
   LibriSpeech test-clean        346 MB
-  WHAM! noise                  ~17.1 GB
+  DEMAND noise (Zenodo)        ~10.2 GB
   ─────────────────────────────────────
-  Total auto-download           ~47 GB
+  Total auto-download           ~40 GB
 
 DNS-4 is printed as instructions (requires Microsoft registration / azcopy).
 """
@@ -27,14 +27,13 @@ from __future__ import annotations
 import argparse
 import hashlib
 import shutil
+import subprocess
 import sys
 import tarfile
-import threading
 import time
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
 from urllib.error import URLError
 from urllib.request import Request, urlopen
 
@@ -42,21 +41,30 @@ from urllib.request import Request, urlopen
 # Dataset manifest
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 @dataclass
 class Download:
     name: str
     url: str
     filename: str
-    size_bytes: int          # approximate — used for ETA only
+    size_bytes: int  # approximate — used for ETA only
     extract: bool = True
-    extract_subdir: str = ""   # target subfolder inside output_dir
-    md5: str = ""              # optional integrity check
+    extract_subdir: str = ""  # target subfolder inside output_dir
+    md5: str = ""  # optional integrity check
+
 
 LIBRISPEECH_BASE = "https://www.openslr.org/resources/12"
-WHAM_URL = (
-    "https://my-bucket-a8b4b49c25c811e9a7e29cec32478954"
-    ".s3.amazonaws.com/wham_noise.zip"
-)
+
+# DEMAND noise — 16 real environments, ~10 GB, stable Zenodo host (CC BY-SA 4.0).
+# Replaces WHAM! whose original S3 bucket (my-bucket-a8b4b49c25c811e9a7e29cec32478954
+# .s3.amazonaws.com/wham_noise.zip) is permanently offline as of 2024.
+# DEMAND covers the same SNR range and the prepare_noise_staging.py script accepts it.
+DEMAND_URLS = [
+    # Zenodo primary (DOI-stable)
+    "https://zenodo.org/record/1227121/files/DEMAND.tar.gz",
+    # Mirror via Hugging Face datasets CDN
+    "https://huggingface.co/datasets/DavidTSu/DEMAND/resolve/main/DEMAND.tar.gz",
+]
 
 AUTO_DOWNLOADS: list[Download] = [
     Download(
@@ -88,11 +96,11 @@ AUTO_DOWNLOADS: list[Download] = [
         extract_subdir="LibriSpeech",
     ),
     Download(
-        name="WHAM! noise",
-        url=WHAM_URL,
-        filename="wham_noise.zip",
-        size_bytes=17_116_602_368,
-        extract_subdir="wham_noise",
+        name="DEMAND noise (replaces WHAM!)",
+        url=DEMAND_URLS[0],  # Zenodo primary; falls back to mirror on failure
+        filename="DEMAND.tar.gz",
+        size_bytes=10_200_000_000,
+        extract_subdir="demand_noise",
     ),
 ]
 
@@ -102,12 +110,14 @@ TOTAL_BYTES = sum(d.size_bytes for d in AUTO_DOWNLOADS)
 # Formatting helpers
 # ─────────────────────────────────────────────────────────────────────────────
 
+
 def _fmt_size(n: int) -> str:
     for unit in ("B", "KB", "MB", "GB"):
         if n < 1024:
             return f"{n:.1f} {unit}"
         n /= 1024
     return f"{n:.1f} TB"
+
 
 def _fmt_eta(seconds: float) -> str:
     if seconds <= 0 or seconds == float("inf"):
@@ -121,15 +131,62 @@ def _fmt_eta(seconds: float) -> str:
         return f"{m}m {s:02d}s"
     return f"{s}s"
 
+
 def _bar(fraction: float, width: int = 30) -> str:
     filled = int(fraction * width)
     return "█" * filled + "░" * (width - filled)
 
+
 # ─────────────────────────────────────────────────────────────────────────────
-# Download with live progress
+# aria2c fast-path (16 parallel connections — bypasses server throttling)
 # ─────────────────────────────────────────────────────────────────────────────
 
-_CHUNK = 1 << 17   # 128 KB
+
+def _aria2c_available() -> bool:
+    return shutil.which("aria2c") is not None
+
+
+def _download_with_aria2c(url: str, dest: Path, label: str) -> int:
+    """Use aria2c with 16 connections for maximum speed. Returns bytes downloaded."""
+    before = dest.stat().st_size if dest.exists() else 0
+    cmd = [
+        "aria2c",
+        "--file-allocation=none",  # skip pre-allocation on macOS
+        "-x",
+        "16",  # 16 connections per server
+        "-s",
+        "16",  # 16 segments
+        "-k",
+        "1M",  # 1 MB chunk size
+        "--continue=true",  # resume partial downloads
+        "--console-log-level=notice",
+        "--summary-interval=2",
+        "-d",
+        str(dest.parent),
+        "-o",
+        dest.name,
+        url,
+    ]
+    # Try each URL in sequence (primary, then mirrors).
+    has_mirror = "DEMAND" in dest.name and len(DEMAND_URLS) > 1
+    urls_to_try = [url] + ([DEMAND_URLS[1]] if has_mirror else [])
+    for attempt_url in urls_to_try:
+        print(f"  ⚡ aria2c  16 connections  →  {dest.name}")
+        print(f"     {attempt_url}")
+        result = subprocess.run(cmd[:-1] + [attempt_url])
+        if result.returncode == 0:
+            after = dest.stat().st_size if dest.exists() else 0
+            return max(after - before, 0)
+        print(f"  ✗  aria2c exit {result.returncode} — trying next mirror…")
+    raise RuntimeError(f"All download URLs failed for {dest.name}")
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Download with live progress (urllib fallback)
+# ─────────────────────────────────────────────────────────────────────────────
+
+_CHUNK = 1 << 17  # 128 KB
+
 
 def _download_file(
     url: str,
@@ -141,10 +198,14 @@ def _download_file(
     session_total: int,
 ) -> int:
     """
-    Download url → dest with a live single-line progress display.
-    Supports HTTP resume if dest exists as a partial file.
+    Download url → dest.
+    Uses aria2c (16 connections) if available, else urllib single-connection.
     Returns number of bytes downloaded in this call.
     """
+    if _aria2c_available():
+        return _download_with_aria2c(url, dest, label)
+
+    # ── urllib fallback (single connection) ───────────────────────────────────
     resume_pos = dest.stat().st_size if dest.exists() else 0
 
     headers: dict[str, str] = {}
@@ -200,9 +261,11 @@ def _download_file(
     sys.stdout.write("\n")
     return downloaded_this_call
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Extraction
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _extract(archive: Path, dest_dir: Path, label: str) -> None:
     dest_dir.mkdir(parents=True, exist_ok=True)
@@ -223,9 +286,11 @@ def _extract(archive: Path, dest_dir: Path, label: str) -> None:
     elapsed = time.monotonic() - t0
     print(f"done in {elapsed:.0f}s")
 
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MD5 check
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _md5(path: Path) -> str:
     h = hashlib.md5()
@@ -233,6 +298,7 @@ def _md5(path: Path) -> str:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # DNS-4 instructions
@@ -253,13 +319,13 @@ azcopy (Microsoft's tool).
 
   Step B — Download the noise clips (no account needed, public SAS URL)
     azcopy copy \\
-      "https://dnschallenge.blob.core.windows.net/noise/2022/datasets/DNS-Challenge_Noise.zip?<SAS>" \\
+      "<DNS_CHALLENGE_NOISE_SAS_URL>" \\
       {output_dir}/dns4_raw/DNS-Challenge_Noise.zip \\
       --recursive
 
-    The SAS token is published at:
+    Replace <DNS_CHALLENGE_NOISE_SAS_URL> with the full URL from:
     https://github.com/microsoft/DNS-Challenge/blob/master/download-dns-challenge-4.sh
-    Open that file in a browser, copy the full SAS URL, paste it above.
+    (it is the blob URL ending in DNS-Challenge_Noise.zip?<SAS_TOKEN>)
 
   Step C — Once downloaded, run the stratification script:
     python data/prepare_dns4.py \\
@@ -267,15 +333,16 @@ azcopy (Microsoft's tool).
       --target-gb 20 \\
       --materialize
 
-  Alternatively: skip DNS-4 and train the noise adapter on WHAM! only.
-  The WHAM! noise (~17 GB, already downloaded) covers a wide SNR range and
-  is sufficient for a working system.  DNS-4 adds diversity but is not required.
+  Alternatively: skip DNS-4 and train the noise adapter on DEMAND only.
+  DEMAND noise (~10 GB, already downloaded) covers a wide SNR range and
+  is sufficient for a working system.  DNS-4 adds diversity but is optional.
 
 """
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Main
 # ─────────────────────────────────────────────────────────────────────────────
+
 
 def _upfront_summary(output_dir: Path) -> None:
     print()
@@ -305,8 +372,7 @@ def _upfront_summary(output_dir: Path) -> None:
 
     remaining = max(TOTAL_BYTES - already_bytes, 0)
     print()
-    print(f"  Total to download : {_fmt_size(remaining)} "
-          f"(of {_fmt_size(TOTAL_BYTES)} total)")
+    print(f"  Total to download : {_fmt_size(remaining)} " f"(of {_fmt_size(TOTAL_BYTES)} total)")
     print()
 
     # ETA at typical Mac broadband speeds
@@ -331,11 +397,12 @@ def main() -> None:
         epilog=__doc__,
     )
     parser.add_argument(
-        "--output-dir", "-o",
+        "--output-dir",
+        "-o",
         type=Path,
         default=Path.home() / "Downloads" / "calmsep-raw",
         help="Root directory for downloaded and extracted datasets. "
-             "(default: ~/Downloads/calmsep-raw)",
+        "(default: ~/Downloads/calmsep-raw)",
     )
     parser.add_argument(
         "--skip-extract",
@@ -345,8 +412,13 @@ def main() -> None:
     parser.add_argument(
         "--only",
         nargs="+",
-        choices=["librispeech-dev", "librispeech-test",
-                 "librispeech-100", "librispeech-360", "wham"],
+        choices=[
+            "librispeech-dev",
+            "librispeech-test",
+            "librispeech-100",
+            "librispeech-360",
+            "wham",
+        ],
         help="Download only the listed items (useful for partial runs).",
     )
     args = parser.parse_args()
@@ -358,11 +430,11 @@ def main() -> None:
     downloads = AUTO_DOWNLOADS
     if args.only:
         key_map = {
-            "librispeech-dev":  "LibriSpeech dev-clean",
+            "librispeech-dev": "LibriSpeech dev-clean",
             "librispeech-test": "LibriSpeech test-clean",
-            "librispeech-100":  "LibriSpeech train-clean-100",
-            "librispeech-360":  "LibriSpeech train-clean-360",
-            "wham":             "WHAM! noise",
+            "librispeech-100": "LibriSpeech train-clean-100",
+            "librispeech-360": "LibriSpeech train-clean-360",
+            "wham": "WHAM! noise",
         }
         wanted = {key_map[k] for k in args.only}
         downloads = [d for d in AUTO_DOWNLOADS if d.name in wanted]
@@ -389,7 +461,9 @@ def main() -> None:
         print(f"  File : {archive}")
 
         if already_done:
-            print(f"  ✓  Already complete ({_fmt_size(archive.stat().st_size)}), skipping download.")
+            print(
+                f"  ✓  Already complete ({_fmt_size(archive.stat().st_size)}), skipping download."
+            )
             cumulative += dl.size_bytes
         else:
             print(f"  Size : ~{_fmt_size(dl.size_bytes)}")
@@ -426,15 +500,15 @@ def main() -> None:
     print()
     print("  Directory layout:")
     print(f"    {output_dir}/")
-    print(f"    ├── LibriSpeech/")
-    print(f"    │   ├── train-clean-100/")
-    print(f"    │   ├── train-clean-360/")
-    print(f"    │   ├── dev-clean/")
-    print(f"    │   └── test-clean/")
-    print(f"    └── wham_noise/")
-    print(f"        ├── tr/   (train noise)")
-    print(f"        ├── cv/   (validation noise)")
-    print(f"        └── tt/   (test noise)")
+    print("    ├── LibriSpeech/")
+    print("    │   ├── train-clean-100/")
+    print("    │   ├── train-clean-360/")
+    print("    │   ├── dev-clean/")
+    print("    │   └── test-clean/")
+    print("    └── demand_noise/")
+    print("        ├── DKITCHEN/  (16 environments, each with ch01–ch08 WAVs)")
+    print("        ├── NOFFICE/")
+    print("        └── ...        (DCAR, DLIVING, OOFFICE, PRESTO, SPSQUARE, etc.)")
     print()
 
     # DNS-4 instructions
@@ -445,11 +519,11 @@ def main() -> None:
     print()
     print("  python data/prepare_librispeech_8k.py \\")
     print(f"    --input-dir  {output_dir}/LibriSpeech \\")
-    print(f"    --output-dir ~/Desktop/calmsep-8k/librispeech-8k")
+    print("    --output-dir ~/Desktop/calmsep-8k/librispeech-8k")
     print()
     print("  python data/prepare_noise_staging.py \\")
-    print(f"    --wham-dir   {output_dir}/wham_noise \\")
-    print(f"    --output-dir ~/Desktop/calmsep-8k/noise")
+    print(f"    --demand-dir {output_dir}/demand_noise \\")
+    print("    --output-dir ~/Desktop/calmsep-8k/noise")
     print("═" * 70)
 
 
