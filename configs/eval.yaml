@@ -1,0 +1,49 @@
+# Evaluation configuration (Dev C, P5-C1).
+
+eval:
+  # 8-condition × 4-N evaluation matrix.
+  conditions:
+    - clean
+    - reverb
+    - noise
+    - codec
+    - reverb+noise
+    - reverb+codec
+    - noise+codec
+    - reverb+noise+codec
+
+  n_speakers: [2, 3, 4, 5]
+
+  # Fixed seeded evaluation set from data/fixed_eval_generator.py.
+  manifest_path: "data/eval/fixed_eval_manifest.jsonl"
+
+  # Mixtures per (condition, N) bucket for the standard run.
+  n_per_bucket: 50
+
+  # BUT real-RIR tier (extra reverb tier from SLR17).
+  but_tier:
+    enabled: true
+    manifest_path: "data/eval/but_tier_manifest.jsonl"
+    n_per_bucket: 20
+
+metrics:
+  si_sdri: true
+  sdri: true
+  dnsmos: true
+  count_accuracy: true
+  completeness_prob: true
+  ood_flag_rate: true
+
+bootstrap:
+  n_boot: 2000
+  alpha: 0.05               # 95% CIs
+
+dnsmos:
+  # Path to sig_bak_ovrl.onnx from DNS-Challenge repo.
+  model_path: "models/dnsmos/sig_bak_ovrl.onnx"
+  sample_rate: 16000
+
+output:
+  jsonl_path: "results/eval_matrix.jsonl"
+  summary_csv_path: "results/summary.csv"
+  ci_json_path: "results/bootstrap_ci.json"

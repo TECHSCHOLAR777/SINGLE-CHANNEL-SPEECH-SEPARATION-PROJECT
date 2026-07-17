@@ -29,3 +29,6 @@
 | 2026-07-11 | P0 end-to-end coverage uses a deterministic injected fake expert | Proves config, runner, PIT SI-SDRi, and reporting compose without downloading weights or datasets |
 | 2026-07-11 | Counting report artifacts are generated from canonical `RunLog` records | One source produces confusion/calibration JSON, CSV, Markdown, and SVG without notebook-only state |
 | 2026-07-11 | Real M1 acceptance tests are opt-in with `RUN_REAL_EXPERTS=1` | Default CI stays reproducible; RunPod/Kaggle can execute the same assertions with real speech and weights |
+| 2026-07-17 | Re-baseline to CALM-Sep; patches A/B/C via `SRCorrNetWrapper` hooks | BLUEPRINT §15.1 without editing vendored engine_infer |
+| 2026-07-17 | Primary LoRA attach set = 17 QKV+filter layers | Matches BLUEPRINT §5.3 layer count; aggregate/aux optional |
+| 2026-07-17 | P1b universal-adapter verdict PENDING until training | Pre-committed: adopt if within 0.5 dB on primary benchmark; log here before gate training |

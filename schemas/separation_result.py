@@ -54,6 +54,13 @@ class SeparationResult:
     mixture: np.ndarray | None = None
     escalated: bool = False
     expert_used: str = ""
+    # CALM-Sep extension fields (optional; default to inert values)
+    gate_vector: dict[str, float] = field(default_factory=dict)
+    completeness_prob: float = 1.0
+    ood_flag: bool = False
+    attractor_probs: np.ndarray | None = None
+    encoder_e0: np.ndarray | None = None
+    decoder_features: list[np.ndarray] = field(default_factory=list)
 
     def __post_init__(self) -> None:
         self.streams = np.asarray(self.streams, dtype=np.float32)

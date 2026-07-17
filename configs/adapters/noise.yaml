@@ -1,0 +1,32 @@
+# LoRA adapter configuration — noise adapter.
+# Trained on noisy mixtures only (Stage 1).
+
+adapter:
+  name: "noise"
+  attn_rank: 8
+  filter_head_rank: 4
+
+training:
+  stage: 1
+  optimizer: "adamw"
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  batch_size: 8
+  epochs: 40
+  gradient_clip: 5.0
+  warmup_steps: 500
+  co_activation_min: 0.0
+  co_activation_max: 0.2
+
+data:
+  condition: "noise"
+  # WHAM! / DNS-4 noise sources at 8 kHz (BLUEPRINT §7.1).
+  noise_sources: ["wham", "dns4"]
+  snr_range: [-4, 20]         # SNR < -4 dB is severity holdout (BLUEPRINT §7.4)
+  severity_holdout_fraction: 0.1
+
+loss:
+  si_snr_weight: 1.0
+  mag_weight: 0.5
+  att_weight: 0.1
+  olora_alpha: 0.01

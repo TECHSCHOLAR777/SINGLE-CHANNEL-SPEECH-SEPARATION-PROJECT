@@ -1,0 +1,37 @@
+# LoRA adapter configuration — reverb adapter.
+# Trained on reverberated mixtures only (Stage 1).
+# Co-activation warm-up: other adapters active at U(0.0, 0.2) (BLUEPRINT §5.5).
+
+adapter:
+  name: "reverb"
+  # LoRA ranks per module class (BLUEPRINT §5.3).
+  attn_rank: 8
+  filter_head_rank: 4
+
+training:
+  stage: 1                    # single-adapter training
+  optimizer: "adamw"
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  batch_size: 8
+  epochs: 40
+  gradient_clip: 5.0
+  warmup_steps: 500
+  # Co-activation gate range for inactive adapters during training.
+  co_activation_min: 0.0
+  co_activation_max: 0.2
+
+data:
+  condition: "reverb"
+  # BUT ReverbDB (SLR17 — NOT SLR28/AISHELL-2) (BLUEPRINT §7.2).
+  rir_source: "but_reverbdb"
+  t60_range: [0.1, 0.9]       # >0.9 s is severity holdout (BLUEPRINT §7.4)
+  # Fraction of severity-holdout examples allowed in training.
+  severity_holdout_fraction: 0.1
+
+loss:
+  si_snr_weight: 1.0
+  mag_weight: 0.5
+  att_weight: 0.1
+  # O-LoRA penalty for cross-adapter interference (Stage 4 only).
+  olora_alpha: 0.01

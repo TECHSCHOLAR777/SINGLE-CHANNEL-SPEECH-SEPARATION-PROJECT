@@ -282,9 +282,10 @@ def test_random_codec_resolves_to_supported_codec() -> None:
     cfg = CodecConfig(codec="random", codec_prob=1.0, use_ffmpeg=False)
     aug = CodecAugmentor(cfg, rng=np.random.default_rng(0))
     seen = set()
-    for _ in range(100):
+    for _ in range(50):
         seen.add(aug._resolve_codec())
     assert seen.issubset(set(_SUPPORTED_CODECS))
+    assert len(seen) >= 2
 
 
 # ---------------------------------------------------------------------------
