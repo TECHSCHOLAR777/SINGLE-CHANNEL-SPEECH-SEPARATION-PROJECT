@@ -2,545 +2,597 @@
 
 **Condition-Aware LoRA Mixture for Multi-Speaker Speech Separation**
 
-This file is the project task tracker. It is the single place to see what is
-done, what is in progress, and what is left. The full design lives in
-`BLUEPRINT`, which is the source of truth. When this tracker and `BLUEPRINT`
-disagree, `BLUEPRINT` wins.
+CALM-Sep separates the voices of two to five simultaneous speakers from a single mono audio recording. The number of speakers is not provided to the system. The recording may be reverberant, noisy, or degraded by audio codec compression, in any combination. The system returns one clean waveform per estimated speaker, a calibrated speaker count, a per-stream confidence score, and a completeness probability that expresses how likely it is that no speaker was missed.
 
-Last updated: 2026-07-17
+The system is graded on two axes: first, whether it returns the correct number of speakers; second, whether each returned voice sounds clean and isolated. Everything else follows from those two requirements.
 
 ---
 
-## What the system does
+## Table of Contents
 
-The system takes one mono recording where two to five people talk at the same
-time. The number of speakers is not given. The recording may also be
-reverberant, noisy, or damaged by audio codecs.
-
-It returns:
-
-1. A speaker count `N` in {2, 3, 4, 5}, and one clean waveform per speaker.
-2. A confidence score for each returned waveform.
-3. A completeness probability: one number saying how likely it is that no
-   speaker was missed.
-
-It is graded on two things, in this order:
-
-1. **Speaker count accuracy.** Did it return the right number of speakers?
-2. **Separation quality.** Does each returned voice sound clean and isolated?
-
-Everything else is a bonus. Any idea that could help speed or elegance but
-risks these two axes is guarded or removed.
-
----
-
-## How it works (one paragraph)
-
-Take one strong pretrained separation network, SR-CorrNet var-2-5, and freeze
-it forever. Teach it to handle hard conditions with three small plug-in
-adapters (LoRA): one for reverb, one for noise, one for codec damage. A
-two-level condition analyzer looks at each audio chunk, measures how much of
-each condition is present, and a gate blends the adapters into the frozen
-network in proportion to those strengths. The blend happens inside the weight
-matrices before any audio is produced, so there is always one forward pass and
-one set of output voices. The speaker count is read from the backbone's own
-attractor probabilities. A small band-recovery head lifts the 8 kHz output to
-16 kHz for perceptual quality. A residual-energy detector guards against a
-missed speaker.
+- [Overview](#overview)
+- [Approach](#approach)
+- [Architecture](#architecture)
+  - [The backbone: SR-CorrNet](#the-backbone-sr-corrnet)
+  - [LoRA adapter library](#lora-adapter-library)
+  - [Condition analyzer](#condition-analyzer)
+  - [Gate network](#gate-network)
+  - [Speaker counting](#speaker-counting)
+  - [Band recovery](#band-recovery)
+- [Inference pipeline](#inference-pipeline)
+- [Training](#training)
+- [Evaluation](#evaluation)
+- [Data](#data)
+- [Results](#results)
+- [Repository structure](#repository-structure)
+- [Setup](#setup)
+- [Team](#team)
+- [Design principles](#design-principles)
 
 ---
 
-## Fixed constraints (never change these)
+## Overview
 
-| Constraint | Value |
-|---|---|
-| Base checkpoint | `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk`, downloaded once, frozen forever, never fine-tuned |
-| Speaker count | N = 2 to 5 only |
-| Sample rate | 8 kHz internal (STFT window 128, hop 64), locked by the checkpoint |
-| Quality path | Band recovery only (8 kHz to 16 kHz). No backbone retraining |
-| New trainable params | About 3 to 4 M (condition analyzer, gate, counting fusion, calibration, 3 LoRA adapters) against a 13.6 M frozen base |
-| Compute | Under 150 GPU-hours total on free-tier T4. Largest single run is one adapter, 20 to 40 GPU-hours |
+Real recordings rarely contain just one type of difficulty. A conference call picked up in a reverberant room may also carry background noise. A voice memo recorded over a poor codec connection may arrive with both bandwidth loss and quantization artifacts. Systems that specialize in one condition at a time struggle when multiple conditions appear together.
 
-Published base performance on clean WSJ0-mix: count 100 / 99.7 / 97.7 / 96.9
-percent and 24.8 / 24.4 / 21.9 / 19.9 dB SI-SDRi at N = 2 / 3 / 4 / 5.
+CALM-Sep addresses this by taking one strong pretrained speech separation network, freezing it completely, and teaching it to handle adverse conditions through a library of three small trainable plug-in modules called LoRA adapters. Each adapter specializes in one degradation: reverberation, background noise, or codec artifacts. A lightweight condition analyzer inspects each audio chunk using raw signal statistics and neural features, estimates how much of each condition is present, and a gate network blends the adapters into the frozen network in proportion to those measured strengths. Blending happens inside the weight matrices before any audio is produced, so the system always runs one forward pass and always emits one coherent set of output voices.
+
+The speaker count is read directly from the backbone's own attractor probabilities. A small band recovery head extends the 8 kHz output to 16 kHz for perceptual quality. A bounded residual-energy sweep guards against missed speakers.
+
+The total number of new trainable parameters is approximately 3 to 4 million, set against a 13.6 million parameter frozen base. The full training pipeline runs in under 150 GPU-hours on free-tier hardware.
 
 ---
 
-## How to read this tracker
+## Approach
 
-Each task has a status marker:
+The design space for this task has two natural failure modes.
 
-| Marker | Meaning |
-|---|---|
-| `[x]` | Done. Code exists, is tested, and is merged. |
-| `[~]` | In progress. Some code shipped, not finished. |
-| `[ ]` | Not started. |
+A bank of separate specialist models with a hard switch between them cannot represent conditions that co-occur. It also produces outputs from different forward passes that cannot be merged without an alignment problem. A single model fine-tuned on all conditions at once tends to average its behavior, handling no condition particularly well.
 
-Tags on a task:
+The adapter-mixture design takes the useful part of each: specialist capacity per condition through separate LoRA modules, and a shared frozen backbone that eliminates the alignment problem entirely. All routing decisions produce streams from the same split, with the same speaker identities, because the backbone never changes. The gate operates continuously rather than as a discrete switch, because acoustic conditions are quantities and not categories. A room has a specific reverberation time; noise sits at a specific SNR; a codec compresses at a specific bitrate.
 
-- **PARALLEL**: can run at the same time as its siblings.
-- **SEQUENTIAL**: blocked until its dependency is done.
-- **GATE**: a hard checkpoint. Work does not move to the next phase until the
-  gate passes.
+Three structural properties of LoRA composition hold by construction. First, when all gate values are exactly zero, the network is mathematically identical to the frozen base. Second, blending happens in weight space before any forward pass, so there is never an output-level merging problem. Third, the total parameter cost for all three adapters stays under 2 million parameters.
 
-Rules:
-
-1. Mark `[x]` only when the deliverable exists, is tested, and is merged to
-   `master`.
-2. If a gate fails, stop, fix it, re-run the gate, then continue.
-3. Add a date and note when a task is done, for example
-   `[x] Task name (done 2026-07-20)`.
-4. A task that reopens a fixed constraint is out of scope.
+What composition does not guarantee is that adapters trained independently on separate conditions will compose cleanly when co-activated at inference time. This is the expected case on real recordings. The project addresses it directly: each adapter trains with the other two randomly active at low strength, and Stage 4 requires a mandatory joint fine-tune on compound-condition data before the system is considered complete.
 
 ---
 
-## Progress at a glance
+## Architecture
 
-Done: 12 &nbsp; In progress: 6 &nbsp; Not started: 61
+### System overview
 
-Foundation pieces that already exist and pass tests: data mixing and corpus
-prep, evaluation metrics (cardinality-aware SI-SDR and PIT), speaker
-embeddings, stream alignment and stitching, augmentation stages, config
-loader, and the result schema. Every CALM-Sep-specific component (backbone
-patches, LoRA library, condition analyzer, gate, attractor counting, band
-recovery, calibration) is still to build.
+```mermaid
+flowchart TD
+    IN["Mono audio input"] --> PRE["Resample to 8 kHz\nRMS normalize"]
+    PRE --> STFT8["Shared 8 kHz STFT\nwindow 128, hop 64, 65 bins"]
+    PRE --> STFT16["16 kHz mixture STFT\nfor band recovery only"]
 
-| Milestone | Phase | State |
+    STFT8 --> L1["Level-1 condition analysis\nSNR  ·  codec family  ·  voiced-frame density\nSileroVAD at 8 kHz  ·  no neural network"]
+
+    STFT8 --> PASS1["Pass 1: frozen correlation module\nSCOT-β normalization · embed"]
+    PASS1 --> E0["E(0)  shape (1, T, 65, 128)\nencoder output before enc_block"]
+
+    E0 --> L2["Level-2 condition analysis\nT60 regression  ·  count prior MLP"]
+
+    L1 --> GATE["Gate network\n2 × 256 GELU · sigmoid scaled to 1.5\nEMA smoothing across chunks"]
+    L2 --> GATE
+
+    GATE --> PASS2["Pass 2: full forward pass\nfrozen backbone + LoRA adapters scaled by gate g"]
+
+    PASS2 --> SPLIT["AttractorSplit\np_k probs  shape (1, 7)"]
+    SPLIT --> COUNT["Counting fusion\np_k · count prior · residual sweep"]
+
+    PASS2 --> SEP8["Separated streams at 8 kHz"]
+    SEP8 --> BR["Band recovery head\n2 conv layers · dual-metric guard"]
+    STFT16 --> BR
+
+    BR --> OUT16["16 kHz waveforms per speaker"]
+    COUNT --> CONF["N_hat · per-stream confidence\ncompleteness probability · OOD flag"]
+
+    OUT16 --> REPORT["WAV files + JSON report"]
+    CONF --> REPORT
+```
+
+### The backbone: SR-CorrNet
+
+The frozen backbone is SR-CorrNet var-2-5, downloaded once from the HuggingFace Hub at `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` and never modified in any way.
+
+SR-CorrNet structures its computation around signal physics. For each time-frequency point in the short-time Fourier transform, the model computes the correlation between that point and its neighboring frames and frequency bins. These spatio-spectro-temporal correlations give the network a structured view of reverberation and spatial coherence. A small convolutional module embeds them into a latent map called E(0), with shape (1, T, 65, 128). This is the output of the correlation module, and it is the feature the condition analyzer taps at Level 2.
+
+The architecture then processes E(0) through two encoder blocks, passes it to an attractor-based split module that determines the speaker count, and decodes through four decoder blocks. The decoder blocks operate on per-speaker streams in parallel, with cross-speaker interaction modules between stages. The output is a per-speaker complex-valued filter applied to the input neighborhood to produce each separated signal.
+
+The split module holds five plus two learnable query vectors. These cross-attend to the encoder output and produce seven attractor vectors. Each attractor yields an existence probability `p_k` through a linear layer and sigmoid. Slots one through five correspond to active speakers. The probability threshold of 0.5 is configurable. This mechanism is what allows the network to infer speaker count without being told it.
+
+**Published performance on clean WSJ0-mix:**
+
+| N speakers | Count accuracy | SI-SDRi |
+|:---:|:---:|:---:|
+| 2 | 100.0% | 24.8 dB |
+| 3 | 99.7% | 24.4 dB |
+| 4 | 97.7% | 21.9 dB |
+| 5 | 96.9% | 19.9 dB |
+
+The checkpoint operates at 8 kHz natively. The STFT window is 128 samples, the hop is 64 samples, giving 65 frequency bins. These values are baked into the checkpoint weights and are never changed.
+
+### LoRA adapter library
+
+Three adapters are trained, one per degradation condition. Each attaches to the same set of target layers: the attention projections in all encoder and decoder blocks and the filter estimation head. This gives 17 target Linear layers per adapter, with total parameter counts of approximately 0.4 to 0.6 million per adapter.
+
+The composition formula at each target layer is:
+
+```
+y = W₀ x  +  g_reverb · B_reverb(A_reverb x)
+           +  g_noise  · B_noise (A_noise  x)
+           +  g_codec  · B_codec (A_codec  x)
+```
+
+`W₀` is the frozen weight. `g_i` is the gate scalar for adapter `i` at that layer. `B_i` and `A_i` are the low-rank matrices for adapter `i`. The corrections add linearly in weight space. There is no output-level merging and no permutation problem.
+
+```mermaid
+flowchart LR
+    X["x (input)"]
+    W0["W₀  frozen"]
+    AR["A_reverb"] --> BR["B_reverb"] --> GR["× g_reverb"]
+    AN["A_noise"]  --> BN["B_noise"]  --> GN["× g_noise"]
+    AC["A_codec"]  --> BC["B_codec"]  --> GC["× g_codec"]
+    X --> W0 --> SUM["Σ"]
+    X --> AR
+    X --> AN
+    X --> AC
+    GR --> SUM
+    GN --> SUM
+    GC --> SUM
+    SUM --> Y["y (output)"]
+```
+
+| Adapter | Trains on | Rank |
+|---|---|:---:|
+| `adapter_reverb` | LibriMix at 8 kHz plus simulated RIRs, T60 0.2 to 1.0 s, wet references | 8 (attention), 4 (filter head) |
+| `adapter_noise` | LibriMix plus WHAM and DNS-4, SNR -6 to +10 dB | 8 / 4 |
+| `adapter_codec` | LibriMix plus ffmpeg transforms: Opus 6-24 kbps, AAC 16-48 kbps, AMR-NB/WB | 8 / 4 |
+
+Each adapter trains with the other two randomly active at gate strengths drawn from Uniform(0.0, 0.2). This co-activation warm-up prevents the composition failure that would otherwise appear when all three adapters run together at inference time.
+
+### Condition analyzer
+
+The condition analyzer operates at two levels, resolved in sequence during each chunk's processing.
+
+**Level 1** runs before any neural pass. It computes three features directly from the shared 8 kHz STFT, using SileroVAD for voiced-frame detection:
+
+| Feature | Computation | Target |
 |---|---|---|
-| M0 | Verify checkpoint and build synthesis pipeline | In progress |
-| M1 | Adapter library | Locked |
-| M1b | Universal-adapter decision | Locked |
-| M2 | Condition analyzer and gate | Locked |
-| M3 | Joint polish, band recovery, calibration | Locked |
-| M4 | Demo, CLI, efficiency | Locked |
-| M5 | Full evaluation and report | Locked |
+| SNR estimate | Voiced-frame mean energy over noise-floor mean energy | SNR in dB |
+| Codec estimate | Spectral bandwidth at which energy drops below a rolling percentile | Codec family classification and bitrate |
+| Voiced-frame density | Fraction of frames flagged active by SileroVAD | Overlap proxy and count prior cross-check |
 
----
+These three features drive the gate values for the reverb, noise, and codec adapters. They are computed without E(0), which resolves the circularity: the adapters attach to the correlation module, but Level-1 features never touch E(0) and so are not affected by what the adapters do in Pass 2.
 
-## Team roles
+**Level 2** runs after Pass 1, using pooled E(0):
 
-Ownership, not exclusivity. Anyone can touch any folder; the owner reviews.
-
-| Dev | Owns | Focus |
+| Head | Architecture | Target |
 |---|---|---|
-| A | `data/` | 8 kHz dynamic mixing, RIR bank, WHAM and DNS-4 staging, codec transforms, fixed and hashed evaluation sets |
-| B | `models/`, `train/` | Backbone wrapper patches, LoRA library, adapter training, condition analyzer, gate, attractor counting, confidence and completeness |
-| C | `eval/`, `pipeline/`, `calibration/`, `align/`, `demo/` | Evaluation matrix and stats, band-recovery guard, calibration, chunker and stitcher, demo |
-| All | `configs/`, `tests/`, `docs/`, `schemas/` | Shared contracts |
+| Reverberation strength | Attention-pooled 1D CNN over time-averaged E(0) | T60 in seconds |
+| Count prior | Two-layer MLP over pooled E(0) plus Level-1 SNR and voiced density | Soft distribution over 2 to 5 |
+
+Both supervision targets come free from the synthesis recipe. No additional annotation is needed.
+
+### Gate network
+
+The gate network takes the full condition vector from Level 1 and Level 2 and produces one gate scalar per adapter per layer. Its output is bounded to the range [0, 1.5], where the upper bound above 1.0 permits mild amplification for extreme conditions without causing instability.
+
+**Architecture:** Two hidden layers of 256 units, GELU activations, sigmoid output scaled by 1.5.
+
+**Sparsity:** L1 penalty on all gate values, weight 1e-3. This regularization pushes gates toward zero on clean audio, which is what makes the Principle-2 guarantee empirically true rather than just structurally true.
+
+**Temporal smoothing:** EMA coefficient 0.7 across consecutive chunks. Without this, gate values that flip between chunks produce audible texture changes at stitch boundaries.
+
+The gate is trained with per-dimension supervision on each condition head, not end-to-end only. End-to-end training of a routing network without supervision produces degenerate solutions, most commonly activating every adapter at medium strength for every input. Supervised dimensions are individually inspectable: a routing failure can be traced to a wrong T60 estimate or a wrong SNR estimate.
+
+### Speaker counting
+
+Speaker count estimation uses three sources of evidence, fused by logistic regression.
+
+**Vote 1: attractor probabilities.** `pres["probs"]` from the AttractorSplit module, shape (1, 7). Slots 1 through 5 are the active speaker existence slots. The count is the number of slots whose probability exceeds the configurable threshold (default 0.5).
+
+**Vote 2: condition analyzer count prior.** The Level-2 MLP over pooled E(0) plus Level-1 features produces a soft distribution over speaker counts 2 to 5. This vote runs before Pass 2 and does not depend on the separation output.
+
+**Vote 3: bounded residual sweep.** When the top-two posterior margin is below 0.2, the system sweeps at most three count candidates: mode-1, mode, and mode+1, clipped to the range [2, 5]. The sweep runs decoder-only, with the encoder output cached. The worst-case cost is approximately 0.9 extra equivalent forward passes per uncertain chunk.
+
+```mermaid
+flowchart LR
+    PK["p_k probs\nfrom attractor"] --> FUSE["Logistic regression\ncounting fusion"]
+    PRIOR["Count prior\nLevel-2 MLP"] --> FUSE
+    MARGIN{margin < 0.2?} -->|yes| SWEEP["Residual sweep\nmax 3 candidates"]
+    MARGIN -->|no| FUSE
+    SWEEP --> FUSE
+    FUSE --> NHAT["N_hat\ncalibrated posterior"]
+    PK --> MARGIN
+```
+
+Count targets: accuracy above 95% at N equals 2 and 3, above 85% at N equals 4 and 5, on degraded validation mixtures. Count ECE below 0.05 after calibration.
+
+### Band recovery
+
+The frozen checkpoint operates at 8 kHz, limiting the audio band to 0 to 4 kHz. DNSMOS expects 16 kHz input, and fricative consonants and speaker-discriminating formants lie above 4 kHz. A small band recovery head extends each separated stream to 16 kHz.
+
+The head takes the separated stream's 8 kHz complex STFT and the mixture's 16 kHz high-band STFT, and predicts the per-speaker high-band mask. Two convolutional layers, approximately 0.1 million parameters.
+
+A dual-metric guard controls whether the head is applied per chunk. Band recovery activates only when both SI-SDRi and DNSMOS improve relative to 8 kHz pass-through. If either metric decreases, the chunk is output as zero-padded 8 kHz. The worst case is always pass-through: no regression can occur.
 
 ---
 
-## Design principles (from BLUEPRINT section 4)
+## Inference pipeline
 
-1. One backbone, adapted, never arbitrated. All specialization lives in
-   adapters on one frozen network, so stream alignment is never a problem.
-2. Never worse than the base, and proven by measurement, not by claim. The
-   Principle-2 smoke test checks this on clean audio.
-3. Conditions are quantities, not categories. Routing is continuous gating
-   scaled by measured strength, never a hard switch.
-4. Every probability is calibrated, and every internal signal is inspectable.
-5. No claim without a number. The universal-adapter baseline is trained first;
-   if it matches the full routing system, the project reports that honestly and
-   ships the simpler system.
+Long recordings are cut into 2.4-second chunks stepped by 0.8 seconds. Each chunk follows a fixed processing order:
 
----
+```mermaid
+flowchart TD
+    C1["1. Shared 8 kHz STFT\n   + 16 kHz mixture STFT in parallel"]
+    C2["2. Level-1 condition features\n   SNR · codec · voiced density"]
+    C3["3. Pass 1: correlation module\n   captures E(0)"]
+    C4["4. Level-2 condition features\n   T60 · count prior from pooled E(0)"]
+    C5["5. Gate network\n   condition vector → gate matrix g\n   EMA-smoothed across chunks"]
+    C6["6. Pass 2: full forward pass\n   adapters scaled by g"]
+    C7["7. Counting fusion\n   p_k + count prior + residual sweep if uncertain"]
+    C8["8. Band recovery\n   8 kHz stream + 16 kHz mixture → 16 kHz stream\n   dual-metric guard per chunk"]
+    C9["9. Chunk outputs\n   16 kHz streams · p_k · stage features · residual"]
 
-## Cross-cutting work (all phases)
+    C1 --> C2 --> C3 --> C4 --> C5 --> C6 --> C7 --> C8 --> C9
+```
 
-**Team sessions**
+**Stitching:** Adjacent chunks overlap by 1.6 seconds. Stream continuity is determined by maximum cross-correlation of the overlapping waveforms, with ECAPA-TDNN speaker-embedding similarity as a tie-breaker. A linear crossfade runs over the overlap region. A stream that appears in one chunk and disappears in the next is faded out rather than cut abruptly.
 
-- [ ] Day 1: agree config schema and the `SeparationResult` contract (add
-  `p_k`, gate vector, completeness probability, OOD flag)
-- [ ] Start of P1: review LoRA attachment and adapter training
-- [ ] Before P1b: agree the universal-adapter decision rule and pre-commit it
-- [ ] Start of P2: review condition analyzer and gate, and the circularity fix
-- [ ] After each gate: milestone integration session, run the pipeline together
-- [ ] P4: real recording session (all three as speakers)
-- [ ] P5: report writing, each dev writes their section
-- [ ] Weekly sync on blockers
+**Global count for long recordings:** ECAPA-TDNN embeddings are extracted per stream per chunk and clustered across the full recording using agglomerative clustering. The global speaker count equals the number of clusters whose total speech duration exceeds one second. Per-cluster confidence aggregates member stream confidences weighted by duration.
 
-**Git workflow**
-
-- [x] `master` always runnable and passing CI; no direct commits, all via PR
-- [x] Every change via PR with one review from a non-owner
-- [ ] Model-core PRs (wrapper patches, LoRA, gate) reviewed by all three
-
-**Code standards**
-
-- [x] Black and Ruff via pre-commit and CI
-- [x] Type hints on public function signatures
-- [x] `SeparationResult` schema defined once in `schemas/`
-- [~] Extend `SeparationResult` with `p_k`, gate vector, completeness, OOD flag
-- [x] Header docstring on every module
-- [x] `docs/decisions.md` updated for each architecture choice
-- [ ] Config hash (SHA-256) recorded in every checkpoint and result
-- [ ] Every mechanism has an off switch in config; baselines are one-line runs
-
-**Data split discipline (BLUEPRINT section 7.5)**
-
-- [~] Three-way holdout: (1) speaker holdout, dev-clean and test-clean never in
-  training (enforced by the mixer); (2) condition-combination holdout, reverb
-  plus codec and noise plus codec never in gate or joint training; (3) severity
-  holdout, T60 above 0.9 s and SNR below -4 dB kept rare in training. Only (1)
-  is enforced so far.
+**Output:** One WAV file per estimated speaker at 16 kHz. A JSON report containing the global count, the count posterior distribution, per-stream confidences, the completeness probability, per-chunk condition estimates and gate values, and OOD flags where the input falls outside the training distribution.
 
 ---
 
-# Phase P0: Verify checkpoint and build synthesis pipeline
-
-**Goal:** The frozen checkpoint loads and exposes its internal signals
-(`p_k`, `E(0)`, decoder-stage features). The 8 kHz synthesis pipeline produces
-labelled mixtures. All evaluation sets are generated once, seeded, and hashed.
-
-**No GPU hours in this phase. Inference only.**
-
-## SEQUENTIAL: Dev B, checkpoint and wrapper (blocking)
-
-| ID | Task | Deliverable | Status |
-|---|---|---|---|
-| P0-B1 | Download and verify the frozen checkpoint; confirm the YAML constants (sr 8000, max_n_spks 5, N_Enc 2, N_Dec 4, d_model 128) | Verified `model.pt` plus SHA in `base_checkpoint.yaml` | [ ] |
-| P0-B2 | Patch A: expose `p_k` through `_single_pass_session`, `process_waveform`, `process_stft` | Wrapper returns `pres["probs"]` shape (1, 7) | [ ] |
-| P0-B3 | Patch B: forward hook on `model.encoder` to capture `E(0)`, shape (1, T, 65, 128) | Pooled `E(0)` available to the analyzer | [ ] |
-| P0-B4 | Patch C: hooks on each `dec_block[i]` to capture decoder-stage features | Stage features for inter-stage consistency | [ ] |
-| P0-B5 | Expose the attractor threshold `prob_thres` (default 0.5) as a config value | Configurable count threshold | [ ] |
-| P0-B6 | Write `attractor_test.py`: assert `p_k` shape (1, 7) and active-slot count equals true N at N = 2, 3, 4, 5 | Blocking test green | [ ] |
-| P0-B7 | Corpus-transfer baseline: run the base on 20 dev-clean 2-speaker mixtures, record mean SI-SDRi (the floor every adapter must beat) | Baseline number logged | [ ] |
-
-## PARALLEL: Dev A, synthesis and evaluation sets
-
-| ID | Task | Deliverable | Status |
-|---|---|---|---|
-| P0-A1 | Dynamic 8 kHz mixer, N in {2, 3, 4, 5}, per-speaker level offsets, clean-stem ground truth | `data/mixer.py` at 8 kHz plus tests | [~] |
-| P0-A2 | LibriSpeech source at 8 kHz (train-clean-100, dev-clean, test-clean); keep 16 kHz copies for band-recovery targets | Speaker pool and prep script | [~] |
-| P0-A3 | RIR bank: 10k RIRs with pyroomacoustics, 1k per 0.1 s T60 step over 0.2 to 1.0 s, cached to `data/rirs/` | Cached RIR bank | [ ] |
-| P0-A4 | Noise staging: WHAM (about 17 GB) plus a stratified 20 GB DNS-4 subset | Noise prep scripts | [~] |
-| P0-A5 | Codec transforms: ffmpeg Opus 6 to 24k, AAC 16 to 48k, AMR-NB and AMR-WB | `data/codec_augmentation.py` | [x] |
-| P0-A6 | Fixed evaluation matrix, generated once, seeded, and hashed (see the evaluation table below) | `data/fixed_eval/` plus manifests and hashes | [ ] |
-| P0-A7 | Reverb reference policy: wet source, truncated at n_peak plus 512 samples | Reference generator | [ ] |
-
-## PARALLEL: Dev C, evaluation and condition-input tooling
-
-| ID | Task | Deliverable | Status |
-|---|---|---|---|
-| P0-C1 | Cardinality-aware SI-SDR and SI-SDRi with PIT: missed speaker scores 0 dB, minus 1 dB per hallucinated stream | `eval/metrics.py` | [x] |
-| P0-C2 | Shared 8 kHz STFT (window 128, hop 64) plus a parallel 16 kHz mixture STFT for band recovery | `models/preprocess.py` retargeted | [~] |
-| P0-C3 | SileroVAD voiced-frame density at 8 kHz; check it separates overlap on LibriCSS; fallback is voiced-energy fraction | Level-1 VAD feature plus a validation note | [ ] |
-| P0-C4 | Activate DNSMOS ONNX on 16 kHz band-recovered output (download `sig_bak_ovrl.onnx`) | `eval/dnsmos.py` live | [~] |
-| P0-C5 | Config loader and logging | `utils/config.py` | [x] |
-
-## GATE M0
-
-- [ ] `attractor_test.py` passes: `p_k` shape (1, 7), active slots equal true N at N = 2, 3, 4, 5
-- [ ] Patches A, B, C load cleanly; `e0_hook_test.py` confirms `E(0)` shape (1, T, 65, 128)
-- [ ] All evaluation sets generated, seeded, and hashed; manifests committed
-- [ ] Frozen-base corpus-transfer SI-SDRi recorded (the adapter floor)
-- [ ] SileroVAD proxy validated, or the fallback selected
-- [ ] Zero GPU hours spent
-- [ ] Milestone session done
-
----
-
-# Phase P1: Adapter library (Stage 1)
-
-**Goal:** Three LoRA adapters (reverb, noise, codec) trained one at a time with
-co-activation warm-up, and the cross-interference matrix measured.
-
-## SEQUENTIAL: Dev B, critical path
-
-| ID | Task | Deliverable | Status |
-|---|---|---|---|
-| P1-B1 | `models/lora.py`: parallel-branch LoRA (`y = W0 x + sum g * B(A x)`), co-activation sampler, 17 target Linear layers per adapter (BLUEPRINT section 5.3) | LoRA library plus tests | [ ] |
-| P1-B2 | Freeze-and-attach harness: register LoRA on targets, freeze all base params, only adapter params in the optimizer, `strict=False` load order | Training scaffold | [ ] |
-| P1-B3 | Reuse the backbone engine losses: `PIT_SISNR_time` plus 0.5 times `PIT_SISNR_mag` plus BCE on `pres["logits"]` | Loss wiring | [ ] |
-| P1-B4 | Train `adapter_noise` first (widest data, best for debugging the LoRA plumbing), co-activation gates from U(0.0, 0.2) | Adapter weights plus validation curve | [ ] |
-| P1-B5 | Train `adapter_reverb` (RIR and wet references, T60 0.2 to 1.0 s) | Adapter weights | [ ] |
-| P1-B6 | Train `adapter_codec` (Opus, AAC, AMR) | Adapter weights | [ ] |
-
-## PARALLEL: Dev A and Dev C
-
-| ID | Task | Owner | Deliverable | Status |
-|---|---|---|---|---|
-| P1-A1 | Noisy training mixtures (WHAM plus DNS-4, SNR -6 to +10 dB) at 8 kHz | A | Noise-condition data | [~] |
-| P1-A2 | Reverb training mixtures (RIR bank, wet references) | A | Reverb-condition data | [~] |
-| P1-A3 | Codec training mixtures (ffmpeg transforms) | A | Codec-condition data | [x] |
-| P1-C1 | Cross-interference matrix: each adapter alone on every condition, off-diagonal harm threshold 0.3 dB | C | Interference table | [ ] |
-| P1-C2 | O-LoRA orthogonality penalty, used only if harm goes above 0.3 dB | C | Optional penalty term | [ ] |
-
-## GATE M1
-
-- [ ] Each adapter shows a significant SI-SDRi gain on its matched condition (Wilcoxon p < 0.05)
-- [ ] No adapter degrades clean Libri2Mix
-- [ ] Cross-interference matrix measured, off-diagonal harm below 0.3 dB, or O-LoRA applied
-- [ ] Milestone session done
-
----
-
-# Phase P1b: Universal-adapter decision (Stage 2)
-
-**Goal:** Train one universal adapter (the full adapter budget, about 2.5 M,
-trained on the union of all conditions) and compare it to the routing target on
-the primary benchmark. The verdict is logged before the gate network is built,
-and it is final.
-
-| ID | Task | Owner | Deliverable | Status |
-|---|---|---|---|---|
-| P1b-B1 | Train the universal adapter on the union of all single-condition datasets | B | Universal adapter weights | [ ] |
-| P1b-C1 | Evaluate on the primary benchmark (reverb-noisy, N = 2) plus at least two multi-condition cells, then log the verdict | C | Verdict in `docs/decisions.md` | [ ] |
-
-## GATE M1b
+## Training
 
-- [ ] Verdict logged before the gate network is built
-- [ ] If the universal adapter is within 0.5 dB SI-SDRi on the primary
-  benchmark and within intervals on the degraded cells, adopt the simpler
-  system and report it as the honest headline. Otherwise continue to P2.
+The frozen base checkpoint is never modified. Approximately 3 to 4 million new parameters are trained across four stages.
 
----
+```mermaid
+flowchart LR
+    S0["Stage 0\nVerify checkpoint\nno GPU hours"]
+    S1["Stage 1\n3 adapters\nwith co-activation\nwarm-up\n60-120 GPU-h"]
+    S2["Stage 2\nUniversal adapter\ncalibration gate\n30-50 GPU-h"]
+    S2D{"Within 0.5 dB\non primary\nbenchmark?"}
+    S3["Stage 3\nCondition analyzer\n+ gate\n15-30 GPU-h"]
+    S3T{"Principle-2\nsmoke test\npasses?"}
+    SFAIL["Increase sparsity\nretrain gate only"]
+    S4["Stage 4\nJoint polish\n+ band recovery\n+ calibration"]
+    END1["Ship simpler system\nreport the result\nhonestly"]
+    DONE["Full system\nready"]
 
-# Phase P2: Condition analyzer and gate (Stage 3)
+    S0 --> S1 --> S2 --> S2D
+    S2D -- "yes" --> END1
+    S2D -- "no" --> S3 --> S3T
+    S3T -- "fails" --> SFAIL --> S3T
+    S3T -- "passes" --> S4 --> DONE
+```
 
-**Goal:** Train the two-level condition analyzer and the gate. Learned gating
-must beat the best single adapter on mixed conditions, and the system must not
-fall below the base on clean audio.
-
-| ID | Task | Owner | Deliverable | Status |
-|---|---|---|---|---|
-| P2-B1 | `models/condition.py` Level 1: raw-STFT DSP features (SNR, codec family and bitrate, voiced density from SileroVAD). Deterministic, no training | B | Level-1 analyzer | [ ] |
-| P2-B2 | `models/condition.py` Level 2: E(0) heads for reverberation strength (T60) and a speaker-count prior | B | Level-2 analyzer | [ ] |
-| P2-B3 | `models/gate.py`: gate MLP (two hidden layers of 256, GELU, sigmoid scaled to 1.5), per-layer gates, L1 sparsity 1e-3, EMA smoothing 0.7 | B | Gate network | [ ] |
-| P2-B4 | Stage-3 training: separation loss through the gates, supervised condition-head losses, gate sparsity | B | Trained analyzer and gate | [ ] |
-| P2-C1 | Ablation: per-layer gates versus per-adapter scalars. Simpler wins if there is no gain | C | Ablation result | [ ] |
-| P2-C2 | Principle-2 smoke test (`principle2_test.py`): full system versus frozen base on clean Libri2Mix. Raise sparsity until it passes | C | Never-worse proof | [ ] |
+### Stage 0: Verify checkpoint
 
-## GATE M2
+Download the checkpoint. Apply three non-destructive patches to expose the model's internal signals:
 
-- [ ] Learned gating beats the best single adapter on mixed-condition cells
-- [ ] Principle-2 smoke test passes (system at least base minus 0.1 dB on clean)
-- [ ] Held-out combination cells (reverb plus codec, noise plus codec) do not collapse
-- [ ] Condition heads are inspectable: each supervised dimension is traceable
-- [ ] Milestone session done
-
----
-
-# Phase P3: Joint polish, band recovery, and calibration (Stage 4)
-
-**Goal:** A mandatory joint fine-tune of all adapters and the gate on
-compound-condition data, a trained and guarded band-recovery head, and
-calibration of every probability the system emits.
-
-| ID | Task | Owner | Deliverable | Status |
-|---|---|---|---|---|
-| P3-B1 | Joint polish (mandatory): unlock the 3 adapters plus gate, train 15 to 20 epochs at one-tenth the Stage-1 learning rate on compound data. Base stays frozen. Apply O-LoRA if harm is above 0.3 dB | B | Polished adapters | [ ] |
-| P3-B2 | `models/counting.py`: attractor readout (Vote 1, `p_k`), count prior (Vote 2), and a bounded residual sweep (Vote 3, at most 3 candidates {mode-1, mode, mode+1} clipped to [2, 5], decoder only), fused by logistic regression | B | Counting subsystem | [ ] |
-| P3-C1 | `models/band_recovery.py`: a two-conv head predicting the 4 to 8 kHz mask from the low-band 8 kHz STFT and the mixture 16 kHz high-band STFT | C | Band-recovery head | [ ] |
-| P3-C2 | Dual-metric guard: apply band recovery per chunk only if both SI-SDRi and DNSMOS improve. Worst case is 8 kHz pass-through padded to 16 kHz | C | Guarded quality stage | [ ] |
-| P3-B3 | `models/confidence.py`: per-stream confidence (`p_k`, inter-stage consistency, blind DNSMOS) plus completeness (residual energy, SileroVAD on the residual, attractor mass) plus an OOD Mahalanobis discount | B | Confidence and completeness | [ ] |
-| P3-C3 | Calibration in `calibration/`: temperature scaling for the count posterior, per-stream confidence model, completeness model (manufactured N-1 failures), counting fusion, band-recovery guard thresholds. All on held-out data | C | Fitted and hashed calibrators | [ ] |
-
-## GATE M3
-
-- [ ] Joint polish complete; adapters compose at realistic co-activation strengths
-- [ ] Confusion matrix and calibration curve produced; count ECE below 0.05
-- [ ] Dropped-speaker recall above 90 percent at 10 percent false-alarm rate
-- [ ] Dual-metric band-recovery guard validated (ships off if it cannot pass)
-- [ ] Residual-sweep trigger frequency measured (below 30 percent, or the threshold is raised)
-- [ ] Milestone session done
-
----
-
-# Phase P4: Demo, CLI, and efficiency
-
-**Goal:** An end-to-end CLI and Gradio demo with condition-routing
-visualization, and a measured real-time factor that includes the worst-case
-residual sweep and the 16 kHz band-recovery STFT.
-
-| ID | Task | Owner | Deliverable | Status |
-|---|---|---|---|---|
-| P4-C1 | `pipeline/chunker.py`: 2.4 s chunks, 0.8 s step at 8 kHz, plus a parallel 16 kHz mixture STFT | C | Chunker | [ ] |
-| P4-C2 | `pipeline/stitcher.py`: max-correlation continuity, ECAPA tie-break, crossfade, and global count by ECAPA clustering | C | Stitcher | [~] |
-| P4-C3 | `pipeline/infer.py`: the per-chunk order (Level 1, Pass 1, Level 2, gate, Pass 2, counting, band recovery, guarded quality) | C | Inference pipeline | [ ] |
-| P4-A1 | CLI entry point and a reproducibility bundle (configs and hashed artifacts) | A | CLI plus bundle | [ ] |
-| P4-C4 | Gradio demo: upload, then show count, N waveforms, spectrograms, condition and gate values, optional Whisper transcript | C | `demo/app.py` | [~] |
-| P4-B1 | Efficiency report: RTF at average and worst-case residual sweep, plus the 16 kHz STFT cost | B | RTF table | [ ] |
-
-## GATE M4
-
-- [ ] Demo runs end to end on a held-out real recording
-- [ ] RTF documented at average and worst case
-- [ ] Any post-processor that fails its guard ships off
-- [ ] Milestone session done
-
----
-
-# Phase P5: Full evaluation and report
-
-**Goal:** The full measurement matrix, every mandatory baseline, every headline
-analysis, and a reproducibility bundle.
-
-| ID | Task | Owner | Deliverable | Status |
-|---|---|---|---|---|
-| P5-C1 | `eval/matrix.py` and `eval/stats.py`: the full matrix (SI-SDRi, DNSMOS, PESQ, count accuracy, ECE) with bootstrap intervals (10k resamples) and Wilcoxon tests | C | Results matrix | [ ] |
-| P5-C2 | Primary-benchmark headline: reverb-noisy LibriMix, N = 2, SI-SDRi over the mixture | C | Headline number | [ ] |
-| P5-A1 | Real-RIR evaluation on BUT ReverbDB (SLR17), the sim-to-real gap (mandatory) | A | Real-RIR table | [ ] |
-| P5-A2 | Real recordings (team-recorded plus LibriCSS): DNSMOS and Whisper WER | A | Real-audio results | [ ] |
-| P5-B1 | Break-point curve (each metric versus N from 2 to 5) and the band-recovery contribution from matched pairs | B | Curves | [ ] |
-| P5-ALL1 | Report: each dev writes their section, plus a content-addressed reproducibility bundle | All | Final report | [ ] |
-
-## Mandatory baselines (BLUEPRINT section 9.6)
-
-- [ ] Frozen base alone (8 kHz, padded to 16 kHz for DNSMOS): the quality floor
-- [ ] Universal adapter (from P1b): shows whether routing is needed
-- [ ] Uniform blend, no gate: shows whether the gate earns its cost
-- [ ] Oracle gating: the upper bound on routing
-- [ ] Frozen base plus band recovery, no adapters: isolates band recovery
-
-## GATE M5
-
-- [ ] Full matrix filled, every cell has a bootstrap interval
-- [ ] All five baselines reported
-- [ ] All eight headline analyses done (interference matrix, composition,
-  compositional generalization, break-point, calibration, risk-coverage,
-  band-recovery contribution, efficiency)
-- [ ] Universal-adapter verdict stated plainly
-- [ ] Reproducibility bundle reproduces the key numbers
-
----
-
-# Evaluation matrix (BLUEPRINT sections 7.4 and 9.4)
-
-Conditions crossed with N in {2, 3, 4, 5}. Separation is scored at 8 kHz;
-DNSMOS runs on the 16 kHz band-recovered output.
-
-| Tier | Source | Measures | N | Per cell |
-|---|---|---|---|---|
-| Clean 2 to 3 | Libri2Mix and Libri3Mix (8k) | SI-SDRi, PESQ | 2, 3 | 500 |
-| Sparse overlap | SparseLibriMix (8k) | quality versus overlap 0 to 100 percent | 2 | 200 |
-| Sparse overlap 3-spk | custom | extends the curve to N = 3 | 3 | 200 |
-| Primary: noise plus reverb | custom WHAMR-style (8k) | headline SI-SDRi and DNSMOS | 2 | 500 |
-| Reverb-noisy high count | same | count accuracy and quality | 3, 4, 5 | 200 |
-| Reverb only | clean-reverb LibriMix | isolates adapter_reverb | 2, 3 | 200 |
-| Real-RIR (mandatory) | BUT ReverbDB (SLR17) | sim-to-real gap | 2 | 200 |
-| Codec only | LibriMix plus ffmpeg | isolates adapter_codec | 2 | 200 |
-| Reverb plus codec (held out) | never in gate training | compositional generalization | 2, 4 | 200 |
-| Noise plus codec (held out) | never in gate training | compositional generalization | 2, 4 | 200 |
-| High count clean | Libri4Mix and Libri5Mix | break-point N = 4 to 5 | 4, 5 | 200 |
-| High count degraded | plus reverb-noisy | count under degradation | 4, 5 | 200 |
-| Real recordings | LibriCSS 1ch | DNSMOS and Whisper WER | 2+ | full |
-| Band-recovery gain | matched 8k versus 16k pairs | isolates band recovery | 2 | 500 |
-
-Note: BUT ReverbDB is OpenSLR SLR17. SLR28 is AISHELL-2, a speech corpus, not a
-room-impulse-response set.
-
----
-
-# Datasets
-
-| Dataset | Role | Status |
-|---|---|---|
-| LibriSpeech (8k plus 16k copies) | Source speech; dev-clean and test-clean held out | [~] |
-| RIR bank (pyroomacoustics, 10k) | adapter_reverb and reverb evaluation | [ ] |
-| WHAM (about 17 GB) | adapter_noise | [~] |
-| DNS-4 (stratified 20 GB) | adapter_noise variety | [ ] |
-| Libri2Mix and Libri3Mix | Clean and primary evaluation | [~] |
-| Libri4Mix and Libri5Mix | High-count evaluation | [~] |
-| SparseLibriMix | Overlap evaluation (test only) | [~] |
-| BUT ReverbDB (SLR17) | Mandatory real-RIR evaluation | [ ] |
-| LibriCSS | Real-room DNSMOS and WER | [ ] |
-| Real-room set | Team-recorded flagship | [ ] |
-| VCTK | Optional extended speaker pool | [~] |
-| WSJ0-mix and WHAMR (LDC) | Literature comparison only, not for training | [ ] |
-
----
-
-# Pretrained tools (used at inference, never retrained)
-
-| Tool | Source | Purpose | Status |
-|---|---|---|---|
-| SR-CorrNet var-2-5 | HF `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` | Frozen base (8k, K0 = 5) | [ ] |
-| SileroVAD | silero-vad, 8k native | Level-1 voiced density | [ ] |
-| ECAPA-TDNN | SpeechBrain VoxCeleb | Stitching and global count clustering | [x] |
-| DNSMOS ONNX | Microsoft DNS Challenge | Quality on the 16 kHz output | [~] |
-| PESQ | `pesq` pip package | Reference-based quality | [ ] |
-| Whisper (optional) | OpenAI | Demo transcripts and LibriCSS WER | [ ] |
-
----
-
-# Contributions to prove (BLUEPRINT sections 1.3 and 9.5)
-
-| ID | Contribution | Proof | Phase | Status |
-|---|---|---|---|---|
-| C1 | Condition-aware LoRA mixture on a frozen backbone, composed in weight space | Composition analysis, learned versus oracle gating | P2, P5 | [ ] |
-| C2 | Supervised, inspectable two-level condition analyzer | Per-dimension trace and gate ablation | P2 | [ ] |
-| C3 | Never worse than the base, verified by measurement | Principle-2 smoke test | P2 | [ ] |
-| C4 | Attractor counting plus a bounded residual sweep | Confusion matrix, ECE, risk-coverage | P3, P5 | [ ] |
-| C5 | Residual-energy completeness detector | Dropped-speaker recall above 90 percent at 10 percent FAR | P3 | [ ] |
-| C6 | Dual-metric-guarded band recovery (8k to 16k) | Matched-pair SI-SDRi and DNSMOS delta | P3, P5 | [ ] |
-| C7 | Universal-adapter honesty gate | Pre-committed verdict at P1b | P1b, P5 | [ ] |
-
----
-
-# Risks (BLUEPRINT section 11)
-
-| Risk | Likelihood | Impact | Mitigation |
-|---|---|---|---|
-| `p_k` not exposed by the wrapper | Low to medium | Blocks counting | First P0 task; patch before any other code |
-| LoRA composition interference above 0.3 dB | High (expected) | Medium | Co-activation warm-up (P1), mandatory joint polish (P3), O-LoRA if needed |
-| Universal adapter matches full routing | Medium | Reframes the headline | Trained first; pre-commit to adopt if within 0.5 dB |
-| Gate collapses to uniform activation | Medium | Quality plateau | Supervised heads, sparsity, oracle-gap analysis |
-| SileroVAD proxy is uninformative | Medium | Minor | Validate in P0; fallback to voiced-energy fraction |
-| Never-worse fails on clean input | Medium | Credibility | Principle-2 smoke test; raise sparsity until it passes |
-| Sim-to-real reverb gap | Medium | Real-RIR cells | BUT ReverbDB tier is mandatory |
-| Count drops under combined degradation | Medium | Half the grade | Residual sweep; degraded-validation count from the start |
-| Band recovery hurts SI-SDRi | Medium | Quality regression | Dual-metric guard, per-chunk bypass |
-| Residual sweep triggers too often | Unknown | RTF budget | Measure; raise the threshold or drop to 2 candidates if above 30 percent |
-
----
-
-# Budget
-
-| Item | Target |
+- **Patch A:** Expose `pres["probs"]` (shape 1, 7) through the inference API. The original `_single_pass_session` silently drops this dictionary.
+- **Patch B:** Register a forward hook on `model.encoder` to capture E(0) with shape (1, T, 65, 128) after every forward pass.
+- **Patch C:** Register hooks on each of the four decoder blocks to capture per-stage features for the inter-stage consistency signal.
+
+Run `attractor_test.py`. The test verifies that `p_k` varies with true speaker count at N equals 2, 3, 4, and 5. Nothing else begins until this test passes.
+
+No GPU hours are spent in Stage 0.
+
+### Stage 1: Adapters individually
+
+Each adapter trains with all base parameters frozen. The LoRA branches register on the 17 target Linear layers, and only adapter parameters appear in the optimizer. The existing `PIT_SISNR_time` and `PIT_SISNR_mag` losses from the SR-CorrNet engine are reused directly, combined with a BCE loss on the attractor existence logits.
+
+Training order: `adapter_noise` first (widest data variety, best for debugging LoRA plumbing), then `adapter_reverb`, then `adapter_codec`.
+
+Each adapter trains with the other two active at gate strengths drawn from Uniform(0.0, 0.2). This co-activation warm-up is required, not optional.
+
+After all three adapters are trained, the cross-interference matrix is measured: each adapter alone on every condition. Off-diagonal harm above 0.3 dB triggers an orthogonality penalty in Stage 4.
+
+**Cost:** approximately 20 to 40 GPU-hours per adapter on a T4.
+
+### Stage 2: Universal-adapter calibration gate
+
+Before the gate network is built, a single universal adapter is trained on the union of all condition data. Its size matches the full adapter library budget. It is then evaluated on the primary benchmark and at least two multi-condition cells.
+
+If the universal adapter matches learned gating within 0.5 dB on the primary benchmark and within confidence intervals on the degraded cells, the project adopts the simpler system. This decision is irreversible and is logged before the gate network is built.
+
+**Cost:** approximately 30 to 50 GPU-hours.
+
+### Stage 3: Condition analyzer and gate
+
+With adapters frozen, the condition analyzer heads and gate MLP train on co-occurring degradation data from the full synthesis matrix, excluding the held-out combination cells. The loss combines separation loss (gradients through gates only), supervised condition-head losses (L1 regression, cross-entropy classification), and L1 sparsity on gate values.
+
+At the end of Stage 3, the Principle-2 smoke test runs: full system with all adapters active versus the frozen base alone on clean LibriMix. If the full system is worse, the sparsity weight is doubled and the gate MLP retrains alone. This repeats until the test passes.
+
+**Cost:** approximately 15 to 30 GPU-hours.
+
+### Stage 4: Joint polish, band recovery, and calibration
+
+**Joint polish** is mandatory. All three adapters plus the gate unlock simultaneously. The system trains for 15 to 20 epochs at one-tenth the Stage-1 learning rate on compound-condition data. The base stays frozen. If cross-interference harm remains above 0.3 dB after joint polish, an orthogonality penalty is added.
+
+**Band recovery** trains after joint polish. Input: per-speaker 8 kHz STFT plus mixture 16 kHz high-band STFT. Target: per-speaker high-band mask. The dual-metric guard thresholds are validated on held-out data.
+
+**Calibration** fits everything to held-out validation data: temperature scaling for the count posterior, logistic models for per-stream confidence and completeness, counting fusion regression, and band-recovery guard thresholds. All calibration artifacts are hashed.
+
+### Training defaults
+
+| Setting | Value |
 |---|---|
-| Frozen base params | 13.6 M |
-| New trainable params | About 3 to 4 M |
-| Per-adapter params | About 0.4 to 0.6 M |
-| Total GPU-hours | Under 150 on T4 |
-| RTF (average, with residual sweep and 16k STFT) | Measured at P4 |
-| Inference memory | 16 GB T4 or less |
+| LoRA rank (attention) | 8 |
+| LoRA rank (filter head) | 4 |
+| Co-activation gate range | Uniform [0.0, 0.2] |
+| Optimizer | AdamW, lr 3e-4, weight decay 0.01, cosine decay |
+| Batch size | 1 |
+| Segment length | 4 seconds (32,000 samples at 8 kHz) |
+| Gradient clip norm | 5 |
+| Gate sparsity weight | 1e-3 |
+| Gate EMA coefficient | 0.7 |
+| Residual sweep candidates | Max 3, clipped to [2, 5] |
+| Uncertainty trigger | Top-2 posterior margin below 0.2 |
+| Total estimated compute | Under 150 GPU-hours on T4 |
 
 ---
 
-# Timeline
+## Evaluation
 
-| Phase | Gate | Parallel | Lead |
-|---|---|---|---|
-| P0 Verify checkpoint and synthesis | M0 | Full parallel (B patches, A data) | B |
-| P1 Adapter library | M1 | Adapters sequential, A and C parallel | B |
-| P1b Universal-adapter decision | M1b | Sequential, final verdict | B |
-| P2 Condition analyzer and gate | M2 | Mostly parallel | B |
-| P3 Joint polish, band recovery, calibration | M3 | Sequential | B and C |
-| P4 Demo, CLI, efficiency | M4 | Parallel | C |
-| P5 Full evaluation and report | M5 | Parallel | All |
+### Metrics
+
+**SI-SDRi** (scale-invariant signal-to-distortion ratio, improvement over the mixture) is the primary separation quality metric, computed at 8 kHz.
+
+**DNSMOS** (neural MOS predictor) evaluates perceptual quality on the 16 kHz band-recovered output. It does not require a clean reference.
+
+**PESQ** (perceptual evaluation of speech quality) provides reference-based perceptual quality where clean references are available.
+
+**Cardinality-aware scoring:** When the estimated and true speaker counts differ, Hungarian assignment is used to match outputs to references. Each unmatched reference (missed speaker) contributes 0 dB. Each hallucinated stream applies a 1 dB penalty to the mean SI-SDRi.
+
+### Evaluation matrix
+
+Conditions are crossed with speaker counts N in {2, 3, 4, 5}. All separation is scored at 8 kHz; DNSMOS runs on the 16 kHz band-recovered output.
+
+| Tier | Source | What it measures | N |
+|---|---|---|:---:|
+| Clean 2-3 speakers | Libri2Mix and Libri3Mix test sets | Literature-comparable baseline | 2, 3 |
+| Sparse overlap | SparseLibriMix test set | Quality versus overlap ratio 0 to 100% | 2 |
+| **Primary benchmark** | Custom reverb-noisy LibriMix (WHAMR-style) | **Headline SI-SDRi and DNSMOS** | **2** |
+| Reverb-noisy, high count | Same pipeline | Degraded count accuracy and quality | 3, 4, 5 |
+| Reverb only | Clean-reverb LibriMix | Isolates adapter_reverb | 2, 3 |
+| Real-RIR reverb (mandatory) | BUT ReverbDB (OpenSLR SLR17) | Sim-to-real gap | 2 |
+| Codec only | LibriMix plus ffmpeg | Isolates adapter_codec | 2 |
+| Reverb plus codec (held out) | LibriMix plus codec plus RIR | Compositional generalization | 2, 4 |
+| Noise plus codec (held out) | LibriMix plus noise plus codec | Compositional generalization | 2, 4 |
+| High count, clean | Libri4Mix and Libri5Mix test sets | Count break-point at N = 4, 5 | 4, 5 |
+| High count, degraded | Plus reverb-noisy | Count under degradation | 4, 5 |
+| Real recordings | LibriCSS 1-channel downmix | DNSMOS and Whisper WER | 2+ |
+| Band recovery gain | Matched 8 kHz vs. 16 kHz pairs | Isolates band recovery contribution | 2 |
+
+The held-out combination cells (reverb plus codec, noise plus codec) never appear in gate or joint-training data. They exist to test compositional generalization.
+
+Real-RIR evaluation on BUT ReverbDB is mandatory, not optional. Simulated rooms produce cleaner impulse responses than real measured rooms. The sim-to-real gap must be diagnosed and reported.
+
+> **Note:** BUT ReverbDB is OpenSLR SLR17. OpenSLR SLR28 is the AISHELL-2 Mandarin ASR corpus, which is not a room impulse response dataset.
+
+### Mandatory baselines
+
+| Baseline | What it tests |
+|---|---|
+| Frozen base alone (8 kHz, zero-padded to 16 kHz for DNSMOS) | Quality floor; never worse must hold |
+| Universal adapter (Stage 2) | Whether routing earns its complexity |
+| Uniform blend, no gate | Whether the gate earns its complexity |
+| Oracle gating (gates from true synthesis recipe) | Upper bound on routing quality |
+| Frozen base plus band recovery, no adapters | Isolates band recovery from adapter contribution |
+
+### Statistical rules
+
+Evaluation sets are fixed, seeded, and generated once before any model training begins. All reported numbers carry 95% bootstrap confidence intervals (10,000 resamples at the utterance level). Differences are claimed only when Wilcoxon signed-rank p is below 0.05 and the interval excludes zero.
 
 ---
 
-# New source files to add
+## Data
 
-These do not exist yet. Each is a deliverable in the phases above.
+All training data is synthesized from public corpora. All supervision labels come free from the synthesis recipe. No annotation is needed beyond what is recorded in the mixer log.
 
-- `models/srcorrnet/`: wrapper exposing `p_k`, `E(0)`, and decoder-stage features (Patches A, B, C)
-- `models/lora.py`: parallel-branch LoRA and the co-activation sampler
-- `models/condition.py`: two-level condition analyzer
-- `models/gate.py`: gate MLP, EMA, sparsity
-- `models/counting.py`: attractor readout, residual sweep, fusion
-- `models/confidence.py`: per-stream confidence, completeness, OOD
-- `models/band_recovery.py`: high-band head and dual-metric guard
-- `pipeline/chunker.py`, `pipeline/stitcher.py`, `pipeline/infer.py`
-- `eval/matrix.py`, `eval/stats.py`
-- `calibration/`: fitted temperature scalars and logistic models, hashed
-- `data/synthesis/`, `data/fixed_eval/`, `data/rirs/`
-- `tests/attractor_test.py`, `tests/e0_hook_test.py`, `tests/principle2_test.py`, `tests/smoke_test.py`
-- configs: `base_checkpoint.yaml`, `adapters/reverb.yaml`, `adapters/noise.yaml`, `adapters/codec.yaml`, `gate.yaml`, `band_recovery.yaml`, `eval.yaml`
+### Source speech
+
+**LibriSpeech** at 8 kHz is the source for all separation training. `train-clean-100` (100 hours, 251 speakers) covers all adapter and condition-analyzer training. `dev-clean` and `test-clean` speakers are held out strictly and never appear in training.
+
+16 kHz copies are kept alongside the 8 kHz versions for band recovery training and DNSMOS evaluation.
+
+### Acoustic conditions
+
+**Reverberation** is simulated using 10,000 room impulse responses generated by `pyroomacoustics`, organized into 1,000-RIR bins at each 0.1-second T60 step from 0.2 to 1.0 seconds. Training targets for reverberant mixtures are wet sources truncated at `n_peak + 512` samples. The system separates speakers; it does not dereverberate them.
+
+**Noise** comes from WHAM (approximately 17 GB of urban ambient recordings) and a stratified 20 GB subset of the DNS-4 noise corpus. SNR range for training: -6 to +10 dB.
+
+**Codec degradation** is applied using ffmpeg transforms: Opus at 6 to 24 kbps, AAC at 16 to 48 kbps, and AMR-NB/WB. No additional data is needed; codec is a deterministic transform applied to existing mixtures.
+
+### Three-way holdout discipline
+
+Three boundaries are enforced to protect the evaluation matrix from contamination:
+
+1. **Speaker holdout:** `dev-clean` and `test-clean` speakers never appear in training.
+2. **Condition-combination holdout:** Reverb-plus-codec and noise-plus-codec combinations are held out of all gate and joint-training data.
+3. **Severity holdout:** T60 above 0.9 s and SNR below -4 dB are underrepresented in training (10% of reverb and noise samples), and are probed explicitly in evaluation.
+
+### Approximate storage
+
+| Dataset | Role | Size |
+|---|---|---|
+| LibriSpeech train-clean-100 at 8 kHz | Source speech | ~3 GB |
+| WHAM noise | adapter_noise | ~17 GB |
+| DNS-4 stratified subset | adapter_noise variety | ~20 GB |
+| Cached RIR bank | adapter_reverb and evaluation | ~1 GB |
+| **Total** | | **~41 GB** |
+
+Dynamic mixing is used throughout training. No pre-rendered mixture files are stored.
 
 ---
 
-End of tracker. Edit as the project moves. When this file and `BLUEPRINT`
-disagree, `BLUEPRINT` is right.
+## Results
+
+Results will be populated as training stages complete. The primary benchmark is noisy-reverberant LibriMix, N = 2, SI-SDRi over the unprocessed mixture.
+
+| System | Primary SI-SDRi | Count acc. N=2 | Count acc. N=5 | DNSMOS |
+|---|:---:|:---:|:---:|:---:|
+| Frozen base (8 kHz, no adapters) | — | — | — | — |
+| Universal adapter | — | — | — | — |
+| Uniform blend, no gate | — | — | — | — |
+| CALM-Sep full system | — | — | — | — |
+| Oracle gating | — | — | — | — |
+
+---
+
+## Repository structure
+
+```
+calm-sep/
+├── configs/
+│   ├── base_checkpoint.yaml     # Locked checkpoint path and SHA-256
+│   ├── adapters/
+│   │   ├── reverb.yaml
+│   │   ├── noise.yaml
+│   │   └── codec.yaml
+│   ├── gate.yaml
+│   ├── band_recovery.yaml
+│   └── eval.yaml
+├── data/
+│   ├── mixer.py                 # Dynamic 8 kHz mixer
+│   ├── augmentation.py          # Reverb, noise, and codec transforms
+│   ├── codec_augmentation.py    # ffmpeg-based codec degradation
+│   ├── synthesis/               # Mixture generation and recipe logging
+│   ├── fixed_eval/              # Seeded evaluation sets and manifests
+│   └── rirs/                    # Cached RIR bank
+├── models/
+│   ├── srcorrnet/               # Frozen backbone wrapper (Patches A, B, C)
+│   ├── lora.py                  # Parallel-branch LoRA and co-activation sampler
+│   ├── condition.py             # Two-level condition analyzer
+│   ├── gate.py                  # Gate MLP, EMA smoothing, sparsity
+│   ├── counting.py              # Attractor readout, residual sweep, fusion
+│   ├── confidence.py            # Per-stream confidence, completeness, OOD
+│   └── band_recovery.py         # High-band head and dual-metric guard
+├── pipeline/
+│   ├── chunker.py               # 2.4 s chunks at 8 kHz
+│   ├── stitcher.py              # ECAPA-TDNN stitching and crossfade
+│   └── infer.py                 # Full per-chunk processing order
+├── eval/
+│   ├── metrics.py               # Cardinality-aware SI-SDRi and DNSMOS
+│   ├── matrix.py                # Full evaluation matrix
+│   └── stats.py                 # Bootstrap confidence intervals and Wilcoxon tests
+├── calibration/                 # Fitted calibrators, temperature scalars, hashed
+├── align/                       # Stream alignment and embedding utilities
+├── demo/                        # CLI entry point and Gradio web demo
+├── schemas/
+│   └── separation_result.py     # SeparationResult contract
+├── tests/
+│   ├── attractor_test.py        # BLOCKING: p_k varies with true N at N=2,3,4,5
+│   ├── e0_hook_test.py          # Patch B: E(0) shape verification
+│   ├── principle2_test.py       # Smoke test: system not worse than base on clean audio
+│   └── smoke_test.py            # End-to-end: 60 s fixture, output format and schema
+├── scripts/
+│   ├── download_checkpoint.py   # Download, verify SHA, update base_checkpoint.yaml
+│   └── preflight_data.py        # Verify data directories before training
+└── docs/
+    └── decisions.md             # Architecture decisions and their rationale
+```
+
+---
+
+## Setup
+
+### Prerequisites
+
+- Python 3.10 or later
+- PyTorch 2.1 or later
+- ffmpeg (for codec augmentation)
+
+### Install dependencies
+
+```bash
+git clone https://github.com/TECHSCHOLAR777/SP2.git
+cd SP2
+pip install -e ".[dev]"
+```
+
+### Install SR-CorrNet
+
+```bash
+git clone https://github.com/dmlguq456/SR_CorrNet_SS.git
+cd SR_CorrNet_SS && pip install -e ".[hub]"
+cd ..
+```
+
+### Download and verify the frozen checkpoint
+
+```bash
+python scripts/download_checkpoint.py
+```
+
+This downloads `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk`, computes its SHA-256, and writes the hash to `configs/base_checkpoint.yaml`. The checkpoint is approximately 55 MB and downloads once. It is never modified.
+
+### Verify the baseline
+
+```bash
+pytest tests/attractor_test.py -v
+```
+
+The `TestPkCountAccuracy` class confirms that `p_k` is exposed and varies with true speaker count. This test is the gate for Phase 0: nothing else proceeds until it passes.
+
+### Run on an audio file
+
+```bash
+python -m demo.app --input recording.wav --output ./output/
+```
+
+---
+
+## Design principles
+
+Five principles govern every decision in this project.
+
+**1. One backbone, adapted, never arbitrated.** All specialization lives in adapters on a single frozen network. A shared backbone makes stream alignment a non-problem.
+
+**2. Never worse than the base, verified by measurement.** When all gate values are exactly zero the network equals the frozen base by construction. That adapters behave well near zero on clean audio is an empirical outcome, not a structural guarantee. The Principle-2 smoke test measures it.
+
+**3. Conditions are quantities, not categories.** All routing is continuous gating scaled by measured condition strength. A hard switch between experts cannot represent conditions that co-occur.
+
+**4. Every emitted probability is calibrated, and every internal signal is inspectable.** Count estimate, per-stream confidence, and completeness probability all pass through temperature scaling fitted on held-out data. The condition representation is supervised dimension by dimension so that failures can be traced to a named misestimate.
+
+**5. No claim without a measured number.** The universal adapter is trained before the gate network and evaluated first. If it matches learned gating within confidence intervals on the primary benchmark, the project reports that honestly and ships the simpler system.
+
+---
+
+## Team
+
+This project follows a shared-ownership model. Each developer owns a primary area and reviews changes that cross into it, but anyone may contribute anywhere.
+
+| Developer | Primary area |
+|---|---|
+| Dev A | `data/` - 8 kHz dynamic mixing, RIR bank, noise staging, codec transforms, fixed evaluation sets |
+| Dev B | `models/`, `train/` - Backbone wrapper patches, LoRA library, adapter training, condition analyzer, gate, counting, confidence |
+| Dev C | `eval/`, `pipeline/`, `calibration/`, `align/`, `demo/` - Evaluation matrix and statistics, band recovery, calibration, chunker and stitcher, demo |
+| All | `configs/`, `tests/`, `docs/`, `schemas/` |
+
+---
+
+## Fixed constraints
+
+These values are locked by the frozen checkpoint. Changing any of them would corrupt inference without a diagnostic error.
+
+| Property | Value |
+|---|---|
+| Checkpoint | `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` |
+| Sample rate | 8000 Hz |
+| STFT window / hop / bins | 128 / 64 / 65 |
+| Attractor slot count K0 | 5 |
+| `spk_query` shape | (1, 7, 128) |
+| Speaker count range | N in {2, 3, 4, 5} |
+| Quality extension | Band recovery (Option B) only |
+
+---
+
+*Design and source of truth: `BLUEPRINT` at the repository root. When this document and `BLUEPRINT` disagree, `BLUEPRINT` is correct.*
