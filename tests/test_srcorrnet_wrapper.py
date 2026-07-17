@@ -61,7 +61,7 @@ def test_fix_length_crops_and_pads() -> None:
 
 
 def test_srcorrnet_default_hf_model() -> None:
-    expert = SRCorrNetExpert(device="cpu", num_speakers=3)
+    expert = SRCorrNetExpert(device="cpu")
     assert expert.hf_model_id.startswith("shinuh/sr-corrnet-ss")
     assert expert.model_sample_rate == 8000
 
@@ -79,7 +79,7 @@ def test_srcorrnet_loads_hf_model_via_checkpoint_path_not_config(monkeypatch) ->
     fake_module.SSInference = mock_inference  # type: ignore[attr-defined]
     monkeypatch.setitem(sys.modules, "sr_corrnet", fake_module)
 
-    expert = SRCorrNetExpert(device="cpu", num_speakers=3, hf_model_id="shinuh/fake-model")
+    expert = SRCorrNetExpert(device="cpu", hf_model_id="shinuh/fake-model")
     monkeypatch.setattr(SRCorrNetExpert, "is_available", property(lambda self: True))
     expert._load_model()
 

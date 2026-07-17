@@ -1,0 +1,33 @@
+# LoRA adapter configuration — codec adapter.
+# Trained on codec-degraded mixtures only (Stage 1).
+
+adapter:
+  name: "codec"
+  attn_rank: 8
+  filter_head_rank: 4
+
+training:
+  stage: 1
+  optimizer: "adamw"
+  lr: 1.0e-4
+  weight_decay: 1.0e-2
+  batch_size: 8
+  epochs: 40
+  gradient_clip: 5.0
+  warmup_steps: 500
+  co_activation_min: 0.0
+  co_activation_max: 0.2
+
+data:
+  condition: "codec"
+  # Supported codecs (BLUEPRINT §7.3): opus, aac, amr-nb, amr-wb.
+  codecs: ["opus", "aac", "amr-nb", "amr-wb"]
+  # Held-out compound conditions — never seen during adapter training (BLUEPRINT §7.5).
+  # reverb+codec and noise+codec are held out for gate generalisation.
+  held_out_combos: ["reverb+codec", "noise+codec"]
+
+loss:
+  si_snr_weight: 1.0
+  mag_weight: 0.5
+  att_weight: 0.1
+  olora_alpha: 0.01

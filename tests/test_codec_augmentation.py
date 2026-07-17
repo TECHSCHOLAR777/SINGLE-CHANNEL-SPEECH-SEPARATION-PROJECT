@@ -277,13 +277,15 @@ def test_ffmpeg_unavailable_uses_mulaw() -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_random_codec_resolves_to_opus_or_aac() -> None:
+def test_random_codec_resolves_to_supported_codec() -> None:
+    from data.codec_augmentation import _SUPPORTED_CODECS
     cfg = CodecConfig(codec="random", codec_prob=1.0, use_ffmpeg=False)
     aug = CodecAugmentor(cfg, rng=np.random.default_rng(0))
     seen = set()
-    for _ in range(30):
+    for _ in range(50):
         seen.add(aug._resolve_codec())
-    assert seen == {"opus", "aac"}
+    assert seen.issubset(set(_SUPPORTED_CODECS))
+    assert len(seen) >= 2
 
 
 # ---------------------------------------------------------------------------

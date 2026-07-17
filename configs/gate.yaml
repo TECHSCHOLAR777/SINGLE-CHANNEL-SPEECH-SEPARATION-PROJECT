@@ -1,0 +1,40 @@
+# Gate network and Level-2 analyzer configuration.
+# Trained at Stage 3 (joint gate + Level2Analyzer).
+
+gate:
+  # Input: 10-D (4 Level-1 DSP + 6 Level-2 pooled E(0) features).
+  in_dim: 10
+  hidden_dim: 256
+  n_hidden: 2
+  out_dim: 3                  # one gate value per adapter: reverb, noise, codec
+  activation: "gelu"
+  # sigmoid × 1.5 output squashing (BLUEPRINT §6.2).
+  output_scale: 1.5
+  # L1 sparsity penalty coefficient.
+  l1_alpha: 0.001
+  # EMA smoothing across chunks (BLUEPRINT §6.2).
+  ema_alpha: 0.7
+
+level2:
+  # T60Head + CountPriorMLP on pooled E(0).
+  e0_channels: 128            # d_model from SR-CorrNet
+  t60_hidden: 64
+  count_hidden: 128
+  # 4-class count prior: N ∈ {2, 3, 4, 5}.
+  count_classes: 4
+
+training:
+  stage: 3
+  optimizer: "adamw"
+  lr: 5.0e-5
+  weight_decay: 1.0e-2
+  batch_size: 8
+  epochs: 30
+  gradient_clip: 5.0
+  warmup_steps: 200
+  # Held-out combos excluded from gate/joint training (BLUEPRINT §7.5).
+  held_out_combos: ["reverb+codec", "noise+codec"]
+
+loss:
+  gate_l1_alpha: 0.001
+  level2_weight: 0.5

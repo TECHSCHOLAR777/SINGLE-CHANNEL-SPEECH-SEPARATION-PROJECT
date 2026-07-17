@@ -1,14 +1,18 @@
 """
-Gradio demo interface (Dev C, Phase 6, mock-ready from Phase 0).
+Gradio demo interface — CALM-Sep edition (Dev C, P4-C4).
 
-Upload a mixture, get per-speaker streams, the estimated count with its
-calibrated confidence, an escalation indicator, and a diagnostics panel. The
-separation engine is injected as a callable so the demo works at every
-project stage: MockEngine today (bandpass splits, loudly labeled as mock),
-single experts at M1, the full cascade at M2+, all without touching this file.
+Upload a mixture, get per-speaker streams, estimated speaker count with
+calibrated confidence, adapter gate routing visualization, Whisper transcript,
+completeness / OOD quality flags, and a full diagnostics panel.
+
+The separation engine is injected as a callable for staged rollout:
+  --mock        weight-free bandpass placeholder
+  --calmsep     full CALM-Sep pipeline (requires GPU + weights)
+  --config X    legacy baseline config (SepFormer)
 
 Run:
     python -m demo.app --mock
+    python -m demo.app --calmsep --device cuda
     python -m demo.app --config configs/baseline.yaml
 """
 
@@ -26,6 +30,8 @@ from schemas.separation_result import SeparationResult, StreamMetadata
 MAX_DISPLAY_STREAMS = 5
 """UI slots rendered; engines may return fewer."""
 
+_ADAPTER_NAMES = ("reverb", "noise", "codec")
+
 
 class Engine(Protocol):
     def __call__(self, mixture: np.ndarray, sample_rate: int) -> SeparationResult: ...
@@ -33,11 +39,10 @@ class Engine(Protocol):
 
 class MockEngine:
     """
-    Weight-free placeholder engine for UI development.
+    Weight-free placeholder for UI development.
 
-    Splits the mixture into low/mid/high frequency bands so each output slot
-    is audibly different without any model. Every stream is labeled mock and
-    confidence is fixed low so nobody mistakes it for separation.
+    Bandpass-splits the mixture so each output slot is audibly different.
+    Labeled mock so nobody mistakes it for real separation.
     """
 
     BANDS_HZ: tuple[tuple[float, float], ...] = ((0, 400), (400, 1500), (1500, 8000))
@@ -67,6 +72,50 @@ class MockEngine:
         )
 
 
+class CalmSepEngine:
+    """Full CALM-Sep inference engine wrapper for the demo."""
+
+    def __init__(self, device: str = "cpu") -> None:
+        self._device = device
+        self._pipeline = None
+
+    def _load(self) -> None:
+        if self._pipeline is not None:
+            return
+        from models.experts.srcorrnet import SRCorrNetExpert
+        from pipeline.infer import CalmSepPipeline, InferenceCfg
+
+        expert = SRCorrNetExpert(device=self._device)
+        cfg = InferenceCfg(device=self._device)
+        self._pipeline = CalmSepPipeline(expert=expert, cfg=cfg)
+
+    def __call__(self, mixture: np.ndarray, sample_rate: int) -> SeparationResult:
+        self._load()
+        assert self._pipeline is not None
+        result = self._pipeline.run(mixture, sample_rate)
+
+        # Wrap PipelineResult → SeparationResult.
+        metadata = [
+            StreamMetadata(
+                expert_source="calmsep",
+                confidence=float(result.completeness_prob),
+                extra={"gate": result.gate_vector},
+            )
+            for _ in range(result.speaker_count)
+        ]
+        sr_out = result.streams_16k.shape[1]
+        return SeparationResult(
+            streams=result.streams_16k,
+            sample_rate=16000,
+            speaker_count=result.speaker_count,
+            metadata=metadata,
+            expert_used="calmsep",
+            gate_vector=result.gate_vector,
+            completeness_prob=result.completeness_prob,
+            ood_flag=result.ood_flag,
+        )
+
+
 def _to_mono_float(audio: tuple[int, np.ndarray]) -> tuple[np.ndarray, int]:
     """Normalize a Gradio audio tuple to mono float32 in [-1, 1]."""
     sr, data = audio
@@ -78,6 +127,43 @@ def _to_mono_float(audio: tuple[int, np.ndarray]) -> tuple[np.ndarray, int]:
     return arr.astype(np.float32), int(sr)
 
 
+def _gate_routing_markdown(gate_vec: dict[str, float]) -> str:
+    """Render adapter gate values as a compact Markdown bar chart."""
+    if not gate_vec:
+        return ""
+    lines = ["**Adapter gate routing**"]
+    for name in _ADAPTER_NAMES:
+        g = gate_vec.get(name, 0.0)
+        bar_filled = int(round(g * 20))
+        bar = "█" * bar_filled + "░" * (20 - bar_filled)
+        lines.append(f"`{name:6s}` [{bar}] {g:.2f}")
+    return "\n".join(lines)
+
+
+def _whisper_transcript(streams: np.ndarray, sample_rate: int) -> str:
+    """
+    Attempt a Whisper transcript of the first separated stream.
+
+    Requires `pip install openai-whisper`. Returns empty string if unavailable.
+    """
+    try:
+        import whisper
+        import tempfile, os
+        import soundfile as sf
+
+        model = whisper.load_model("tiny")  # fast, low VRAM
+        wav = streams[0]
+        with tempfile.NamedTemporaryFile(suffix=".wav", delete=False) as tmp:
+            sf.write(tmp.name, wav, sample_rate)
+            tmp_path = tmp.name
+        res = model.transcribe(tmp_path, language=None)
+        os.unlink(tmp_path)
+        text = str(res.get("text", "")).strip()
+        return f"**Whisper (stream 1):** {text}" if text else ""
+    except Exception:
+        return ""
+
+
 def run_separation(
     audio: tuple[int, np.ndarray] | None,
     engine: Engine,
@@ -85,69 +171,110 @@ def run_separation(
     """
     Demo callback: mixture in, UI payload out.
 
-    Returns a status markdown, MAX_DISPLAY_STREAMS audio slots (unused slots
-    None), and a diagnostics JSON string.
+    Returns:
+        (status_md, *MAX_DISPLAY_STREAMS audio slots, gate_md,
+         transcript_md, diagnostics_json)
     """
     if audio is None:
-        return ("Upload a mixture first.", *([None] * MAX_DISPLAY_STREAMS), "{}")
+        empty = [None] * MAX_DISPLAY_STREAMS
+        return ("Upload a mixture first.", *empty, "", "", "{}")
 
     mixture, sr = _to_mono_float(audio)
     result = engine(mixture, sr)
 
+    # Header badge.
     mean_conf = float(np.mean([m.confidence for m in result.metadata]))
+    flags = []
+    if result.ood_flag:
+        flags.append("OOD")
+    if result.completeness_prob < 0.6:
+        flags.append(f"completeness {result.completeness_prob:.0%}")
+    flag_str = "  ⚠ " + ", ".join(flags) if flags else ""
     badge = (
         f"### Estimated speakers: {result.speaker_count} "
-        f"({mean_conf:.0%} confident)\n"
-        f"Engine: `{result.expert_used}` | "
-        f"Escalated: {'yes' if result.escalated else 'no'}"
+        f"({mean_conf:.0%} confident){flag_str}\n"
+        f"Engine: `{result.expert_used}`"
     )
     if result.expert_used == "mock":
-        badge = "**MOCK ENGINE: frequency bands, not separation.**\n" + badge
+        badge = "**MOCK ENGINE — frequency bands, not speech separation.**\n" + badge
 
+    # Per-speaker audio slots.
     slots: list[tuple[int, np.ndarray] | None] = [None] * MAX_DISPLAY_STREAMS
     for i in range(min(result.num_streams, MAX_DISPLAY_STREAMS)):
         slots[i] = (result.sample_rate, result.streams[i])
 
+    # Gate routing visualization.
+    gate_md = _gate_routing_markdown(result.gate_vector)
+
+    # Whisper transcript (best-effort).
+    transcript_md = _whisper_transcript(result.streams, result.sample_rate)
+
+    # Full diagnostics JSON.
     diagnostics = {
         "speaker_count": result.speaker_count,
         "expert_used": result.expert_used,
         "escalated": result.escalated,
+        "completeness_prob": round(result.completeness_prob, 3),
+        "ood_flag": result.ood_flag,
+        "gate_vector": result.gate_vector,
         "duration_sec": round(result.duration_sec, 2),
         "sample_rate": result.sample_rate,
         "per_stream": [
-            {"confidence": m.confidence, "source": m.expert_source, **m.extra}
+            {"confidence": round(m.confidence, 3), "source": m.expert_source, **m.extra}
             for m in result.metadata
         ],
     }
-    return (badge, *slots, json.dumps(diagnostics, indent=2))
+    return (badge, *slots, gate_md, transcript_md, json.dumps(diagnostics, indent=2))
 
 
 def build_demo(engine: Engine):
-    """Construct the Gradio Blocks app around an injected engine."""
+    """Construct the Gradio Blocks app around the injected engine."""
     import gradio as gr
 
-    with gr.Blocks(title="CA-MoSE Speech Separation") as demo:
-        gr.Markdown("# CA-MoSE: Multi-Speaker Speech Separation")
-        gr.Markdown("Upload overlapping speech; receive one track per detected speaker.")
-        audio_in = gr.Audio(label="Mixture", type="numpy")
-        run_btn = gr.Button("Separate", variant="primary")
+    with gr.Blocks(title="CALM-Sep Speech Separation") as demo:
+        gr.Markdown("# CALM-Sep: Condition-Adaptive Multi-Speaker Speech Separation")
+        gr.Markdown(
+            "Upload overlapping speech (2–5 speakers). "
+            "Adapter gate routing is computed from acoustic condition analysis."
+        )
+
+        with gr.Row():
+            audio_in = gr.Audio(label="Mixture", type="numpy")
+            run_btn = gr.Button("Separate", variant="primary", scale=0)
+
         badge = gr.Markdown()
-        outputs = [
-            gr.Audio(label=f"Speaker {i + 1}", type="numpy") for i in range(MAX_DISPLAY_STREAMS)
-        ]
+
+        with gr.Row():
+            outputs = [
+                gr.Audio(label=f"Speaker {i + 1}", type="numpy")
+                for i in range(MAX_DISPLAY_STREAMS)
+            ]
+
+        with gr.Row():
+            gate_panel = gr.Markdown(label="Gate routing")
+            transcript_panel = gr.Markdown(label="Transcript")
+
         with gr.Accordion("Diagnostics", open=False):
             diag = gr.Code(language="json", label="Run diagnostics")
+
+        all_outputs = [badge, *outputs, gate_panel, transcript_panel, diag]
 
         run_btn.click(
             fn=lambda a: run_separation(a, engine),
             inputs=[audio_in],
-            outputs=[badge, *outputs, diag],
+            outputs=all_outputs,
         )
+        audio_in.change(
+            fn=lambda a: run_separation(a, engine),
+            inputs=[audio_in],
+            outputs=all_outputs,
+        )
+
     return demo
 
 
 def _engine_from_config(config_path: str) -> Engine:
-    """Build the best available real engine from a baseline config."""
+    """Build a legacy baseline engine from a config file."""
     from models.experts.sepformer import SepFormerExpert
     from utils.config import load_config
 
@@ -162,16 +289,20 @@ def _engine_from_config(config_path: str) -> Engine:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--mock", action="store_true", help="Run with the weight-free mock engine")
-    parser.add_argument("--config", type=str, help="Baseline config for a real engine")
+    parser.add_argument("--mock", action="store_true", help="Weight-free mock engine")
+    parser.add_argument("--calmsep", action="store_true", help="Full CALM-Sep pipeline")
+    parser.add_argument("--config", type=str, help="Legacy baseline config (SepFormer)")
+    parser.add_argument("--device", type=str, default="cpu", help="Torch device for CALM-Sep")
     parser.add_argument("--port", type=int, default=7860)
     args = parser.parse_args()
 
     engine: Engine | Callable
-    if args.mock or not args.config:
-        engine = MockEngine()
-    else:
+    if args.calmsep:
+        engine = CalmSepEngine(device=args.device)
+    elif args.config:
         engine = _engine_from_config(args.config)
+    else:
+        engine = MockEngine()
 
     build_demo(engine).launch(server_port=args.port)
 

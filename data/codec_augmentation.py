@@ -40,7 +40,32 @@ import soundfile as sf
 from data.mixer_stub import MixtureSample
 
 _MULAW_MU: int = 255
-_SUPPORTED_CODECS = ("opus", "aac")
+_SUPPORTED_CODECS = ("opus", "aac", "amr-nb", "amr-wb")
+
+# AMR-NB fixed bitrate modes (bps), closest match is chosen at encode time.
+_AMR_NB_BITRATES_BPS = (4750, 5150, 5900, 6700, 7400, 7950, 10200, 12200)
+# AMR-WB fixed bitrate modes (bps).
+_AMR_WB_BITRATES_BPS = (6600, 8850, 12650, 14250, 15850, 18250, 19850, 23050, 23850)
+
+_CODEC_FFMPEG_NAME = {
+    "opus": "libopus",
+    "aac": "aac",
+    "amr-nb": "libopencore_amrnb",
+    "amr-wb": "libvo_amrwbenc",
+}
+_CODEC_CONTAINER = {
+    "opus": ".opus",
+    "aac": ".aac",
+    "amr-nb": ".amr",
+    "amr-wb": ".amr",
+}
+# AMR-NB requires 8 kHz; AMR-WB requires 16 kHz.
+_CODEC_REQUIRED_SR: dict[str, int | None] = {
+    "opus": None,   # accepts any sr
+    "aac": None,
+    "amr-nb": 8_000,
+    "amr-wb": 16_000,
+}
 
 
 # ---------------------------------------------------------------------------
@@ -51,6 +76,130 @@ _SUPPORTED_CODECS = ("opus", "aac")
 def is_ffmpeg_available() -> bool:
     """Return True if ffmpeg is found on PATH and exits successfully."""
     return shutil.which("ffmpeg") is not None
+
+
+def apply_codec_roundtrip(
+    audio: np.ndarray,
+    sample_rate: int,
+    codec: str,
+    bitrate_bps: int | float,
+    tmp_dir: str | Path | None = None,
+) -> np.ndarray:
+    """
+    Encode → decode ``audio`` through a real codec and return the damaged signal.
+
+    Public wrapper used by ``data.degradations.apply_codec``. Supports "opus",
+    "aac", "amr-nb", and "amr-wb". AMR-NB requires 8 kHz input; AMR-WB
+    requires 16 kHz input — ffmpeg will resample internally when the input
+    sample rate differs, but callers should note the resampling.
+
+    Falls back to mu-law companding (G.711 approximation) when ffmpeg is
+    unavailable or the roundtrip fails.
+
+    Args:
+        audio: 1-D float32 waveform.
+        sample_rate: Audio sample rate in Hz.
+        codec: One of "opus", "aac", "amr-nb", "amr-wb".
+        bitrate_bps: Target bitrate in bits per second.
+        tmp_dir: Scratch directory; uses a new tempdir when None.
+
+    Returns:
+        Damaged waveform, same length as ``audio``, float32.
+    """
+    if codec not in _SUPPORTED_CODECS:
+        raise ValueError(f"codec {codec!r} not supported; choose from {_SUPPORTED_CODECS}")
+
+    audio_f32 = np.asarray(audio, dtype=np.float32).squeeze()
+    bitrate_kbps = bitrate_bps / 1000.0
+
+    if not is_ffmpeg_available():
+        warnings.warn(
+            f"ffmpeg not found; falling back to mu-law simulation for codec {codec!r}.",
+            RuntimeWarning,
+            stacklevel=2,
+        )
+        return _mulaw_fallback(audio_f32)
+
+    result = _ffmpeg_roundtrip_standalone(audio_f32, sample_rate, codec, bitrate_kbps, tmp_dir)
+    if result is not None:
+        return result
+
+    warnings.warn(
+        f"ffmpeg codec roundtrip failed for {codec!r}; falling back to mu-law simulation.",
+        RuntimeWarning,
+        stacklevel=2,
+    )
+    return _mulaw_fallback(audio_f32)
+
+
+def _ffmpeg_roundtrip_standalone(
+    audio: np.ndarray,
+    sr: int,
+    codec: str,
+    bitrate_kbps: float,
+    tmp_dir: str | Path | None = None,
+) -> np.ndarray | None:
+    """Module-level ffmpeg roundtrip supporting all four codecs. Returns None on failure."""
+    ffmpeg_name = _CODEC_FFMPEG_NAME[codec]
+    container = _CODEC_CONTAINER[codec]
+    required_sr = _CODEC_REQUIRED_SR[codec]
+
+    # Snap AMR bitrates to the nearest valid mode.
+    if codec == "amr-nb":
+        bitrate_kbps = _snap_amr_bitrate(bitrate_kbps * 1000, _AMR_NB_BITRATES_BPS) / 1000.0
+    elif codec == "amr-wb":
+        bitrate_kbps = _snap_amr_bitrate(bitrate_kbps * 1000, _AMR_WB_BITRATES_BPS) / 1000.0
+
+    ctx = tempfile.TemporaryDirectory() if tmp_dir is None else None
+    work = Path(ctx.name if ctx else tmp_dir)
+    try:
+        src = work / "input.wav"
+        sf.write(str(src), audio, sr, subtype="FLOAT")
+
+        encoded = work / f"encoded{container}"
+        decoded = work / "decoded.wav"
+
+        enc_cmd = ["ffmpeg", "-y", "-i", str(src), "-codec:a", ffmpeg_name,
+                   "-b:a", f"{bitrate_kbps:.2f}k"]
+        if required_sr is not None:
+            enc_cmd += ["-ar", str(required_sr)]
+        enc_cmd.append(str(encoded))
+
+        if subprocess.run(enc_cmd, capture_output=True, check=False).returncode != 0:
+            return None
+
+        dec_cmd = ["ffmpeg", "-y", "-i", str(encoded)]
+        if required_sr is not None:
+            # Resample back to original rate after decoding.
+            dec_cmd += ["-ar", str(sr)]
+        dec_cmd.append(str(decoded))
+
+        if subprocess.run(dec_cmd, capture_output=True, check=False).returncode != 0:
+            return None
+
+        out, _ = sf.read(str(decoded), dtype="float32", always_2d=True)
+        return _fit_length(out.mean(axis=1), len(audio))
+    except Exception:
+        return None
+    finally:
+        if ctx is not None:
+            ctx.cleanup()
+
+
+def _snap_amr_bitrate(bitrate_bps: float, valid_rates: tuple[int, ...]) -> int:
+    """Return the AMR bitrate mode (bps) closest to ``bitrate_bps``."""
+    return min(valid_rates, key=lambda r: abs(r - bitrate_bps))
+
+
+def _mulaw_fallback(audio: np.ndarray) -> np.ndarray:
+    """G.711 mu-law approximation, used when ffmpeg is unavailable."""
+    x = np.clip(audio, -1.0, 1.0).astype(np.float64)
+    mu = float(_MULAW_MU)
+    encoded = np.sign(x) * np.log1p(mu * np.abs(x)) / np.log1p(mu)
+    quantised = np.round(encoded * 127.0).clip(-127, 127).astype(np.int8)
+    q_float = quantised.astype(np.float64) / 127.0
+    decoded = np.sign(q_float) * ((1.0 + mu) ** np.abs(q_float) - 1.0) / mu
+    return decoded.astype(np.float32)
 
 
 # ---------------------------------------------------------------------------
@@ -84,9 +233,10 @@ class CodecConfig:
     if ffmpeg is not installed."""
 
     def __post_init__(self) -> None:
-        if self.codec not in (*_SUPPORTED_CODECS, "random"):
+        valid = (*_SUPPORTED_CODECS, "random")
+        if self.codec not in valid:
             raise ValueError(
-                f"codec must be one of {(*_SUPPORTED_CODECS, 'random')!r}, got {self.codec!r}"
+                f"codec must be one of {valid!r}, got {self.codec!r}"
             )
         if self.bitrate_min_kbps <= 0 or self.bitrate_max_kbps <= 0:
             raise ValueError("bitrate values must be positive")
@@ -180,74 +330,15 @@ class CodecAugmentor:
         bitrate_kbps: float,
     ) -> np.ndarray | None:
         """Encode → decode through a real codec. Returns None on failure."""
-        try:
-            with tempfile.TemporaryDirectory() as tmpdir:
-                tmp = Path(tmpdir)
-                src = tmp / "input.wav"
-                sf.write(str(src), audio, sr, subtype="FLOAT")
-
-                if codec == "opus":
-                    encoded = tmp / "encoded.opus"
-                    audio_codec = "libopus"
-                else:
-                    encoded = tmp / "encoded.aac"
-                    audio_codec = "aac"
-
-                decoded = tmp / "decoded.wav"
-
-                enc_result = subprocess.run(
-                    [
-                        "ffmpeg", "-y", "-i", str(src),
-                        "-codec:a", audio_codec,
-                        "-b:a", f"{bitrate_kbps:.0f}k",
-                        str(encoded),
-                    ],
-                    capture_output=True,
-                    check=False,
-                )
-                if enc_result.returncode != 0:
-                    return None
-
-                dec_result = subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(encoded), str(decoded)],
-                    capture_output=True,
-                    check=False,
-                )
-                if dec_result.returncode != 0:
-                    return None
-
-                out, _ = sf.read(str(decoded), dtype="float32", always_2d=True)
-                out_mono = out.mean(axis=1)
-                return _fit_length(out_mono, len(audio))
-
-        except Exception:
-            return None
+        return _ffmpeg_roundtrip_standalone(audio, sr, codec, bitrate_kbps)
 
     # ------------------------------------------------------------------
     # Fallback path: mu-law companding (G.711 approximation)
     # ------------------------------------------------------------------
 
     def _mulaw_roundtrip(self, audio: np.ndarray) -> np.ndarray:
-        """
-        Simulate codec degradation via mu-law companding and 8-bit quantisation.
-
-        This approximates G.711 telephone-codec artifacts (not true Opus/AAC)
-        but requires no binary dependencies and always succeeds.
-        """
-        x = np.clip(audio, -1.0, 1.0).astype(np.float64)
-        mu = float(_MULAW_MU)
-
-        # Encode: compress dynamic range
-        encoded = np.sign(x) * np.log1p(mu * np.abs(x)) / np.log1p(mu)
-
-        # Quantise to 8-bit signed integer (256 levels)
-        quantised = np.round(encoded * 127.0).clip(-127, 127).astype(np.int8)
-
-        # Decode: expand back
-        q_float = quantised.astype(np.float64) / 127.0
-        decoded = np.sign(q_float) * ((1.0 + mu) ** np.abs(q_float) - 1.0) / mu
-
-        return decoded.astype(np.float32)
+        """G.711 mu-law approximation; requires no binary dependencies."""
+        return _mulaw_fallback(audio)
 
 
 # ---------------------------------------------------------------------------

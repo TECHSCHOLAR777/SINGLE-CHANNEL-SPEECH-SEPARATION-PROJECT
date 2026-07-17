@@ -1,10 +1,16 @@
 """
-Audio preprocessing for CA-MoSE inference (Dev B, Phase 1).
+Audio preprocessing for CALM-Sep inference (Dev C, P0-C2).
 
-Resamples to 16 kHz, peak-normalizes to -26 dBFS, and produces dual branches:
-waveform for time-domain experts (MossFormer2) and STFT for time-frequency
-experts (SR-CorrNet). All downstream modules should consume PreprocessedAudio
-rather than reimplementing normalization.
+Produces a dual-branch preprocessed audio object:
+  Branch 1 (8 kHz): waveform + STFT(win=128, hop=64, F=65) for SR-CorrNet.
+  Branch 2 (16 kHz): mixture STFT only, for the band-recovery module.
+
+The 8 kHz branch is the primary inference branch; 16 kHz is used only by
+band_recovery.py to predict 4-8 kHz content. This matches BLUEPRINT §5.2.
+
+Backward compatible: `preprocess()` still returns `PreprocessedAudio` at 16 kHz
+for legacy callers. `calmsep_preprocess()` returns `CalmSepPreprocessedAudio`
+with both branches.
 """
 
 from __future__ import annotations
@@ -18,6 +24,12 @@ PROJECT_SAMPLE_RATE = 16000
 TARGET_PEAK_DBFS = -26.0
 STFT_N_FFT = 512
 STFT_HOP_LENGTH = 128
+
+# CALM-Sep SR-CorrNet 8 kHz branch (BLUEPRINT fixed constraints)
+CALMSEP_SAMPLE_RATE = 8_000
+CALMSEP_STFT_WIN = 128
+CALMSEP_STFT_HOP = 64
+CALMSEP_STFT_BINS = 65  # n_fft//2 + 1 = 65
 
 
 @dataclass
@@ -139,4 +151,84 @@ def preprocess(
         stft=stft,
         sample_rate=PROJECT_SAMPLE_RATE,
         original_length=orig_len,
+    )
+
+
+# ---------------------------------------------------------------------------
+# CALM-Sep dual-branch preprocessor (Dev C, P0-C2)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CalmSepPreprocessedAudio:
+    """
+    Dual-branch preprocessed mixture for the CALM-Sep inference pipeline.
+
+    Attributes:
+        waveform_8k: [T_8k] float32 at 8 kHz — fed directly to SR-CorrNet.
+        stft_8k: [65, frames] complex64 STFT at 8 kHz (win=128, hop=64).
+        waveform_16k: [T_16k] float32 at 16 kHz — for band recovery & DNSMOS.
+        stft_16k: [257, frames] complex64 STFT at 16 kHz (win=512, hop=128).
+        sample_rate_8k: Always CALMSEP_SAMPLE_RATE (8000).
+        sample_rate_16k: Always PROJECT_SAMPLE_RATE (16000).
+        original_length_8k: Sample count before padding (at 8 kHz).
+    """
+
+    waveform_8k: np.ndarray
+    stft_8k: np.ndarray
+    waveform_16k: np.ndarray
+    stft_16k: np.ndarray
+    sample_rate_8k: int = CALMSEP_SAMPLE_RATE
+    sample_rate_16k: int = PROJECT_SAMPLE_RATE
+    original_length_8k: int = 0
+
+    def __post_init__(self) -> None:
+        self.waveform_8k = np.asarray(self.waveform_8k, dtype=np.float32).squeeze()
+        self.waveform_16k = np.asarray(self.waveform_16k, dtype=np.float32).squeeze()
+        if self.original_length_8k <= 0:
+            self.original_length_8k = int(self.waveform_8k.shape[0])
+
+    def waveform_8k_torch(self, device: str | torch.device = "cpu") -> torch.Tensor:
+        """[T_8k] float tensor for SR-CorrNet input."""
+        return torch.from_numpy(self.waveform_8k).to(device)
+
+    def stft_8k_torch(self, device: str | torch.device = "cpu") -> torch.Tensor:
+        """[65, frames] complex tensor for condition analysis."""
+        return torch.from_numpy(self.stft_8k).to(device)
+
+
+def calmsep_preprocess(
+    mixture: np.ndarray | torch.Tensor,
+    sample_rate: int,
+    target_dbfs: float = TARGET_PEAK_DBFS,
+) -> CalmSepPreprocessedAudio:
+    """
+    CALM-Sep dual-branch preprocessing.
+
+    Produces both the 8 kHz branch (for SR-CorrNet) and the 16 kHz branch
+    (for band recovery and DNSMOS) from a single input mixture.
+
+    Args:
+        mixture: Mono mixture [T] or [1, T].
+        sample_rate: Input sample rate in Hz.
+        target_dbfs: Peak normalization target.
+
+    Returns:
+        CalmSepPreprocessedAudio with both branches.
+    """
+    wav8 = resample_audio(mixture, sample_rate, CALMSEP_SAMPLE_RATE)
+    orig_len_8k = int(wav8.shape[0])
+    wav8 = peak_normalize_dbfs(wav8, target_dbfs)
+    stft8 = compute_stft(wav8, n_fft=CALMSEP_STFT_WIN, hop_length=CALMSEP_STFT_HOP)
+
+    wav16 = resample_audio(mixture, sample_rate, PROJECT_SAMPLE_RATE)
+    wav16 = peak_normalize_dbfs(wav16, target_dbfs)
+    stft16 = compute_stft(wav16, n_fft=STFT_N_FFT, hop_length=STFT_HOP_LENGTH)
+
+    return CalmSepPreprocessedAudio(
+        waveform_8k=wav8,
+        stft_8k=stft8,
+        waveform_16k=wav16,
+        stft_16k=stft16,
+        original_length_8k=orig_len_8k,
     )
