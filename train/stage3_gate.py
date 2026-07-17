@@ -36,11 +36,14 @@ import torch.optim as optim
 
 from models.condition import Level2Analyzer, level1_tensor, level2_loss
 from models.gate import GateNetwork, gate_loss
-from models.lora import LoRALibrary, ADAPTER_NAMES
+from models.lora import LoRALibrary
 from train.losses import calmsep_loss
 from train.stage1_single import (
-    _seed_everything, _load_model, _get_inner_module,
-    _extract_output_waves, _extract_logits,
+    _extract_logits,
+    _extract_output_waves,
+    _get_inner_module,
+    _load_model,
+    _seed_everything,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -49,7 +52,11 @@ log = logging.getLogger(__name__)
 
 def _load_adapters(inner: torch.nn.Module, lib: LoRALibrary, args: argparse.Namespace) -> None:
     """Load Stage 1 adapter weights into the LoRA library."""
-    for adapter, arg_name in [("reverb", "adapter_reverb"), ("noise", "adapter_noise"), ("codec", "adapter_codec")]:
+    for adapter, arg_name in [
+        ("reverb", "adapter_reverb"),
+        ("noise", "adapter_noise"),
+        ("codec", "adapter_codec"),
+    ]:
         path = getattr(args, arg_name, None)
         if path and Path(path).exists():
             ckpt = torch.load(path, map_location="cpu")
@@ -61,19 +68,26 @@ def _load_adapters(inner: torch.nn.Module, lib: LoRALibrary, args: argparse.Name
                 if f"branches.{adapter}" in k or f"adapter.{adapter}" in k
             }
             missing, unexpected = inner.load_state_dict(filtered, strict=False)
-            log.info("Loaded %s adapter: %d tensors, %d missing, %d unexpected",
-                     adapter, len(filtered), len(missing), len(unexpected))
+            log.info(
+                "Loaded %s adapter: %d tensors, %d missing, %d unexpected",
+                adapter,
+                len(filtered),
+                len(missing),
+                len(unexpected),
+            )
         else:
             log.warning("Adapter checkpoint not found for %s at %s", adapter, path)
 
 
 def _build_gate_dataset(args: argparse.Namespace) -> object:
     """Build mixed-condition training data, excluding held-out combos."""
-    from data.calmsep_mixer import CalmSepMixer
-    from data.rir_bank import RirBank
-    from data.degradations import apply_reverb, apply_noise, apply_codec, assert_not_held_out
     import json
+
     import numpy as np
+
+    from data.calmsep_mixer import CalmSepMixer
+    from data.degradations import apply_codec, apply_noise, apply_reverb, assert_not_held_out
+    from data.rir_bank import RirBank
 
     libri_8k = Path(args.librispeech_8k)
     files = sorted(libri_8k.rglob("*.flac")) + sorted(libri_8k.rglob("*.wav"))
@@ -110,10 +124,17 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
                         m = apply_reverb(m, rir_bank, self._rng)
                     if "noise" in cond:
                         noise_dir = Path(getattr(args, "noise_dir", ""))
-                        nfiles = (sorted((noise_dir / "wham").glob("*_8k.wav")) +
-                                  sorted((noise_dir / "dns4").glob("*_8k.wav"))) if noise_dir.exists() else []
+                        nfiles = (
+                            (
+                                sorted((noise_dir / "wham").glob("*_8k.wav"))
+                                + sorted((noise_dir / "dns4").glob("*_8k.wav"))
+                            )
+                            if noise_dir.exists()
+                            else []
+                        )
                         if nfiles:
                             import soundfile as sf
+
                             nf = nfiles[int(self._rng.integers(len(nfiles)))]
                             n_wav, _ = sf.read(str(nf), dtype="float32")
                             m = apply_noise(m, n_wav, self._rng)
@@ -161,10 +182,14 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
 def train_gate(args: argparse.Namespace) -> None:
     _seed_everything(getattr(args, "seed", 42))
     device = torch.device(getattr(args, "device", "cpu"))
+    use_bf16 = getattr(args, "bf16", True) and device.type == "cuda"
+    log.info("Precision: %s", "BF16 autocast" if use_bf16 else "FP32")
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    ss_model = _load_model(getattr(args, "hf_model", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"), device)
+    ss_model = _load_model(
+        getattr(args, "hf_model", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"), device
+    )
     inner = _get_inner_module(ss_model)
     lib = LoRALibrary(inner)
     lib.freeze_base()
@@ -206,17 +231,21 @@ def train_gate(args: argparse.Namespace) -> None:
                 l1_feat = level1_tensor(wav.squeeze(0)).to(device)
                 l1_feats_list.append(l1_feat)
 
-                # Capture E(0) via hook.
-                e0_capture = {}
-                def _e0_hook(m: object, inp: object, out: object) -> None:
-                    e0_capture["e0"] = out.detach() if isinstance(out, torch.Tensor) else out[0].detach()
+                # Capture E(0) via hook (default-arg binds the per-iteration dict).
+                e0_capture: dict = {}
+
+                def _e0_hook(m: object, inp: object, out: object, _cap: dict = e0_capture) -> None:
+                    _cap["e0"] = out.detach() if isinstance(out, torch.Tensor) else out[0].detach()
 
                 inner_model = _get_inner_module(ss_model)
                 hook_handle = None
                 if hasattr(inner_model, "encoder"):
                     hook_handle = inner_model.encoder.register_forward_hook(_e0_hook)
 
-                with torch.no_grad():
+                with (
+                    torch.no_grad(),
+                    torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16),
+                ):
                     out_sep = ss_model.process_waveform(wav, n_spks=torch.tensor(n_spks[b]))  # type: ignore
 
                 if hook_handle:
@@ -233,30 +262,35 @@ def train_gate(args: argparse.Namespace) -> None:
 
             l1_feats = torch.stack(l1_feats_list)  # (B, 4)
 
-            # Level-2 features from E(0).
-            if e0_list:
-                e0_batch = torch.cat([e.unsqueeze(0) if e.ndim == 3 else e for e in e0_list], dim=0)
-                l2_feats = analyzer.feature_vector(e0_batch)  # (B, 6)
-            else:
-                l2_feats = torch.zeros(B, 6, device=device)
+            # Level-2 features from E(0) — gate/analyzer forward in BF16.
+            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
+                if e0_list:
+                    e0_batch = torch.cat(
+                        [e.unsqueeze(0) if e.ndim == 3 else e for e in e0_list], dim=0
+                    )
+                    l2_feats = analyzer.feature_vector(e0_batch)  # (B, 6)
+                else:
+                    e0_batch = None
+                    l2_feats = torch.zeros(B, 6, device=device)
 
-            condition = torch.cat([l1_feats, l2_feats], dim=-1)  # (B, 10)
-            gates = gate_net(condition)  # (B, 3)
+                condition = torch.cat([l1_feats.float(), l2_feats.float()], dim=-1)  # (B, 10)
+                _gates = gate_net(condition)  # (B, 3) — used via gate_loss below
 
             # Apply gates to a second pass.
             max_k = max(e.shape[0] for e in estimates_list)
             max_t = max(e.shape[1] for e in estimates_list)
             estimates = torch.zeros(B, max_k, max_t, device=device)
             for b, e in enumerate(estimates_list):
-                estimates[b, :e.shape[0], :e.shape[1]] = e
+                estimates[b, : e.shape[0], : e.shape[1]] = e
 
             logits_t = torch.stack(logits_list) if logits_list else None
             sep_loss = calmsep_loss(estimates, references, logits_t, n_spks)["total"]
             total = gate_loss(gate_net, condition, recipes, sep_loss)
 
             # Level-2 supervised loss.
-            if e0_list:
-                l2_sup = level2_loss(analyzer, e0_batch, recipes)
+            if e0_list and e0_batch is not None:
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
+                    l2_sup = level2_loss(analyzer, e0_batch, recipes)
                 total = total + l2_sup
 
             optimizer.zero_grad()
@@ -272,33 +306,43 @@ def train_gate(args: argparse.Namespace) -> None:
         log.info("Epoch %d/%d  loss=%.4f  time=%.1fs", epoch, epochs, avg, time.time() - t0)
         if avg < best_loss:
             best_loss = avg
-            torch.save({"analyzer": analyzer.state_dict(), "gate": gate_net.state_dict()}, out_dir / "best_gate.pt")
+            torch.save(
+                {"analyzer": analyzer.state_dict(), "gate": gate_net.state_dict()},
+                out_dir / "best_gate.pt",
+            )
 
-    torch.save({"analyzer": analyzer.state_dict(), "gate": gate_net.state_dict()}, out_dir / "final_gate.pt")
+    torch.save(
+        {"analyzer": analyzer.state_dict(), "gate": gate_net.state_dict()},
+        out_dir / "final_gate.pt",
+    )
     log.info("Gate training done. Best loss: %.4f", best_loss)
 
 
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--librispeech-8k", default="")
-    p.add_argument("--data-root", default="")          # alias used by notebooks
+    p.add_argument("--data-root", default="")  # alias used by notebooks
     p.add_argument("--rir-bank", default="data/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
     # Stage 1 adapter paths can be given explicitly or via --stage1-dir.
     p.add_argument("--adapter-reverb", default="")
     p.add_argument("--adapter-noise", default="")
     p.add_argument("--adapter-codec", default="")
-    p.add_argument("--stage1-dir", default="")         # used by notebooks; resolves adapter paths
+    p.add_argument("--stage1-dir", default="")  # used by notebooks; resolves adapter paths
     p.add_argument("--output-dir", default="")
-    p.add_argument("--checkpoint-dir", default="")     # alias used by notebooks
+    p.add_argument("--checkpoint-dir", default="")  # alias used by notebooks
     p.add_argument("--hf-model", default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs", type=int, default=30)
     p.add_argument("--batch-size", type=int, default=4)
-    p.add_argument("--lr", type=float, default=5e-5)   # blueprint gate.yaml: 5e-5 (was 5e-4)
+    p.add_argument("--lr", type=float, default=5e-5)  # blueprint gate.yaml: 5e-5 (was 5e-4)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
+    p.add_argument(
+        "--bf16", action="store_true", default=True, help="Use BF16 autocast (default: True)"
+    )
+    p.add_argument("--no-bf16", dest="bf16", action="store_false")
     args = p.parse_args()
     # Resolve aliases.
     if not args.librispeech_8k and args.data_root:

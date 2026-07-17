@@ -21,7 +21,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-import random
 import time
 from pathlib import Path
 
@@ -29,11 +28,15 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from models.lora import LoRALibrary, ADAPTER_NAMES, lora_summary
+from models.lora import LoRALibrary
 from train.losses import calmsep_loss
 from train.stage1_single import (
-    _seed_everything, _load_model, _get_inner_module,
-    _extract_output_waves, _extract_logits, _save_adapter,
+    _extract_logits,
+    _extract_output_waves,
+    _get_inner_module,
+    _load_model,
+    _save_adapter,
+    _seed_everything,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -44,10 +47,11 @@ _UNIVERSAL_ADAPTER = "reverb"  # one adapter used for all conditions; re-using "
 
 def _build_universal_dataset(args: argparse.Namespace) -> object:
     """Build a dataset that randomly draws from all three conditions."""
-    from data.calmsep_mixer import CalmSepMixer
-    from data.rir_bank import RirBank
-    from data.degradations import apply_reverb, apply_noise, apply_codec
     import json
+
+    from data.calmsep_mixer import CalmSepMixer
+    from data.degradations import apply_codec, apply_noise, apply_reverb
+    from data.rir_bank import RirBank
 
     libri_8k = Path(args.librispeech_8k)
     source_files = sorted(libri_8k.rglob("*.flac")) + sorted(libri_8k.rglob("*.wav"))
@@ -81,11 +85,16 @@ def _build_universal_dataset(args: argparse.Namespace) -> object:
             elif cond == "noise":
                 noise_dir = Path(getattr(args, "noise_dir", ""))
                 noise_files = (
-                    sorted((noise_dir / "wham").glob("*_8k.wav")) +
-                    sorted((noise_dir / "dns4").glob("*_8k.wav"))
-                ) if noise_dir.exists() else []
+                    (
+                        sorted((noise_dir / "wham").glob("*_8k.wav"))
+                        + sorted((noise_dir / "dns4").glob("*_8k.wav"))
+                    )
+                    if noise_dir.exists()
+                    else []
+                )
                 if noise_files:
                     import soundfile as sf
+
                     nf = noise_files[int(self._rng.integers(len(noise_files)))]
                     noise_wav, _ = sf.read(str(nf), dtype="float32")
                     m = apply_noise(m, noise_wav, self._rng)
@@ -131,10 +140,14 @@ def _build_universal_dataset(args: argparse.Namespace) -> object:
 def train_universal(args: argparse.Namespace) -> None:
     _seed_everything(getattr(args, "seed", 42))
     device = torch.device(getattr(args, "device", "cpu"))
+    use_bf16 = getattr(args, "bf16", True) and device.type == "cuda"
+    log.info("Precision: %s", "BF16 autocast" if use_bf16 else "FP32")
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    ss_model = _load_model(getattr(args, "hf_model", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"), device)
+    ss_model = _load_model(
+        getattr(args, "hf_model", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"), device
+    )
     inner = _get_inner_module(ss_model)
 
     # Universal adapter: reuse the "reverb" name since only one adapter is trained.
@@ -163,9 +176,10 @@ def train_universal(args: argparse.Namespace) -> None:
                 B = mixture.shape[0]
                 estimates_list, logits_list = [], []
                 for b in range(B):
-                    out = ss_model.process_waveform(  # type: ignore[attr-defined]
-                        mixture[b].unsqueeze(0), n_spks=torch.tensor(n_spks[b])
-                    )
+                    with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
+                        out = ss_model.process_waveform(  # type: ignore[attr-defined]
+                            mixture[b].unsqueeze(0), n_spks=torch.tensor(n_spks[b])
+                        )
                     estimates_list.append(_extract_output_waves(out, device))
                     lg = _extract_logits(out)
                     if lg is not None:
@@ -175,7 +189,7 @@ def train_universal(args: argparse.Namespace) -> None:
                 max_t = max(e.shape[1] for e in estimates_list)
                 estimates = torch.zeros(B, max_k, max_t, device=device)
                 for b, e in enumerate(estimates_list):
-                    estimates[b, :e.shape[0], :e.shape[1]] = e
+                    estimates[b, : e.shape[0], : e.shape[1]] = e
 
                 logits_t = torch.stack(logits_list) if logits_list else None
                 losses = calmsep_loss(estimates, references, logits_t, n_spks)
@@ -200,12 +214,12 @@ def train_universal(args: argparse.Namespace) -> None:
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--librispeech-8k", default="")
-    p.add_argument("--data-root", default="")          # alias used by notebooks
+    p.add_argument("--data-root", default="")  # alias used by notebooks
     p.add_argument("--rir-bank", default="data/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
     p.add_argument("--output-dir", default="")
-    p.add_argument("--checkpoint-dir", default="")     # alias used by notebooks
-    p.add_argument("--stage1-dir", default="")         # accepted but unused in stage2
+    p.add_argument("--checkpoint-dir", default="")  # alias used by notebooks
+    p.add_argument("--stage1-dir", default="")  # accepted but unused in stage2
     p.add_argument("--hf-model", default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs", type=int, default=40)
@@ -214,6 +228,10 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
+    p.add_argument(
+        "--bf16", action="store_true", default=True, help="Use BF16 autocast (default: True)"
+    )
+    p.add_argument("--no-bf16", dest="bf16", action="store_false")
     args = p.parse_args()
     if not args.librispeech_8k and args.data_root:
         args.librispeech_8k = args.data_root

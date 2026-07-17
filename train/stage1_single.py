@@ -38,7 +38,7 @@ import numpy as np
 import torch
 import torch.optim as optim
 
-from models.lora import LoRALibrary, ADAPTER_NAMES, lora_summary
+from models.lora import ADAPTER_NAMES, LoRALibrary, lora_summary
 from train.losses import calmsep_loss
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
@@ -60,15 +60,15 @@ def _seed_everything(seed: int) -> None:
 
 def _load_model(hf_model: str, device: torch.device) -> object:
     """Load the frozen SR-CorrNet checkpoint."""
-    import sys
+
     try:
         from sr_corrnet import SSInference  # type: ignore[import]
-    except ImportError:
+    except ImportError as exc:
         raise ImportError(
             "SR-CorrNet-SS not installed. Run:\n"
             "  git clone https://github.com/dmlguq456/SR_CorrNet_SS.git\n"
             '  cd SR_CorrNet_SS && pip install -e ".[hub]"'
-        )
+        ) from exc
     log.info("Loading frozen checkpoint: %s", hf_model)
     model = SSInference.from_pretrained(checkpoint_path=hf_model, device=str(device))
     return model
@@ -89,9 +89,9 @@ def _build_dataset(adapter: str, args: argparse.Namespace) -> object:
     """Build a DataLoader for the given adapter condition."""
     # Import here so the training script works even if data modules
     # are on a separate branch (they will be merged before Kaggle run).
-    from data.calmsep_mixer import CalmSepMixer, CALMSEP_SAMPLE_RATE
+    from data.calmsep_mixer import CalmSepMixer
+    from data.degradations import apply_codec, apply_noise, apply_reverb
     from data.rir_bank import RirBank
-    from data.degradations import apply_reverb, apply_noise, apply_codec
 
     libri_8k = Path(args.librispeech_8k)
     source_files = sorted(libri_8k.rglob("*.flac")) + sorted(libri_8k.rglob("*.wav"))
@@ -135,10 +135,12 @@ def _build_dataset(adapter: str, args: argparse.Namespace) -> object:
                 m = apply_reverb(m, rir_bank, self._rng)
             elif adapter == "noise":
                 noise_dir = Path(args.noise_dir)
-                noise_files = sorted((noise_dir / "wham").glob("*_8k.wav")) + \
-                              sorted((noise_dir / "dns4").glob("*_8k.wav"))
+                noise_files = sorted((noise_dir / "wham").glob("*_8k.wav")) + sorted(
+                    (noise_dir / "dns4").glob("*_8k.wav")
+                )
                 if noise_files:
                     import soundfile as sf
+
                     nf = noise_files[self._rng.integers(len(noise_files))]
                     noise_wav, _ = sf.read(str(nf), dtype="float32")
                     m = apply_noise(m, noise_wav, self._rng)
@@ -147,8 +149,8 @@ def _build_dataset(adapter: str, args: argparse.Namespace) -> object:
                 bitrates = {"opus": 12_000, "aac": 16_000, "amr-nb": 7_950}
                 m = apply_codec(m, codec, bitrates[codec])
 
-            mixture = torch.from_numpy(m.mixture).float()   # [T]
-            refs = torch.from_numpy(m.references).float()   # [N, T]
+            mixture = torch.from_numpy(m.mixture).float()  # [T]
+            refs = torch.from_numpy(m.references).float()  # [N, T]
             return {
                 "mixture": mixture,
                 "references": refs,
@@ -204,6 +206,8 @@ def _build_dataset(adapter: str, args: argparse.Namespace) -> object:
 def train_single_adapter(args: argparse.Namespace) -> None:
     _seed_everything(getattr(args, "seed", 42))
     device = torch.device(getattr(args, "device", "cpu"))
+    use_bf16 = getattr(args, "bf16", True) and device.type == "cuda"
+    log.info("Precision: %s", "BF16 autocast" if use_bf16 else "FP32")
     adapter = args.adapter
     if adapter not in ADAPTER_NAMES:
         raise ValueError(f"adapter must be one of {ADAPTER_NAMES}")
@@ -228,9 +232,7 @@ def train_single_adapter(args: argparse.Namespace) -> None:
         lr=getattr(args, "lr", 1e-4),
         weight_decay=1e-5,
     )
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=getattr(args, "epochs", 40)
-    )
+    scheduler = optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=getattr(args, "epochs", 40))
 
     loader = _build_dataset(adapter, args)
     epochs = getattr(args, "epochs", 40)
@@ -242,7 +244,7 @@ def train_single_adapter(args: argparse.Namespace) -> None:
         t0 = time.time()
 
         for batch in loader:
-            mixture = batch["mixture"].to(device)     # [B, T]
+            mixture = batch["mixture"].to(device)  # [B, T]
             references = batch["references"].to(device)  # [B, N, T]
             n_spks = batch["n_speakers"]
 
@@ -256,11 +258,11 @@ def train_single_adapter(args: argparse.Namespace) -> None:
                 all_logits = []
                 for b in range(B):
                     wav = mixture[b].unsqueeze(0)  # [1, T]
-                    with torch.cuda.amp.autocast(enabled=device.type == "cuda"):  # type: ignore[attr-defined]
+                    with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
                         out = ss_model.process_waveform(  # type: ignore[attr-defined]
                             wav, n_spks=torch.tensor(n_spks[b])
                         )
-                    waves = _extract_output_waves(out, device)   # [K, T]
+                    waves = _extract_output_waves(out, device)  # [K, T]
                     logits = _extract_logits(out)
                     all_estimates.append(waves)
                     if logits is not None:
@@ -271,7 +273,7 @@ def train_single_adapter(args: argparse.Namespace) -> None:
                 max_t = max(e.shape[1] for e in all_estimates)
                 estimates = torch.zeros(B, max_k, max_t, device=device)
                 for b, e in enumerate(all_estimates):
-                    estimates[b, :e.shape[0], :e.shape[1]] = e
+                    estimates[b, : e.shape[0], : e.shape[1]] = e
 
                 logits_tensor = torch.stack(all_logits, dim=0) if all_logits else None
                 losses = calmsep_loss(estimates, references, logits_tensor, n_spks)
@@ -301,7 +303,7 @@ def _extract_output_waves(out: object, device: torch.device) -> torch.Tensor:
         waves = out.get("waveforms") or out.get("est_sources") or out.get("sources")
     else:
         waves = out
-    if isinstance(waves, (list, tuple)):
+    if isinstance(waves, list | tuple):
         rows = [w.squeeze().to(device) for w in waves]
         return torch.stack(rows, dim=0)
     arr = waves.squeeze().to(device)  # type: ignore[union-attr]
@@ -339,12 +341,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--adapter", required=True, choices=list(ADAPTER_NAMES))
     # Accept both --librispeech-8k (direct) and --data-root (Kaggle notebook convention).
     p.add_argument("--librispeech-8k", default="")
-    p.add_argument("--data-root", default="")          # alias used by notebooks
+    p.add_argument("--data-root", default="")  # alias used by notebooks
     p.add_argument("--rir-bank", default="data/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
     p.add_argument("--output-dir", default="")
-    p.add_argument("--checkpoint-dir", default="")     # alias used by notebooks
-    p.add_argument("--config", default="")             # accepted but unused (config baked in)
+    p.add_argument("--checkpoint-dir", default="")  # alias used by notebooks
+    p.add_argument("--config", default="")  # accepted but unused (config baked in)
     p.add_argument("--hf-model", default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs", type=int, default=40)
@@ -353,6 +355,13 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
+    p.add_argument(
+        "--bf16",
+        action="store_true",
+        default=True,
+        help="Use BF16 autocast (default: True, L40S/A100/H100 supported)",
+    )
+    p.add_argument("--no-bf16", dest="bf16", action="store_false")
     args = p.parse_args()
     # Resolve aliases: notebook passes --data-root and --checkpoint-dir.
     if not args.librispeech_8k and args.data_root:

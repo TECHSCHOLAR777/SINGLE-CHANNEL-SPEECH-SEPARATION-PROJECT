@@ -39,13 +39,16 @@ import torch.optim as optim
 
 from models.condition import Level2Analyzer, level1_tensor
 from models.gate import GateNetwork
-from models.lora import LoRALibrary, ADAPTER_NAMES, olora_penalty
+from models.lora import ADAPTER_NAMES, LoRALibrary, olora_penalty
 from train.losses import calmsep_loss
 from train.stage1_single import (
-    _seed_everything, _load_model, _get_inner_module,
-    _extract_output_waves, _extract_logits,
+    _extract_logits,
+    _extract_output_waves,
+    _get_inner_module,
+    _load_model,
+    _seed_everything,
 )
-from train.stage3_gate import _load_adapters, _build_gate_dataset
+from train.stage3_gate import _build_gate_dataset, _load_adapters
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger(__name__)
@@ -54,10 +57,14 @@ log = logging.getLogger(__name__)
 def train_joint(args: argparse.Namespace) -> None:
     _seed_everything(getattr(args, "seed", 42))
     device = torch.device(getattr(args, "device", "cpu"))
+    use_bf16 = getattr(args, "bf16", True) and device.type == "cuda"
+    log.info("Precision: %s", "BF16 autocast" if use_bf16 else "FP32")
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    ss_model = _load_model(getattr(args, "hf_model", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"), device)
+    ss_model = _load_model(
+        getattr(args, "hf_model", "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"), device
+    )
     inner = _get_inner_module(ss_model)
     lib = LoRALibrary(inner)
     lib.freeze_base()
@@ -74,11 +81,7 @@ def train_joint(args: argparse.Namespace) -> None:
         log.info("Loaded gate checkpoint: %s", gate_ckpt)
 
     # Joint: train all adapter params + analyzer + gate together.
-    all_params = (
-        list(analyzer.parameters()) +
-        list(gate_net.parameters()) +
-        lib.active_parameters()
-    )
+    all_params = list(analyzer.parameters()) + list(gate_net.parameters()) + lib.active_parameters()
     # Stage 4 LR = 1/10 of Stage 1 LR.
     stage1_lr = getattr(args, "stage1_lr", 1e-4)
     lr = stage1_lr / 10.0
@@ -101,7 +104,7 @@ def train_joint(args: argparse.Namespace) -> None:
             mixture = batch["mixture"].to(device)
             references = batch["references"].to(device)
             n_spks = batch["n_speakers"]
-            recipes = batch["recipe"]
+            _recipes = batch["recipe"]
             B = mixture.shape[0]
 
             l1_feats_list, e0_list, est_list, logits_list = [], [], [], []
@@ -113,12 +116,22 @@ def train_joint(args: argparse.Namespace) -> None:
                 hook = None
                 inner_m = _get_inner_module(ss_model)
                 if hasattr(inner_m, "encoder"):
-                    def _h(m: object, inp: object, out: object) -> None:
-                        e0_capture["e0"] = out.detach() if isinstance(out, torch.Tensor) else out[0].detach()
+
+                    def _h(
+                        m: object,
+                        inp: object,
+                        out: object,
+                        _cap: dict = e0_capture,
+                    ) -> None:
+                        _cap["e0"] = (
+                            out.detach() if isinstance(out, torch.Tensor) else out[0].detach()
+                        )
+
                     hook = inner_m.encoder.register_forward_hook(_h)  # type: ignore[attr-defined]
 
                 # Use gate-determined adapter combination.
-                out_sep = ss_model.process_waveform(wav, n_spks=torch.tensor(n_spks[b]))  # type: ignore
+                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
+                    out_sep = ss_model.process_waveform(wav, n_spks=torch.tensor(n_spks[b]))  # type: ignore
                 if hook:
                     hook.remove()
 
@@ -131,14 +144,17 @@ def train_joint(args: argparse.Namespace) -> None:
                     logits_list.append(lg)
 
             l1_feats = torch.stack(l1_feats_list)
-            if e0_list:
-                e0_batch = torch.cat([e.unsqueeze(0) if e.ndim == 3 else e for e in e0_list], dim=0)
-                l2_feats = analyzer.feature_vector(e0_batch)
-            else:
-                l2_feats = torch.zeros(B, 6, device=device)
+            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
+                if e0_list:
+                    e0_batch = torch.cat(
+                        [e.unsqueeze(0) if e.ndim == 3 else e for e in e0_list], dim=0
+                    )
+                    l2_feats = analyzer.feature_vector(e0_batch)
+                else:
+                    l2_feats = torch.zeros(B, 6, device=device)
 
-            condition = torch.cat([l1_feats, l2_feats], dim=-1)
-            gates = gate_net(condition)  # (B, 3)
+                condition = torch.cat([l1_feats.float(), l2_feats.float()], dim=-1)
+                gates = gate_net(condition)  # (B, 3)
 
             # Set gates from the gate network output for this batch.
             for b in range(B):
@@ -150,7 +166,7 @@ def train_joint(args: argparse.Namespace) -> None:
             max_t = max(e.shape[1] for e in est_list)
             estimates = torch.zeros(B, max_k, max_t, device=device)
             for b, e in enumerate(est_list):
-                estimates[b, :e.shape[0], :e.shape[1]] = e
+                estimates[b, : e.shape[0], : e.shape[1]] = e
 
             logits_t = torch.stack(logits_list) if logits_list else None
             losses = calmsep_loss(estimates, references, logits_t, n_spks)
@@ -177,8 +193,8 @@ def train_joint(args: argparse.Namespace) -> None:
 
 def _save_joint_checkpoints(
     inner: torch.nn.Module,
-    analyzer: "Level2Analyzer",
-    gate_net: "GateNetwork",
+    analyzer: Level2Analyzer,
+    gate_net: GateNetwork,
     out_dir: Path,
 ) -> None:
     """Save per-adapter and per-component files expected by eval_matrix.ipynb."""
@@ -199,27 +215,31 @@ def _save_joint_checkpoints(
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     p.add_argument("--librispeech-8k", default="")
-    p.add_argument("--data-root", default="")          # alias used by notebooks
+    p.add_argument("--data-root", default="")  # alias used by notebooks
     p.add_argument("--rir-bank", default="data/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
     p.add_argument("--adapter-reverb", default="")
     p.add_argument("--adapter-noise", default="")
     p.add_argument("--adapter-codec", default="")
-    p.add_argument("--stage1-dir", default="")         # resolves adapter paths
-    p.add_argument("--stage3-dir", default="")         # resolves gate-checkpoint path
+    p.add_argument("--stage1-dir", default="")  # resolves adapter paths
+    p.add_argument("--stage3-dir", default="")  # resolves gate-checkpoint path
     p.add_argument("--gate-checkpoint", default="")
     p.add_argument("--output-dir", default="")
-    p.add_argument("--checkpoint-dir", default="")     # alias used by notebooks
+    p.add_argument("--checkpoint-dir", default="")  # alias used by notebooks
     p.add_argument("--hf-model", default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--batch-size", type=int, default=4)
     p.add_argument("--stage1-lr", type=float, default=1e-4)
-    p.add_argument("--lr", type=float, default=0.0)    # notebooks pass --lr; 0 means use stage1-lr/10
+    p.add_argument("--lr", type=float, default=0.0)  # notebooks pass --lr; 0 means use stage1-lr/10
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
     p.add_argument("--use-olora", action="store_true")
+    p.add_argument(
+        "--bf16", action="store_true", default=True, help="Use BF16 autocast (default: True)"
+    )
+    p.add_argument("--no-bf16", dest="bf16", action="store_false")
     args = p.parse_args()
     # Resolve aliases.
     if not args.librispeech_8k and args.data_root:
