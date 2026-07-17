@@ -170,42 +170,80 @@ def train_joint(args: argparse.Namespace) -> None:
         log.info("Epoch %d/%d  loss=%.4f  time=%.1fs", epoch, epochs, avg, time.time() - t0)
         if avg < best_loss:
             best_loss = avg
-            ckpt = {
-                "analyzer": analyzer.state_dict(),
-                "gate": gate_net.state_dict(),
-                "adapters": {n: lib.adapter_parameters(n) for n in ADAPTER_NAMES},
-            }
-            # Save full model state for adapters.
-            adapter_state = {k: v for k, v in inner.state_dict().items() if "branches" in k}
-            torch.save({
-                "analyzer": analyzer.state_dict(),
-                "gate": gate_net.state_dict(),
-                "adapter_state": adapter_state,
-            }, out_dir / "best_joint.pt")
+            _save_joint_checkpoints(inner, analyzer, gate_net, out_dir)
 
     log.info("Joint polish complete. Best: %.4f", best_loss)
 
 
+def _save_joint_checkpoints(
+    inner: torch.nn.Module,
+    analyzer: "Level2Analyzer",
+    gate_net: "GateNetwork",
+    out_dir: Path,
+) -> None:
+    """Save per-adapter and per-component files expected by eval_matrix.ipynb."""
+    # Per-adapter checkpoints.
+    for name in ADAPTER_NAMES:
+        state = {
+            f"adapter.{name}.{k}": v
+            for k, v in inner.state_dict().items()
+            if f"branches.{name}" in k
+        }
+        torch.save({"adapter": name, "state_dict": state}, out_dir / f"joint_{name}_adapter.pt")
+    # Gate and Level-2 analyzer.
+    torch.save(gate_net.state_dict(), out_dir / "joint_gate_net.pt")
+    torch.save(analyzer.state_dict(), out_dir / "joint_level2_analyzer.pt")
+    log.info("Saved joint checkpoints to %s", out_dir)
+
+
 def _parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
-    p.add_argument("--librispeech-8k", required=True)
+    p.add_argument("--librispeech-8k", default="")
+    p.add_argument("--data-root", default="")          # alias used by notebooks
     p.add_argument("--rir-bank", default="data/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
     p.add_argument("--adapter-reverb", default="")
     p.add_argument("--adapter-noise", default="")
     p.add_argument("--adapter-codec", default="")
+    p.add_argument("--stage1-dir", default="")         # resolves adapter paths
+    p.add_argument("--stage3-dir", default="")         # resolves gate-checkpoint path
     p.add_argument("--gate-checkpoint", default="")
-    p.add_argument("--output-dir", required=True)
+    p.add_argument("--output-dir", default="")
+    p.add_argument("--checkpoint-dir", default="")     # alias used by notebooks
     p.add_argument("--hf-model", default="shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk")
     p.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     p.add_argument("--epochs", type=int, default=20)
     p.add_argument("--batch-size", type=int, default=4)
     p.add_argument("--stage1-lr", type=float, default=1e-4)
+    p.add_argument("--lr", type=float, default=0.0)    # notebooks pass --lr; 0 means use stage1-lr/10
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
     p.add_argument("--use-olora", action="store_true")
-    return p.parse_args()
+    args = p.parse_args()
+    # Resolve aliases.
+    if not args.librispeech_8k and args.data_root:
+        args.librispeech_8k = args.data_root
+    if not args.output_dir and args.checkpoint_dir:
+        args.output_dir = args.checkpoint_dir
+    if args.stage1_dir:
+        stage1 = Path(args.stage1_dir)
+        if not args.adapter_reverb:
+            args.adapter_reverb = str(stage1 / "best_reverb.pt")
+        if not args.adapter_noise:
+            args.adapter_noise = str(stage1 / "best_noise.pt")
+        if not args.adapter_codec:
+            args.adapter_codec = str(stage1 / "best_codec.pt")
+    if args.stage3_dir and not args.gate_checkpoint:
+        args.gate_checkpoint = str(Path(args.stage3_dir) / "best_gate.pt")
+    # If --lr passed explicitly (notebooks do this), treat it as stage1_lr so /10 applies.
+    if args.lr > 0:
+        args.stage1_lr = args.lr * 10
+    if not args.librispeech_8k:
+        p.error("--librispeech-8k or --data-root is required")
+    if not args.output_dir:
+        p.error("--output-dir or --checkpoint-dir is required")
+    return args
 
 
 if __name__ == "__main__":
