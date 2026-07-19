@@ -26,11 +26,10 @@ Target modules (37 per adapter from BLUEPRINT §5.3):
 from __future__ import annotations
 
 import math
-from typing import Sequence
+from collections.abc import Sequence
 
 import torch
 import torch.nn as nn
-
 
 # ---------------------------------------------------------------------------
 # Core LoRA layer
@@ -274,13 +273,15 @@ class LoRALibrary:
         """Freeze all parameters that are NOT LoRA branches."""
         for mod in self.model.modules():
             if isinstance(mod, LoRALinear):
-                # Freeze the base weight buffer (already no-grad as buffer).
-                # Keep only the branch params trainable; freeze bias for now.
                 if mod.bias is not None:
                     mod.bias.requires_grad_(False)
-                for name, branch in mod.branches.items():
+                for branch in mod.branches.values():
                     for p in branch.parameters():
                         p.requires_grad_(True)
+            elif isinstance(mod, LoRALayer):
+                # depth-first: LoRALayer is a child of LoRALinear.branches —
+                # its params were just set trainable above; don't touch them.
+                pass
             else:
                 for p in mod.parameters(recurse=False):
                     p.requires_grad_(False)
@@ -321,7 +322,9 @@ class LoRALibrary:
             if n == name:
                 self._gates[n] = 1.0
             elif co_activate:
-                g = float(torch.zeros(1).uniform_(self.co_lo, self.co_hi, generator=self.rng).item())
+                g = float(
+                    torch.zeros(1).uniform_(self.co_lo, self.co_hi, generator=self.rng).item()
+                )
                 self._gates[n] = g
             else:
                 self._gates[n] = 0.0
@@ -384,7 +387,9 @@ class _GateContext:
 _orig_lora_linear_forward = LoRALinear.forward
 
 
-def _patched_forward(self: LoRALinear, x: torch.Tensor, gates: dict[str, float] | None = None) -> torch.Tensor:
+def _patched_forward(
+    self: LoRALinear, x: torch.Tensor, gates: dict[str, float] | None = None
+) -> torch.Tensor:
     # Prefer explicitly passed gates; fall back to injected gates.
     g = gates if gates is not None else getattr(self, "_injected_gates", {})
     return _orig_lora_linear_forward(self, x, g)
