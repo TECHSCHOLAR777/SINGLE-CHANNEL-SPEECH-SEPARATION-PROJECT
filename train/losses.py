@@ -17,7 +17,6 @@ from __future__ import annotations
 import torch
 import torch.nn.functional as F
 
-
 _EPS = 1e-10
 _HALL_PENALTY_DB = -1.0
 _STFT_WIN = 128
@@ -34,11 +33,14 @@ def si_snr(estimate: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     Scale-invariant SNR, shape-agnostic.
 
     Args:
-        estimate: [..., T]
-        target:   [..., T]
+        estimate: [..., T_e]
+        target:   [..., T_r]  (may differ from T_e due to STFT/iSTFT boundary)
     Returns:
         [...] SI-SNR in dB.
     """
+    min_t = min(estimate.shape[-1], target.shape[-1])
+    estimate = estimate[..., :min_t]
+    target = target[..., :min_t]
     estimate = estimate - estimate.mean(dim=-1, keepdim=True)
     target = target - target.mean(dim=-1, keepdim=True)
     dot = (estimate * target).sum(dim=-1, keepdim=True)
@@ -47,7 +49,9 @@ def si_snr(estimate: torch.Tensor, target: torch.Tensor) -> torch.Tensor:
     return 10.0 * torch.log10(s_target.pow(2).sum(-1) / (noise.pow(2).sum(-1) + _EPS) + _EPS)
 
 
-def pit_si_snr(estimates: torch.Tensor, references: torch.Tensor) -> tuple[torch.Tensor, list[list[int]]]:
+def pit_si_snr(
+    estimates: torch.Tensor, references: torch.Tensor
+) -> tuple[torch.Tensor, list[list[int]]]:
     """
     Permutation-Invariant Training SI-SNR.
 
@@ -58,8 +62,11 @@ def pit_si_snr(estimates: torch.Tensor, references: torch.Tensor) -> tuple[torch
         mean_sisnr: (B,) mean SI-SNR after optimal permutation.
         perms: List of B permutation lists mapping K_hat → K_ref.
     """
-    B, K_hat, T = estimates.shape
-    K_ref = references.shape[1]
+    B, K_hat, T_est = estimates.shape
+    K_ref, T_ref = references.shape[1], references.shape[2]
+    T = min(T_est, T_ref)  # align lengths: iSTFT can differ by a few samples
+    estimates = estimates[..., :T]
+    references = references[..., :T]
     K = max(K_hat, K_ref)
 
     # Pad smaller tensor to K.
@@ -82,20 +89,24 @@ def pit_si_snr(estimates: torch.Tensor, references: torch.Tensor) -> tuple[torch
             cost[:, i, j] = -si_snr(estimates_padded[:, i], refs_padded[:, j])
 
     # Hungarian via scipy (CPU only for now — small K).
+    # IMPORTANT: use -cost values from the pre-computed PyTorch cost matrix
+    # rather than calling si_snr() again, so gradient flows through cost → estimates.
     from scipy.optimize import linear_sum_assignment
+
     perms: list[list[int]] = []
-    sisnr_vals = torch.zeros(B, device=estimates.device)
+    sisnr_per_sample: list[torch.Tensor] = []
 
     for b in range(B):
         row_ind, col_ind = linear_sum_assignment(cost[b].detach().cpu().numpy())
         perm = list(col_ind[:K_hat])
         perms.append(perm)
-        # SI-SNR of the matched pairs (only real K_hat × K_ref pairs).
-        vals = [-cost[b, row_ind[i], col_ind[i]].item() for i in range(min(K_hat, K_ref))]
-        # Hallucination penalty: extra streams beyond K_ref.
+        n_pairs = min(K_hat, K_ref)
+        # Keep values as tensors (NOT .item()) so backward can flow through them.
+        matched = torch.stack([-cost[b, row_ind[i], col_ind[i]] for i in range(n_pairs)])
         n_hall = max(0, K_hat - K_ref)
-        sisnr_vals[b] = float(sum(vals) / max(len(vals), 1)) + n_hall * _HALL_PENALTY_DB
+        sisnr_per_sample.append(matched.mean() + n_hall * _HALL_PENALTY_DB)
 
+    sisnr_vals = torch.stack(sisnr_per_sample)  # (B,) with grad_fn
     return sisnr_vals, perms
 
 
@@ -149,7 +160,6 @@ def attractor_bce(logits: torch.Tensor, n_speakers: list[int]) -> torch.Tensor:
         Scalar BCE loss.
     """
     logits = logits.squeeze(1) if logits.ndim == 3 else logits  # (B, 7)
-    B = logits.shape[0]
     targets = torch.zeros_like(logits)
     for b, n in enumerate(n_speakers):
         # Slots 1..n are active.
@@ -186,6 +196,11 @@ def calmsep_loss(
     Returns:
         Dict with 'total', 'time', 'mag', 'att' scalar tensors.
     """
+    # Align time axis: iSTFT may produce ±few samples vs the reference
+    min_t = min(estimates.shape[-1], references.shape[-1])
+    estimates = estimates[..., :min_t]
+    references = references[..., :min_t]
+
     sisnr_vals, _ = pit_si_snr(estimates, references)
     loss_time = -sisnr_vals.mean()
     loss_mag = -pit_si_snr_mag(estimates, references)
