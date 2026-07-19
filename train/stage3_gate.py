@@ -196,8 +196,10 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
 def train_gate(args: argparse.Namespace) -> None:
     _seed_everything(getattr(args, "seed", 42))
     device = torch.device(getattr(args, "device", "cpu"))
-    use_bf16 = getattr(args, "bf16", True) and device.type == "cuda"
-    log.info("Precision: %s", "BF16 autocast" if use_bf16 else "FP32")
+    _want_amp = getattr(args, "bf16", True) and device.type == "cuda"
+    use_bf16 = _want_amp and torch.cuda.is_bf16_supported()
+    _amp_dtype = torch.bfloat16 if use_bf16 else (torch.float16 if _want_amp else None)
+    log.info("Precision: %s", f"AMP {_amp_dtype}" if _amp_dtype else "FP32")
     out_dir = Path(args.output_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -258,7 +260,9 @@ def train_gate(args: argparse.Namespace) -> None:
 
                 with (
                     torch.no_grad(),
-                    torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16),
+                    torch.autocast(
+                        "cuda", dtype=_amp_dtype or torch.float32, enabled=_amp_dtype is not None
+                    ),
                 ):
                     out_sep = ss_model.process_waveform(wav, n_spks=torch.tensor(n_spks[b]))  # type: ignore
 
@@ -277,7 +281,9 @@ def train_gate(args: argparse.Namespace) -> None:
             l1_feats = torch.stack(l1_feats_list)  # (B, 4)
 
             # Level-2 features from E(0) — gate/analyzer forward in BF16.
-            with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
+            with torch.autocast(
+                "cuda", dtype=_amp_dtype or torch.float32, enabled=_amp_dtype is not None
+            ):
                 if e0_list:
                     e0_batch = torch.cat(
                         [e.unsqueeze(0) if e.ndim == 3 else e for e in e0_list], dim=0
@@ -303,7 +309,9 @@ def train_gate(args: argparse.Namespace) -> None:
 
             # Level-2 supervised loss.
             if e0_list and e0_batch is not None:
-                with torch.autocast("cuda", dtype=torch.bfloat16, enabled=use_bf16):
+                with torch.autocast(
+                    "cuda", dtype=_amp_dtype or torch.float32, enabled=_amp_dtype is not None
+                ):
                     l2_sup = level2_loss(analyzer, e0_batch, recipes)
                 total = total + l2_sup
 
