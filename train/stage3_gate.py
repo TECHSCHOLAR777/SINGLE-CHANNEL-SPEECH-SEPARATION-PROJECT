@@ -95,14 +95,37 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
     mf = libri_8k / "manifest_8k.json"
     if mf.exists():
         d = json.loads(mf.read_text())
-        for si in d.get("splits", {}).values():
-            if "dev" in si.get("split", "") or "test" in si.get("split", ""):
-                held_out.update(si.get("speakers", []))
+        items = d if isinstance(d, list) else list(d.get("splits", {}).values())
+        for si in items:
+            if isinstance(si, dict):
+                if "dev" in si.get("split", "") or "test" in si.get("split", ""):
+                    held_out.update(si.get("speaker_ids", si.get("speakers", [])))
 
     seed = getattr(args, "seed", 42)
     rng = np.random.default_rng(seed)
     mixer = CalmSepMixer(files, held_out_speaker_ids=held_out, rng=rng)
-    rir_bank = RirBank(Path(args.rir_bank)) if getattr(args, "rir_bank", None) else None
+
+    # RirBank: strip .json suffix to get directory (same fix as Stage 2).
+    rir_bank = None
+    _rb_arg = getattr(args, "rir_bank", None)
+    if _rb_arg:
+        _rb_path = Path(_rb_arg)
+        _rb_dir = _rb_path.parent if _rb_path.suffix == ".json" else _rb_path
+        if (_rb_dir / "bank.json").exists():
+            rir_bank = RirBank(_rb_dir)
+        else:
+            log.warning("bank.json not found at %s; reverb condition will use clean audio", _rb_dir)
+
+    # Pre-compute noise files once — avoids re-globbing inside __getitem__.
+    noise_files: list[Path] = []
+    noise_dir_arg = Path(getattr(args, "noise_dir", ""))
+    if noise_dir_arg.exists():
+        noise_files = sorted((noise_dir_arg / "wham").glob("*_8k.wav")) + sorted(
+            (noise_dir_arg / "dns4").glob("*_8k.wav")
+        )
+        if not noise_files:
+            noise_files = sorted(noise_dir_arg.rglob("*_8k.wav"))
+    log.info("Noise files found: %d", len(noise_files))
 
     # Allowed single/double conditions (no reverb+codec or noise+codec).
     allowed_conds = ["clean", "reverb", "noise", "codec", "reverb+noise", "all-three"]
@@ -123,19 +146,10 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
                     if "reverb" in cond and rir_bank is not None:
                         m = apply_reverb(m, rir_bank, self._rng)
                     if "noise" in cond:
-                        noise_dir = Path(getattr(args, "noise_dir", ""))
-                        nfiles = (
-                            (
-                                sorted((noise_dir / "wham").glob("*_8k.wav"))
-                                + sorted((noise_dir / "dns4").glob("*_8k.wav"))
-                            )
-                            if noise_dir.exists()
-                            else []
-                        )
-                        if nfiles:
+                        if noise_files:
                             import soundfile as sf
 
-                            nf = nfiles[int(self._rng.integers(len(nfiles)))]
+                            nf = noise_files[int(self._rng.integers(len(noise_files)))]
                             n_wav, _ = sf.read(str(nf), dtype="float32")
                             m = apply_noise(m, n_wav, self._rng)
                     if "codec" in cond:
