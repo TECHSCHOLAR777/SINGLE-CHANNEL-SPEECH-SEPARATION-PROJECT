@@ -1,0 +1,607 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CALM-Sep — Condition-Aware LoRA Mixture Speech Separation</title>
+<meta name="description" content="CALM-Sep achieves +1.76 dB SI-SDR over SR-CorrNet baseline by dynamically routing speech mixtures through condition-specific LoRA adapters.">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #000;
+  --fg: #e8e8e8;
+  --fg-dim: #555;
+  --fg-dimmer: #2a2a2a;
+  --border: rgba(255,255,255,0.06);
+  --card-bg: #080808;
+  --teal: #00D4B8;
+  --teal-dim: #00bba3;
+  --indigo: #7c83e0;
+  --green: #22c55e;
+  --nav-h: 56px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+  overflow-x: hidden;
+}
+
+/* ── Animations ── */
+@keyframes glow-breathe {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.45; }
+}
+@keyframes wv-drift {
+  from { stroke-dashoffset: 0; }
+  to   { stroke-dashoffset: -240; }
+}
+@keyframes fade-up {
+  from { opacity: 0; transform: translateY(18px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ── Nav ── */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  padding: 0 2rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.85);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+.nav-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  height: var(--nav-h);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.nav-logo {
+  font-size: 0.95rem;
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  color: #fff;
+  text-decoration: none;
+}
+.nav-logo span { color: var(--teal); }
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 2rem;
+}
+.nav-links a {
+  font-size: 0.82rem;
+  color: #555;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+.nav-links a:hover { color: #aaa; }
+.nav-cta {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: #000 !important;
+  background: var(--teal);
+  border-radius: 100px;
+  padding: 0.4rem 1.1rem;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.nav-cta:hover { background: var(--teal-dim); }
+
+/* ── Hero ── */
+.hero {
+  position: relative;
+  min-height: 88vh;
+  padding: 5rem 2rem 4rem;
+  text-align: center;
+  overflow: hidden;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+.hero-glow {
+  position: absolute;
+  top: -15%;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 1100px;
+  height: 600px;
+  background: radial-gradient(ellipse at center,
+    rgba(0,212,184,0.17) 0%,
+    rgba(0,212,184,0.06) 38%,
+    transparent 65%);
+  pointer-events: none;
+  animation: glow-breathe 5s ease-in-out infinite;
+}
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 14px;
+  border-radius: 100px;
+  border: 1px solid rgba(255,255,255,0.1);
+  background: rgba(255,255,255,0.03);
+  font-size: 0.75rem;
+  color: #555;
+  margin-bottom: 2.75rem;
+  animation: fade-up 0.7s ease both;
+}
+.pill-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--teal);
+  flex-shrink: 0;
+}
+.display {
+  font-size: clamp(2.8rem, 6.5vw, 5.2rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  color: #fff;
+  animation: fade-up 0.7s 0.1s ease both;
+}
+.display-muted {
+  font-size: clamp(2.8rem, 6.5vw, 5.2rem);
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  line-height: 1.02;
+  color: #2a2a2a;
+  margin-bottom: 2rem;
+  animation: fade-up 0.7s 0.15s ease both;
+}
+.hero-sub {
+  font-size: 1rem;
+  color: #4a4a4a;
+  max-width: 480px;
+  margin: 0 auto;
+  line-height: 1.7;
+  animation: fade-up 0.7s 0.2s ease both;
+}
+.hero-sub strong { color: #777; font-weight: 600; }
+.hero-cta {
+  display: flex;
+  gap: 0.85rem;
+  justify-content: center;
+  margin-top: 2.5rem;
+  flex-wrap: wrap;
+  animation: fade-up 0.7s 0.28s ease both;
+}
+.btn-primary {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--teal);
+  color: #000;
+  font-weight: 700;
+  font-size: 0.88rem;
+  padding: 0.78rem 1.9rem;
+  border-radius: 100px;
+  text-decoration: none;
+  transition: background 0.2s, transform 0.15s;
+}
+.btn-primary:hover { background: var(--teal-dim); transform: translateY(-1px); }
+.btn-ghost {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(255,255,255,0.1);
+  color: #555;
+  font-size: 0.88rem;
+  padding: 0.78rem 1.9rem;
+  border-radius: 100px;
+  text-decoration: none;
+  transition: color 0.2s, border-color 0.2s, transform 0.15s;
+}
+.btn-ghost:hover { color: #bbb; border-color: rgba(255,255,255,0.22); transform: translateY(-1px); }
+
+/* Waveform SVG */
+.hero-wave {
+  width: min(640px, 88%);
+  margin: 2.75rem auto 0;
+  opacity: 0.3;
+  animation: fade-up 0.7s 0.35s ease both;
+}
+.hero-wave svg { width: 100%; overflow: visible; }
+.wv { fill: none; stroke-width: 1.5; stroke-dasharray: 240; stroke-linecap: round; }
+.wv-0 { stroke: rgba(255,255,255,0.35); animation: wv-drift 9s linear infinite; }
+.wv-1 { stroke: var(--indigo); animation: wv-drift 7s linear infinite reverse; }
+.wv-2 { stroke: var(--teal); animation: wv-drift 5s linear infinite; }
+
+/* ── Stat strip ── */
+.stats {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  border-bottom: 1px solid var(--border);
+}
+.stat {
+  padding: 2rem 1.75rem;
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+.stat:last-child { border-right: none; }
+.stat-num {
+  font-size: 2.4rem;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--green);
+  line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.stat-num.teal { color: var(--teal); }
+.stat-label { font-size: 0.72rem; color: #3a3a3a; }
+.stat-sub { font-size: 0.65rem; color: #222; }
+
+/* ── Shared section ── */
+.section {
+  padding: 5rem 2rem;
+  border-bottom: 1px solid var(--border);
+}
+.section-inner { max-width: 920px; margin: 0 auto; }
+.eyebrow {
+  font-size: 0.65rem;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--fg-dimmer);
+  display: block;
+  margin-bottom: 0.75rem;
+}
+.heading {
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin-bottom: 0.4rem;
+  line-height: 1.2;
+}
+.heading-sub { font-size: 0.85rem; color: #3a3a3a; margin-bottom: 2.5rem; }
+
+/* ── Benchmark ── */
+.bench-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1px;
+  background: rgba(255,255,255,0.06);
+  border-radius: 14px;
+  overflow: hidden;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.bench-card { background: var(--card-bg); }
+.bench-card-head {
+  padding: 1.1rem 1.4rem 0.9rem;
+  border-bottom: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+.bench-ds { font-size: 0.92rem; font-weight: 700; color: #ccc; }
+.bench-ds em { color: var(--teal); font-style: normal; }
+.bench-tag { font-size: 0.6rem; letter-spacing: 0.1em; text-transform: uppercase; color: #2a2a2a; }
+.btable { width: 100%; border-collapse: collapse; font-size: 0.8rem; font-variant-numeric: tabular-nums; }
+.btable th {
+  padding: 0.55rem 1.4rem;
+  text-align: right;
+  font-size: 0.58rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #2a2a2a;
+  font-weight: 500;
+  border-bottom: 1px solid rgba(255,255,255,0.04);
+}
+.btable th:first-child { text-align: left; }
+.btable td {
+  padding: 0.7rem 1.4rem;
+  text-align: right;
+  color: #444;
+  border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+.btable td:first-child { text-align: left; color: #555; }
+.btable tr:last-child td { border-bottom: none; }
+.td-base { color: var(--indigo) !important; }
+.td-calm { color: var(--teal) !important; }
+.td-delta { color: var(--green) !important; font-weight: 700; }
+
+/* ── Pipeline ── */
+.pipe-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.05);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-top: 2rem;
+}
+.pipe-card {
+  background: var(--card-bg);
+  padding: 1.5rem 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+.pipe-n { font-size: 0.6rem; letter-spacing: 0.16em; color: var(--teal); font-weight: 700; text-transform: uppercase; }
+.pipe-name { font-size: 0.88rem; font-weight: 700; color: #ddd; letter-spacing: -0.01em; line-height: 1.3; }
+.pipe-desc { font-size: 0.72rem; color: #333; line-height: 1.65; }
+
+/* ── Demo (static) ── */
+.demo-section {
+  padding: 5rem 2rem 6rem;
+}
+.demo-inner { max-width: 920px; margin: 0 auto; }
+.demo-title {
+  font-size: clamp(1.6rem, 3vw, 2rem);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: #fff;
+  margin-bottom: 0.35rem;
+}
+.demo-sub { font-size: 0.82rem; color: #333; margin-bottom: 2.5rem; }
+
+.demo-card {
+  background: var(--card-bg);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 16px;
+  padding: 3rem 2.5rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1.25rem;
+}
+.demo-icon {
+  width: 56px; height: 56px;
+  border-radius: 14px;
+  background: rgba(0,212,184,0.08);
+  border: 1px solid rgba(0,212,184,0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+}
+.demo-card-title { font-size: 1.05rem; font-weight: 700; color: #ccc; }
+.demo-card-body { font-size: 0.85rem; color: #3a3a3a; max-width: 400px; line-height: 1.65; }
+.demo-card-body code {
+  font-family: "SF Mono", "Fira Code", monospace;
+  font-size: 0.78rem;
+  background: #111;
+  border: 1px solid rgba(255,255,255,0.07);
+  border-radius: 6px;
+  padding: 0.15rem 0.45rem;
+  color: var(--teal);
+}
+.demo-card-actions { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: center; }
+
+/* ── Footer ── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 2rem;
+  text-align: center;
+}
+.footer-inner {
+  max-width: 920px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 1rem;
+}
+.footer-logo { font-size: 0.88rem; font-weight: 700; color: #333; }
+.footer-logo span { color: var(--teal); }
+.footer-links { display: flex; gap: 1.5rem; }
+.footer-links a { font-size: 0.78rem; color: #333; text-decoration: none; transition: color 0.2s; }
+.footer-links a:hover { color: #888; }
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .stats { grid-template-columns: 1fr 1fr; }
+  .stat:nth-child(2) { border-right: none; }
+  .bench-grid { grid-template-columns: 1fr; }
+  .pipe-grid { grid-template-columns: 1fr 1fr; }
+  .nav-links a:not(.nav-cta) { display: none; }
+}
+@media (max-width: 400px) {
+  .pipe-grid { grid-template-columns: 1fr; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── Nav ── -->
+<header class="nav">
+  <div class="nav-inner">
+    <a href="#" class="nav-logo">CALM<span>·Sep</span></a>
+    <nav class="nav-links">
+      <a href="#results">Results</a>
+      <a href="#architecture">Architecture</a>
+      <a href="#run" class="nav-cta">Run locally</a>
+    </nav>
+  </div>
+</header>
+
+<!-- ── Hero ── -->
+<section class="hero" id="hero">
+  <div class="hero-glow" aria-hidden="true"></div>
+
+  <div class="pill">
+    <span class="pill-dot"></span>
+    Single-channel speech separation
+  </div>
+
+  <h1 class="display">Unmix every voice,</h1>
+  <h1 class="display-muted">hear each one clearly.</h1>
+
+  <p class="hero-sub">
+    CALM-Sep dynamically routes each mixture through condition-specific LoRA adapters —
+    achieving <strong>+1.76 dB SI-SDR</strong> over the SR-CorrNet baseline
+    on LibriMix benchmarks.
+  </p>
+
+  <div class="hero-cta">
+    <a href="#run" class="btn-primary">Run the demo &rarr;</a>
+    <a href="https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT" class="btn-ghost" target="_blank">View on GitHub</a>
+  </div>
+
+  <div class="hero-wave" aria-hidden="true">
+    <svg viewBox="0 0 800 64" xmlns="http://www.w3.org/2000/svg">
+      <path class="wv wv-0" d="M0,32 Q25,12 50,32 Q75,52 100,32 Q125,12 150,32 Q175,52 200,32 Q225,12 250,32 Q275,52 300,32 Q325,12 350,32 Q375,52 400,32 Q425,12 450,32 Q475,52 500,32 Q525,12 550,32 Q575,52 600,32 Q625,12 650,32 Q675,52 700,32 Q725,12 750,32 Q775,52 800,32"/>
+      <path class="wv wv-1" d="M0,32 Q25,4 50,32 Q75,60 100,32 Q125,4 150,32 Q175,60 200,32 Q225,4 250,32 Q275,60 300,32 Q325,4 350,32 Q375,60 400,32 Q425,4 450,32 Q475,60 500,32 Q525,4 550,32 Q575,60 600,32 Q625,4 650,32 Q675,60 700,32 Q725,4 750,32 Q775,60 800,32"/>
+      <path class="wv wv-2" d="M0,32 Q20,20 40,32 Q60,44 80,32 Q100,20 120,32 Q140,44 160,32 Q180,20 200,32 Q220,44 240,32 Q260,20 280,32 Q300,44 320,32 Q340,20 360,32 Q380,44 400,32 Q420,20 440,32 Q460,44 480,32 Q500,20 520,32 Q540,44 560,32 Q580,20 600,32 Q620,44 640,32 Q660,20 680,32 Q700,44 720,32 Q740,20 760,32 Q780,44 800,32"/>
+    </svg>
+  </div>
+</section>
+
+<!-- ── Stats ── -->
+<div class="stats">
+  <div class="stat">
+    <span class="stat-num">+1.76</span>
+    <span class="stat-label">dB SI-SDR · Libri2Mix</span>
+    <span class="stat-sub">vs SR-CorrNet baseline</span>
+  </div>
+  <div class="stat">
+    <span class="stat-num">+1.73</span>
+    <span class="stat-label">dB SI-SDRi · Libri3Mix</span>
+    <span class="stat-sub">vs SR-CorrNet baseline</span>
+  </div>
+  <div class="stat">
+    <span class="stat-num teal">222</span>
+    <span class="stat-label">LoRA adapter tensors</span>
+    <span class="stat-sub">reverb · noise · codec</span>
+  </div>
+  <div class="stat">
+    <span class="stat-num teal" style="font-size:1.85rem;letter-spacing:-0.03em;">T=4.987</span>
+    <span class="stat-label">calibrated gate temp.</span>
+    <span class="stat-sub">BCE 0.9747 → 0.5412</span>
+  </div>
+</div>
+
+<!-- ── Results ── -->
+<section id="results" class="section">
+  <div class="section-inner">
+    <span class="eyebrow">Evaluation</span>
+    <h2 class="heading">Consistent gains across speaker counts.</h2>
+    <p class="heading-sub">LibriMix test set · 30 samples per split · PIT SI-SDR metric</p>
+
+    <div class="bench-grid">
+      <div class="bench-card">
+        <div class="bench-card-head">
+          <span class="bench-ds">Libri<em>2</em>Mix</span>
+          <span class="bench-tag">2-speaker mixtures</span>
+        </div>
+        <table class="btable">
+          <thead>
+            <tr><th>Metric</th><th>SR-CorrNet</th><th>CALM-Sep</th><th>Δ</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>SI-SDR</td><td class="td-base">5.60 dB</td><td class="td-calm">7.36 dB</td><td class="td-delta">+1.76</td></tr>
+            <tr><td>SI-SDRi</td><td class="td-base">7.09 dB</td><td class="td-calm">8.86 dB</td><td class="td-delta">+1.77</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="bench-card">
+        <div class="bench-card-head">
+          <span class="bench-ds">Libri<em>3</em>Mix</span>
+          <span class="bench-tag">3-speaker mixtures</span>
+        </div>
+        <table class="btable">
+          <thead>
+            <tr><th>Metric</th><th>SR-CorrNet</th><th>CALM-Sep</th><th>Δ</th></tr>
+          </thead>
+          <tbody>
+            <tr><td>SI-SDR</td><td class="td-base">5.75 dB</td><td class="td-calm">7.49 dB</td><td class="td-delta">+1.74</td></tr>
+            <tr><td>SI-SDRi</td><td class="td-base">10.07 dB</td><td class="td-calm">11.80 dB</td><td class="td-delta">+1.73</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Architecture ── -->
+<section id="architecture" class="section">
+  <div class="section-inner">
+    <span class="eyebrow">Architecture</span>
+    <h2 class="heading">Four stages. One coherent system.</h2>
+
+    <div class="pipe-grid">
+      <div class="pipe-card">
+        <span class="pipe-n">Stage 01</span>
+        <span class="pipe-name">Adapter Training</span>
+        <span class="pipe-desc">Three condition-specific LoRA adapters — reverb, noise, codec — trained independently on augmented LibriSpeech mixtures.</span>
+      </div>
+      <div class="pipe-card">
+        <span class="pipe-n">Stage 02</span>
+        <span class="pipe-name">Gate Training</span>
+        <span class="pipe-desc">Level-1 DSP features (SNR, codec bandwidth, voiced density) + Level-2 learned E(0) heads drive a soft gating network.</span>
+      </div>
+      <div class="pipe-card">
+        <span class="pipe-n">Stage 03</span>
+        <span class="pipe-name">Joint Fine-tune</span>
+        <span class="pipe-desc">End-to-end PIT SI-SDR optimization of gate + LoRA mixture. 14 epochs, temperature-calibrated (T=4.987).</span>
+      </div>
+      <div class="pipe-card">
+        <span class="pipe-n">Stage 04</span>
+        <span class="pipe-name">Band Recovery</span>
+        <span class="pipe-desc">Oracle-trained BandRecoveryHead: 8→16 kHz in 58 s of training. Best loss 0.012, bypasses SR-CorrNet bottleneck.</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Run locally ── -->
+<section id="run" class="demo-section">
+  <div class="demo-inner">
+    <h2 class="demo-title">Try it live.</h2>
+    <p class="demo-sub">Upload any mixture · speaker count auto-detected · clips trimmed to 6 s</p>
+
+    <div class="demo-card">
+      <div class="demo-icon">🎙️</div>
+      <p class="demo-card-title">Run the full interactive demo locally</p>
+      <p class="demo-card-body">
+        The separation backend requires PyTorch. Clone the repo and start the Gradio app in one command — checkpoints are included.
+      </p>
+      <div style="background:#050505;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:1rem 1.25rem;width:100%;max-width:520px;text-align:left;">
+        <p style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:#2a2a2a;margin-bottom:0.6rem;">Terminal</p>
+        <p style="font-family:'SF Mono','Fira Code',monospace;font-size:0.8rem;color:#00D4B8;line-height:1.9;">
+          git clone https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT<br>
+          cd SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT<br>
+          pip install -r requirements.txt<br>
+          python demo.py
+        </p>
+      </div>
+      <div class="demo-card-actions">
+        <a href="https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT" class="btn-primary" target="_blank">View on GitHub &rarr;</a>
+        <a href="#results" class="btn-ghost">See benchmark results</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── Footer ── -->
+<footer>
+  <div class="footer-inner">
+    <span class="footer-logo">CALM<span>·Sep</span></span>
+    <nav class="footer-links">
+      <a href="#results">Results</a>
+      <a href="#architecture">Architecture</a>
+      <a href="https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT" target="_blank">GitHub</a>
+    </nav>
+  </div>
+</footer>
+
+</body>
+</html>
