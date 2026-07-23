@@ -39,8 +39,7 @@ from models.gate import GateNetwork, gate_loss
 from models.lora import LoRALibrary
 from train.losses import calmsep_loss
 from train.stage1_single import (
-    _extract_logits,
-    _extract_output_waves,
+    _forward_with_grad,
     _get_inner_module,
     _load_model,
     _seed_everything,
@@ -90,7 +89,12 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
     from data.rir_bank import RirBank
 
     libri_8k = Path(args.librispeech_8k)
-    files = sorted(libri_8k.rglob("*.flac")) + sorted(libri_8k.rglob("*.wav"))
+    _speech_exclude = {"noise", "rirs", "rir"}
+    files = [
+        f
+        for f in (sorted(libri_8k.rglob("*.flac")) + sorted(libri_8k.rglob("*.wav")))
+        if not any(p in _speech_exclude for p in f.parts)
+    ]
     held_out: set[str] = set()
     mf = libri_8k / "manifest_8k.json"
     if mf.exists():
@@ -210,6 +214,13 @@ def train_gate(args: argparse.Namespace) -> None:
     lib = LoRALibrary(inner)
     lib.freeze_base()
     _load_adapters(inner, lib, args)
+    inner.to(device)
+    engine = getattr(ss_model, "engine", None)
+    if engine is not None:
+        for _attr in ("stft", "istft"):
+            _mod = getattr(engine, _attr, None)
+            if _mod is not None and hasattr(_mod, "to"):
+                _mod.to(device)
 
     analyzer = Level2Analyzer().to(device)
     gate_net = GateNetwork().to(device)
@@ -258,13 +269,10 @@ def train_gate(args: argparse.Namespace) -> None:
                 if hasattr(inner_model, "encoder"):
                     hook_handle = inner_model.encoder.register_forward_hook(_e0_hook)
 
-                with (
-                    torch.no_grad(),
-                    torch.autocast(
-                        "cuda", dtype=_amp_dtype or torch.float32, enabled=_amp_dtype is not None
-                    ),
-                ):
-                    out_sep = ss_model.process_waveform(wav, n_spks=torch.tensor(n_spks[b]))  # type: ignore
+                with torch.no_grad():
+                    waves_sep, lg_sep = _forward_with_grad(
+                        ss_model, wav, n_spks=torch.tensor(n_spks[b])
+                    )
 
                 if hook_handle:
                     hook_handle.remove()
@@ -273,10 +281,9 @@ def train_gate(args: argparse.Namespace) -> None:
                 if e0 is not None:
                     e0_list.append(e0)
 
-                estimates_list.append(_extract_output_waves(out_sep, device))
-                lg = _extract_logits(out_sep)
-                if lg is not None:
-                    logits_list.append(lg)
+                estimates_list.append(waves_sep)
+                if lg_sep is not None:
+                    logits_list.append(lg_sep)
 
             l1_feats = torch.stack(l1_feats_list)  # (B, 4)
 

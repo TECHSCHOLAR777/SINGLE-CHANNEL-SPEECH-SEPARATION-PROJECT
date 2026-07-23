@@ -60,6 +60,7 @@ def _try_load_silero() -> bool:
         return _silero_available
     try:
         import torch
+
         model, utils = torch.hub.load(
             repo_or_dir="snakers4/silero-vad",
             model="silero_vad",
@@ -67,7 +68,7 @@ def _try_load_silero() -> bool:
             trust_repo=True,
             verbose=False,
         )
-        _silero_model = model
+        _silero_model = model.cpu()  # keep VAD on CPU; SR-CorrNet needs GPU VRAM
         _silero_available = True
     except Exception:
         _silero_available = False
@@ -89,7 +90,9 @@ def voiced_density_silero(waveform: torch.Tensor, sr: int = CALMSEP_SR) -> float
         if wav.ndim != 1:
             wav = wav.mean(0)
         if sr != 16_000 and sr != 8_000:
-            warnings.warn(f"SileroVAD prefers 8kHz or 16kHz; got {sr} Hz", RuntimeWarning)
+            warnings.warn(
+                f"SileroVAD prefers 8kHz or 16kHz; got {sr} Hz", RuntimeWarning, stacklevel=2
+            )
         # Silero returns probabilities per 30ms window
         frame_len = int(0.030 * sr)
         hop = frame_len  # non-overlapping
@@ -98,7 +101,7 @@ def voiced_density_silero(waveform: torch.Tensor, sr: int = CALMSEP_SR) -> float
         for i in range(n_frames):
             seg = wav[i * hop : (i + 1) * hop].unsqueeze(0)
             with torch.no_grad():
-                prob = float(_silero_model(seg, sr).item())  # type: ignore[operator]
+                prob = float(_silero_model(seg.cpu(), sr).item())  # type: ignore[operator]
             voiced += int(prob > 0.5)
         return voiced / max(n_frames, 1)
     except Exception:
@@ -188,7 +191,12 @@ def level1_tensor(mixture_8k: torch.Tensor) -> torch.Tensor:
     """Return Level-1 features as a [4] float32 tensor (for gate input)."""
     feats = level1_features(mixture_8k)
     return torch.tensor(
-        [feats["snr_est_db"], feats["codec_bw_ratio"], feats["voiced_density"], feats["total_energy_db"]],
+        [
+            feats["snr_est_db"],
+            feats["codec_bw_ratio"],
+            feats["voiced_density"],
+            feats["total_energy_db"],
+        ],
         dtype=torch.float32,
     )
 
@@ -305,7 +313,9 @@ class Level2Analyzer(nn.Module):
     def feature_vector(self, e0: torch.Tensor) -> torch.Tensor:
         """Return (B, 6) float tensor for gate input."""
         out = self.forward(e0)
-        return torch.cat([out["log_t60"].unsqueeze(-1), out["t60_s"].unsqueeze(-1), out["count_probs"]], dim=-1)
+        return torch.cat(
+            [out["log_t60"].unsqueeze(-1), out["t60_s"].unsqueeze(-1), out["count_probs"]], dim=-1
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -337,11 +347,13 @@ def level2_loss(
 
     t60_targets = torch.tensor(
         [np.log(max(rv["t60_s"], 0.05)) for rv in recipe_vectors],
-        dtype=torch.float32, device=device,
+        dtype=torch.float32,
+        device=device,
     )
     count_targets = torch.tensor(
         [int(rv["n_speakers"]) - 2 for rv in recipe_vectors],
-        dtype=torch.long, device=device,
+        dtype=torch.long,
+        device=device,
     )
 
     loss_t60 = F.l1_loss(out["log_t60"], t60_targets)

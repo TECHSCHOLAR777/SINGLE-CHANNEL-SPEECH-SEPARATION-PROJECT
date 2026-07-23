@@ -1,0 +1,34 @@
+{
+  "results": [
+    {
+      "split": "Libri2Mix",
+      "n_samples": 30,
+      "baseline": {
+        "si_sdr": 5.595809808523393,
+        "si_sdri": 7.0945857541427895
+      },
+      "calmsep": {
+        "si_sdr": 7.3595948184147195,
+        "si_sdri": 8.858370764034115
+      },
+      "delta_si_sdri": 1.7637850098913255,
+      "wall_time_s": 2166.7
+    },
+    {
+      "split": "Libri3Mix",
+      "n_samples": 30,
+      "baseline": {
+        "si_sdr": 5.75472762340953,
+        "si_sdri": 10.071059894873995
+      },
+      "calmsep": {
+        "si_sdr": 7.48658960079202,
+        "si_sdri": 11.802921872256487
+      },
+      "delta_si_sdri": 1.7318619773824917,
+      "wall_time_s": 2912.6
+    }
+  ],
+  "model": "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk",
+  "checkpoint_dir": "checkpoints"
+}

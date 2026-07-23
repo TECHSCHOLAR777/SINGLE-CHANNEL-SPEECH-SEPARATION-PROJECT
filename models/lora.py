@@ -97,12 +97,13 @@ class LoRALinear(nn.Module):
             {name: LoRALayer(base.in_features, base.out_features, rank) for name in adapter_names}
         )
 
-    def forward(self, x: torch.Tensor, gates: dict[str, float] | None = None) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, gates: dict | None = None) -> torch.Tensor:
         y = nn.functional.linear(x, self.weight, self.bias)
         if gates:
             for name, branch in self.branches.items():
                 g = gates.get(name, 0.0)
-                if g != 0.0:
+                # Allow tensor gates (Stage 4 differentiable routing).
+                if isinstance(g, torch.Tensor) or g != 0.0:
                     y = y + g * branch(x)
         return y
 
@@ -413,7 +414,7 @@ def olora_penalty(model: nn.Module, alpha: float = 1e-3) -> torch.Tensor:
 
     Returns a scalar tensor (0.0 if only one adapter per layer).
     """
-    loss = torch.tensor(0.0)
+    loss: torch.Tensor | None = None
     names = None
     for mod in model.modules():
         if not isinstance(mod, LoRALinear):
@@ -424,8 +425,9 @@ def olora_penalty(model: nn.Module, alpha: float = 1e-3) -> torch.Tensor:
         for i in range(len(As)):
             for j in range(i + 1, len(As)):
                 overlap = As[i] @ As[j].T  # [r, r]
-                loss = loss + alpha * overlap.pow(2).sum()
-    return loss
+                term = alpha * overlap.pow(2).sum()
+                loss = term if loss is None else loss + term
+    return loss if loss is not None else torch.tensor(0.0)
 
 
 # ---------------------------------------------------------------------------
