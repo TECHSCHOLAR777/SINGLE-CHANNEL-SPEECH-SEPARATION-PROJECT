@@ -1,3 +1,15 @@
+---
+title: CALM-Sep
+emoji: 🎙️
+colorFrom: teal
+colorTo: green
+sdk: gradio
+sdk_version: "4.44.1"
+app_file: demo.py
+pinned: false
+short_description: Condition-Aware LoRA Mixture for single-channel speech separation
+---
+
 # CALM-Sep
 
 **Condition-Aware LoRA Mixture for Multi-Speaker Speech Separation**
