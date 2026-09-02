@@ -1,0 +1,34 @@
+# Exact pins for the environment that produced the recorded results.
+#
+# Use with requirements.txt:
+#   pip install -r requirements.txt -c constraints/reproduce-2026-07.txt
+#
+# Provenance: recovered from modal_deploy.py, the only configuration this
+# project is known to have run under reproducibly. That file was itself
+# recovered from the 2026-09-01 archive and exists in no commit; see
+# docs/restoration/ISSUE_LEDGER.md I-014.
+#
+# The numpy ceiling is not cosmetic. Five Modal deployment iterations were spent
+# on NumPy 2.x incompatibility before it was pinned below 2.
+#
+# Caveat, stated because it matters for anyone trusting these numbers: the
+# evaluation runs themselves happened on a MacBook and on Kaggle, not in this
+# container, and no run recorded its interpreter or library versions. This is
+# the closest reconstruction available, not a captured environment.
+
+numpy<2
+torch==2.5.1
+torchaudio==2.5.1
+asteroid==0.7.0
+speechbrain==1.0.0
+gradio==6.20.0
+scipy>=1.11
+pyyaml>=6.0
+soundfile>=0.12
+tqdm>=4.66
+huggingface_hub>=0.20
+openai-whisper>=20231117
+ffmpeg-python
+librosa
+loguru
+rotary-embedding-torch

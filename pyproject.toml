@@ -3,23 +3,36 @@ requires = ["setuptools>=68", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "ca-mose"
-version = "0.1.0"
-description = "Condition-Aware Mixture-of-Separation-Experts for multi-speaker speech separation"
+name = "coralsep"
+version = "0.2.0"
+description = "Condition-Routed Adapter Library for single-channel speech separation with unknown speaker count"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
+authors = [{ name = "Rishi Garg", email = "rishiguruji2901@gmail.com" }]
+keywords = ["speech-separation", "lora", "adapters", "speaker-counting", "pytorch"]
+
 dependencies = [
-    "numpy>=1.24",
+    "numpy>=1.24,<2",
     "scipy>=1.11",
     "torch>=2.1",
     "torchaudio>=2.1",
+    "soundfile>=0.12",
+    "librosa>=0.10",
+    # Frozen backbone loader. Pinned to the release commit because
+    # models/srcorrnet patches internal attribute paths of this package.
+    "sr-corrnet-ss[hub] @ git+https://github.com/dmlguq456/SR_CorrNet_SS@7340365b9cc9a021bf7d400f52fce4b88593b67a",
+    # Imported by sr_corrnet; declared rather than relied on transitively.
+    "loguru>=0.7",
+    "rotary-embedding-torch>=0.5",
     "speechbrain>=1.0",
     "asteroid>=0.7",
-    "pyyaml>=6.0",
-    "soundfile>=0.12",
-    "tqdm>=4.66",
     "pyroomacoustics>=0.7",
+    "ffmpeg-python>=0.2",
+    "pyyaml>=6.0",
+    "tqdm>=4.66",
+    "matplotlib>=3.7",
+    "huggingface_hub>=0.20",
 ]
 
 [project.optional-dependencies]
@@ -30,9 +43,17 @@ dev = [
     "black>=24.0",
     "pre-commit>=3.6",
 ]
-experts = [
-    "clearvoice>=0.1.2",
+demo = [
+    "gradio>=4.0",
+    "openai-whisper>=20231117",
 ]
+deploy = [
+    "modal>=0.64",
+    "fastapi>=0.110",
+]
+
+[project.urls]
+repository = "https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT"
 
 [project.scripts]
 calmsep-baseline = "scripts.run_baseline:main"

@@ -1,21 +1,45 @@
-# Pinned core dependencies for reproducible installs.
-# Generated from pyproject.toml; use: pip install -r requirements.txt
-
-numpy>=1.24
+# Runtime dependencies, expressed as compatible ranges.
+#
+# This file is NOT a lock file. For an environment that reproduces a recorded
+# result, use constraints/reproduce-2026-07.txt, which pins exact versions.
+#
+#   pip install -r requirements.txt -c constraints/reproduce-2026-07.txt
+#
+# Core numerics and audio
+numpy>=1.24,<2
 scipy>=1.11
 torch>=2.1
 torchaudio>=2.1
+soundfile>=0.12
+librosa>=0.10
+
+# The frozen backbone. Weights are public on Hugging Face; this is the loader
+# package that reads them. MIT licensed, pinned to the release commit because
+# models/srcorrnet patches internal attribute paths that a later revision could
+# move without warning.
+sr-corrnet-ss[hub] @ git+https://github.com/dmlguq456/SR_CorrNet_SS@7340365b9cc9a021bf7d400f52fce4b88593b67a
+
+# Required by sr_corrnet at import time. Declared explicitly rather than relied
+# on transitively, because the Kaggle notebooks build stubs for both when
+# running offline and would otherwise silently diverge from this environment.
+loguru>=0.7
+rotary-embedding-torch>=0.5
+
+# Separation metrics and speaker embeddings
 speechbrain>=1.0
 asteroid>=0.7
-pyyaml>=6.0
-soundfile>=0.12
-tqdm>=4.66
+
+# Data generation
 pyroomacoustics>=0.7
-gradio>=4.0
+ffmpeg-python>=0.2
+
+# Config, reporting, and the Hugging Face client
+pyyaml>=6.0
+tqdm>=4.66
 matplotlib>=3.7
 huggingface_hub>=0.20
 
-# Optional Phase 1 expert (MossFormer2 via ClearerVoice-Studio):
-# pip install clearvoice
-
-# Dev tools (optional): pip install -r requirements-dev.txt
+# Optional groups, installed separately:
+#   pip install -r requirements-dev.txt        tests and linters
+#   pip install -e ".[demo]"                   Gradio UI and Whisper transcripts
+#   pip install -e ".[deploy]"                 Modal serverless deployment
