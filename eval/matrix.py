@@ -33,8 +33,6 @@ from typing import Any
 
 import numpy as np
 
-from eval.metrics import si_snr, sdr
-
 _CONDITIONS = (
     "clean",
     "reverb",
