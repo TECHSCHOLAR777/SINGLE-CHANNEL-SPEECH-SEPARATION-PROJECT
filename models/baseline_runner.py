@@ -8,7 +8,7 @@ from typing import Any
 import numpy as np
 
 from eval.metrics import pit_si_sdr
-from models.preprocess import CALMSEP_SR
+from models.preprocess import CALMSEP_SAMPLE_RATE
 from models.srcorrnet import SRCorrNetWrapper
 
 
@@ -46,7 +46,7 @@ def run_corpus_transfer_baseline(
         "mean_si_sdri": float(np.mean(scores)),
         "std_si_sdri": float(np.std(scores)),
         "n": float(len(scores)),
-        "sample_rate": float(CALMSEP_SR),
+        "sample_rate": float(CALMSEP_SAMPLE_RATE),
     }
 
 
