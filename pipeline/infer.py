@@ -24,12 +24,14 @@ import torch
 from models.preprocess import calmsep_preprocess, CalmSepPreprocessedAudio, CALMSEP_SAMPLE_RATE
 from pipeline.chunker import Chunker, AudioChunk
 from pipeline.stitcher import ChunkStitcher, StitchedOutput
+from models.counting import count_from_attractors
 from schemas.separation_result import SeparationResult, StreamMetadata
 
 # Sentinel when optional modules are unavailable.
 _MISSING = object()
 
 _N_VALID = {2, 3, 4, 5}
+_N_MIN = 2
 
 
 @dataclass
@@ -163,7 +165,9 @@ class CalmSepPipeline:
             if result.encoder_e0 is not None:
                 e0_list.append(result.encoder_e0)
             if result.attractor_probs is not None:
-                attractor_probs_list.append(result.attractor_probs)
+                # SeparationResult declares attractor_probs as numpy; everything
+                # downstream of here works in torch. Convert once, at the boundary.
+                attractor_probs_list.append(torch.as_tensor(np.asarray(result.attractor_probs)))
             emb = self._ecapa_embeddings(result)
             stitcher.feed_chunk(result.streams, embeddings=emb)
 
@@ -267,13 +271,12 @@ class CalmSepPipeline:
             return self.cfg.default_n_speakers
 
         if self.counter is None:
-            # Fallback: majority vote from attractor probabilities.
+            # Fallback: majority vote of the per-chunk attractor readout.
+            # Delegates to models.counting so there is one implementation of
+            # "which slots mean speakers"; slots 0 and 6 are not speaker slots.
             if not probs_list:
-                return chunk_results[0].speaker_count if chunk_results else 2
-            counts = []
-            for p in probs_list:
-                cnt = int((p.squeeze() > 0.5).sum().clamp(2, 5).item())
-                counts.append(cnt)
+                return chunk_results[0].speaker_count if chunk_results else _N_MIN
+            counts = [count_from_attractors(p) for p in probs_list]
             return max(set(counts), key=counts.count)
 
         # Pool attractor probs across chunks.
