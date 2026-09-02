@@ -2,13 +2,13 @@
 
 import numpy as np
 
-from align.hungarian import (
+from coralsep.align.hungarian import (
     align_results,
     cosine_cost_matrix,
     reorder_result,
     xcorr_cost_matrix,
 )
-from schemas.separation_result import SeparationResult, StreamMetadata
+from coralsep.schemas.separation_result import SeparationResult, StreamMetadata
 
 RNG = np.random.default_rng(seed=7)
 

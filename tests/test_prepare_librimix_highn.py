@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from data.prepare_librimix_highn import (
+from coralsep.data.prepare_librimix_highn import (
     LIBRIMIX_HIGHN_REPO_URL,
     _find_generation_script,
     _make_filtered_metadata,
@@ -58,7 +58,7 @@ def test_clone_skips_existing(tmp_path: Path) -> None:
     repo = tools / "librimix_highn"
     (repo / "metadata").mkdir(parents=True)
 
-    with patch("data.prepare_librimix_highn.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_librimix_highn.subprocess.run") as mock_run:
         result = clone_librimix_highn(tools)
         mock_run.assert_not_called()
     assert result == repo
@@ -71,7 +71,7 @@ def test_clone_calls_git_clone(tmp_path: Path) -> None:
         repo = tools / "librimix_highn"
         (repo / "metadata").mkdir(parents=True, exist_ok=True)
 
-    with patch("data.prepare_librimix_highn.subprocess.run", side_effect=fake_run) as mock_run:
+    with patch("coralsep.data.prepare_librimix_highn.subprocess.run", side_effect=fake_run) as mock_run:
         result = clone_librimix_highn(tools)
 
     args = mock_run.call_args.args[0]
@@ -145,7 +145,7 @@ def test_generate_skips_if_output_exists(tmp_path: Path) -> None:
     test_mix.mkdir(parents=True)
     (test_mix / "x.wav").write_bytes(b"RIFF")
 
-    with patch("data.prepare_librimix_highn.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_librimix_highn.subprocess.run") as mock_run:
         generate_librimix_highn(repo, tmp_path / "ls", output_dir, 4)
         mock_run.assert_not_called()
 
@@ -156,7 +156,7 @@ def test_generate_calls_script_with_expected_args(tmp_path: Path) -> None:
     ls_dir = tmp_path / "ls"
     (ls_dir / "LibriSpeech").mkdir(parents=True)
 
-    with patch("data.prepare_librimix_highn.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_librimix_highn.subprocess.run") as mock_run:
         generate_librimix_highn(repo, ls_dir, output_dir, 4)
 
     cmd = mock_run.call_args.args[0]

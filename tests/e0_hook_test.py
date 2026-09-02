@@ -17,7 +17,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import torch
 
-from models.srcorrnet import SRCorrNetWrapper
+from coralsep.models.srcorrnet import SRCorrNetWrapper
 
 
 # ---------------------------------------------------------------------------

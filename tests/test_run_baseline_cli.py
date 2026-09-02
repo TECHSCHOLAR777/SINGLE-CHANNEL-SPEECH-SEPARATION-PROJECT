@@ -10,7 +10,7 @@ import pytest
 import soundfile as sf
 import yaml
 
-from data.mixer_stub import discover_librimix_samples
+from coralsep.data.mixer_stub import discover_librimix_samples
 from scripts.run_baseline import parse_args
 
 

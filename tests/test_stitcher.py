@@ -3,13 +3,13 @@
 import numpy as np
 import pytest
 
-from pipeline.stitcher import (
+from coralsep.pipeline.stitcher import (
     ChunkStitcher,
     _hungarian_correlation,
     _hungarian_cosine,
     _pad_or_trim_k,
 )
-from pipeline.chunker import CHUNK_SAMPLES_8K, STEP_SAMPLES_8K, SR_8K
+from coralsep.pipeline.chunker import CHUNK_SAMPLES_8K, STEP_SAMPLES_8K, SR_8K
 
 
 def _rand_chunk(K: int, T: int = CHUNK_SAMPLES_8K, seed: int = 0) -> np.ndarray:

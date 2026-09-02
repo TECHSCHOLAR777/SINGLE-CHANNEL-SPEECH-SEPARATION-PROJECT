@@ -14,7 +14,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from data.prepare_vctk import (
+from coralsep.data.prepare_vctk import (
     VCTK_URL,
     _parse_vctk_name,
     build_pool,
@@ -148,7 +148,7 @@ def test_pool_is_consumable_by_dynamic_mixer(tmp_path: Path) -> None:
     pool = tmp_path / "pool"
     build_pool(speech, pool, mic="mic1")
 
-    from data.mixer import DynamicMixer
+    from coralsep.data.mixer import DynamicMixer
 
     files = discover_vctk_files(pool)
     mixer = DynamicMixer(files, allowed_n=[2], test_speaker_ids={"p227"})
@@ -189,7 +189,7 @@ def test_download_skips_when_speech_dir_present(tmp_path: Path) -> None:
     out = tmp_path / "datasets"
     _make_vctk_speech_dir(out)  # already extracted
 
-    with patch("data.prepare_vctk.urlretrieve") as mock_dl:
+    with patch("coralsep.data.prepare_vctk.urlretrieve") as mock_dl:
         result = download_vctk(out)
         mock_dl.assert_not_called()
     assert result.name == "wav48_silence_trimmed"
@@ -209,8 +209,8 @@ def test_download_calls_urlretrieve_and_extracts(tmp_path: Path) -> None:
         return cm
 
     with (
-        patch("data.prepare_vctk.urlretrieve", side_effect=fake_urlretrieve) as mock_dl,
-        patch("data.prepare_vctk.zipfile.ZipFile", side_effect=fake_zipfile),
+        patch("coralsep.data.prepare_vctk.urlretrieve", side_effect=fake_urlretrieve) as mock_dl,
+        patch("coralsep.data.prepare_vctk.zipfile.ZipFile", side_effect=fake_zipfile),
     ):
         result = download_vctk(out)
 
@@ -232,8 +232,8 @@ def test_download_raises_if_speech_dir_absent_after_extract(tmp_path: Path) -> N
         return cm
 
     with (
-        patch("data.prepare_vctk.urlretrieve", side_effect=fake_urlretrieve),
-        patch("data.prepare_vctk.zipfile.ZipFile", side_effect=fake_zipfile),
+        patch("coralsep.data.prepare_vctk.urlretrieve", side_effect=fake_urlretrieve),
+        patch("coralsep.data.prepare_vctk.zipfile.ZipFile", side_effect=fake_zipfile),
     ):
         with pytest.raises(RuntimeError, match="Could not find"):
             download_vctk(out)

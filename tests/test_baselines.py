@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from eval.baselines import (
+from coralsep.eval.baselines import (
     BASELINE_NAMES,
     BASELINE_SPECS,
     build_pipeline,

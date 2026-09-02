@@ -2,7 +2,7 @@
 
 import numpy as np
 
-from models.preprocess import (
+from coralsep.models.preprocess import (
     PROJECT_SAMPLE_RATE,
     STFT_HOP_LENGTH,
     STFT_N_FFT,

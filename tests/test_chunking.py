@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from align.chunking import ChunkStitcher
+from coralsep.align.chunking import ChunkStitcher
 
 RNG = np.random.default_rng(seed=11)
 SR = 16000

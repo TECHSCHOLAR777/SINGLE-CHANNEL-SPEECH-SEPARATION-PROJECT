@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from demo.app import MockEngine, run_separation
+from coralsep.demo.cli import MockEngine, run_separation
 
 
 def test_mock_engine_returns_valid_schema() -> None:
@@ -32,7 +32,7 @@ def test_run_separation_handles_no_audio() -> None:
 
 def test_build_demo_constructs() -> None:
     pytest.importorskip("gradio")
-    from demo.app import build_demo
+    from coralsep.demo.cli import build_demo
 
     demo = build_demo(MockEngine())
     assert demo is not None

@@ -10,9 +10,9 @@ import soundfile as sf
 import torch
 from torch.utils.data import DataLoader
 
-from data.dynamic_mix_dataset import DynamicMixDataset, collate_mixture_samples
-from data.mixer_stub import MixtureSample
-from data.overlap_scheduler import OverlapScheduler
+from coralsep.data.dynamic_mix_dataset import DynamicMixDataset, collate_mixture_samples
+from coralsep.data.mixer_stub import MixtureSample
+from coralsep.data.overlap_scheduler import OverlapScheduler
 
 SR = 16_000
 

@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from data.rir_bank import (
+from coralsep.data.rir_bank import (
     SEVERE_FRACTION,
     SEVERE_T60_S,
     T60_MAX_S,
@@ -108,7 +108,7 @@ def test_sample_t60_severe_fraction():
 def test_rir_record_to_dict_round_trip():
     rec = RirRecord(
         rir_id="test_000",
-        path="data/rirs/test_000.npy",
+        path="datasets/rirs/test_000.npy",
         t60_requested_s=0.5,
         t60_achieved_s=0.48,
         room_dim_m=[5.0, 4.0, 3.0],
@@ -191,7 +191,7 @@ pyroomacoustics = pytest.importorskip("pyroomacoustics", reason="pyroomacoustics
 
 
 def test_generate_rir_returns_record():
-    from data.rir_bank import generate_rir
+    from coralsep.data.rir_bank import generate_rir
     rng = np.random.default_rng(123)
     rir, meta = generate_rir(t60_s=0.5, rng=rng)
     assert isinstance(rir, np.ndarray)
@@ -201,7 +201,7 @@ def test_generate_rir_returns_record():
 
 
 def test_generate_rir_t60_in_spec():
-    from data.rir_bank import generate_rir
+    from coralsep.data.rir_bank import generate_rir
     rng = np.random.default_rng(0)
     _, meta = generate_rir(t60_s=0.6, rng=rng)
     assert 0.2 <= meta["t60_achieved_s"] <= 2.0

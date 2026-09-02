@@ -7,8 +7,8 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from align.integration import run_and_align, run_and_align_long
-from schemas.separation_result import SeparationResult, StreamMetadata
+from coralsep.align.integration import run_and_align, run_and_align_long
+from coralsep.schemas.separation_result import SeparationResult, StreamMetadata
 
 SR = 100
 

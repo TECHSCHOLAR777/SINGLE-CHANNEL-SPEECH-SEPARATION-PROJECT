@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from data import vad_features
+from coralsep.data import vad_features
 
 
 def test_voiced_density_silence_near_zero(monkeypatch: pytest.MonkeyPatch) -> None:

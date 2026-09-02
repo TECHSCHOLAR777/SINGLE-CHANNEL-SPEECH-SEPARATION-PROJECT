@@ -14,8 +14,8 @@ from unittest.mock import MagicMock, patch
 import numpy as np
 import pytest
 
-from data.calmsep_mixer import CALMSEP_SAMPLE_RATE, CalmSepMixture, MixtureRecipe
-from data.degradations import (
+from coralsep.data.condition_mixer import CORALSEP_SAMPLE_RATE, CoralSepMixture, MixtureRecipe
+from coralsep.data.degradations import (
     HELD_OUT_COMBINATIONS,
     SEVERE_FRACTION,
     SEVERE_SNR_DB,
@@ -30,10 +30,10 @@ from data.degradations import (
     make_wet_reference,
     sample_snr,
 )
-from data.mixer_stub import MixtureSample
-from data.rir_bank import RirRecord
+from coralsep.data.mixer_stub import MixtureSample
+from coralsep.data.rir_bank import RirRecord
 
-SR = CALMSEP_SAMPLE_RATE
+SR = CORALSEP_SAMPLE_RATE
 LENGTH = SR  # 1-second clips
 
 
@@ -42,7 +42,7 @@ LENGTH = SR  # 1-second clips
 # ---------------------------------------------------------------------------
 
 
-def _clean_mixture(n: int = 2, length: int = LENGTH) -> CalmSepMixture:
+def _clean_mixture(n: int = 2, length: int = LENGTH) -> CoralSepMixture:
     rng = np.random.default_rng(0)
     refs = rng.standard_normal((n, length)).astype(np.float32) * 0.1
     mix = refs.sum(axis=0).astype(np.float32)
@@ -50,7 +50,7 @@ def _clean_mixture(n: int = 2, length: int = LENGTH) -> CalmSepMixture:
         mixture=mix, references=refs, sample_rate=SR, utterance_id="test_utt"
     )
     recipe = MixtureRecipe(n_speakers=n)
-    return CalmSepMixture(sample=sample, recipe=recipe)
+    return CoralSepMixture(sample=sample, recipe=recipe)
 
 
 def _rir(length: int = 800) -> np.ndarray:

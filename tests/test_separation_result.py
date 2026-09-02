@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from schemas.separation_result import SeparationResult, StreamMetadata
+from coralsep.schemas.separation_result import SeparationResult, StreamMetadata
 
 
 def test_separation_result_valid() -> None:

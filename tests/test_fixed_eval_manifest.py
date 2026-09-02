@@ -5,13 +5,13 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from data.synthesis.fixed_eval import (
+from coralsep.data.synthesis.fixed_eval import (
     build_eval_manifest,
     generate_all_manifests,
     load_manifest,
     manifest_hash_path,
 )
-from utils.hashing import hash_file
+from coralsep.utils.hashing import hash_file
 
 
 def test_build_tiny_manifest_and_hash(tmp_path: Path) -> None:

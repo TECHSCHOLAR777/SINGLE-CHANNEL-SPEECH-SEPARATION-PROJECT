@@ -5,13 +5,13 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from models.band_recovery import BandRecoveryHead, stft_to_waveform
-from models.confidence import (
+from coralsep.models.band_recovery import BandRecoveryHead, stft_to_waveform
+from coralsep.models.confidence import (
     StreamConfidenceHead,
     inter_stage_consistency,
     residual_energy_fraction,
 )
-from models.counting import (
+from coralsep.models.counting import (
     ThreeVoteCounter,
     count_from_attractors,
     attractor_confidence,

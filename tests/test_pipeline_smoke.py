@@ -4,21 +4,21 @@ from __future__ import annotations
 
 import numpy as np
 
-from models.preprocess import CALMSEP_SAMPLE_RATE, calmsep_preprocess
-from pipeline.chunker import CHUNK_DURATION_S, STEP_DURATION_S, Chunker, CHUNK_SAMPLES_8K
-from pipeline.stitcher import ChunkStitcher
+from coralsep.models.preprocess import CORALSEP_SAMPLE_RATE, coralsep_preprocess
+from coralsep.pipeline.chunker import CHUNK_DURATION_S, STEP_DURATION_S, Chunker, CHUNK_SAMPLES_8K
+from coralsep.pipeline.stitcher import ChunkStitcher
 
 
-def test_calmsep_preprocess_dual_rate():
+def test_coralsep_preprocess_dual_rate():
     mix = np.random.randn(16000).astype(np.float32) * 0.1
-    result = calmsep_preprocess(mix, sample_rate=16000)
+    result = coralsep_preprocess(mix, sample_rate=16000)
     assert result.waveform_8k.shape[0] > 0
     assert result.stft_16k is not None
     assert result.waveform_8k.dtype == np.float32
 
 
 def test_chunker_produces_correct_count():
-    sr = CALMSEP_SAMPLE_RATE
+    sr = CORALSEP_SAMPLE_RATE
     duration_s = 10.0
     mix = np.random.randn(int(duration_s * sr)).astype(np.float32) * 0.1
     chunker = Chunker(mix)
@@ -28,7 +28,7 @@ def test_chunker_produces_correct_count():
 
 
 def test_chunker_chunk_duration():
-    mix = np.random.randn(CALMSEP_SAMPLE_RATE * 5).astype(np.float32) * 0.1
+    mix = np.random.randn(CORALSEP_SAMPLE_RATE * 5).astype(np.float32) * 0.1
     for chunk in Chunker(mix):
         assert chunk.waveform_8k.shape[0] == CHUNK_SAMPLES_8K
         assert chunk.waveform_8k.dtype == np.float32

@@ -5,7 +5,7 @@ from pathlib import Path
 import numpy as np
 import pytest
 
-from eval.reporting import (
+from coralsep.eval.reporting import (
     RunLog,
     RunRecord,
     aggregate_by,

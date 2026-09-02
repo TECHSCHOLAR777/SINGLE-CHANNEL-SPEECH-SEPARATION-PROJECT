@@ -6,8 +6,8 @@ from unittest.mock import MagicMock
 import numpy as np
 import pytest
 
-from align.embeddings import ECAPA_SAMPLE_RATE, EcapaEmbedder
-from schemas.separation_result import SeparationResult, StreamMetadata
+from coralsep.align.embeddings import ECAPA_SAMPLE_RATE, EcapaEmbedder
+from coralsep.schemas.separation_result import SeparationResult, StreamMetadata
 
 RNG = np.random.default_rng(seed=21)
 

@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from data.prepare_sparselibrimix import (
+from coralsep.data.prepare_sparselibrimix import (
     _expected_stream_dirs,
     _find_make_mixtures_script,
     _metadata_json,
@@ -96,7 +96,7 @@ def test_download_skips_existing(tmp_path: Path) -> None:
     extracted.mkdir(parents=True)
     (extracted / "dummy.flac").write_text("")
 
-    with patch("data.prepare_sparselibrimix.urllib.request.urlretrieve") as mock_dl:
+    with patch("coralsep.data.prepare_sparselibrimix.urllib.request.urlretrieve") as mock_dl:
         result = download_librispeech_test(ls_dir)
         mock_dl.assert_not_called()
     assert result == extracted
@@ -121,10 +121,10 @@ def test_download_calls_urlretrieve_when_missing(tmp_path: Path) -> None:
 
     with (
         patch(
-            "data.prepare_sparselibrimix.urllib.request.urlretrieve",
+            "coralsep.data.prepare_sparselibrimix.urllib.request.urlretrieve",
             side_effect=fake_urlretrieve,
         ) as mock_dl,
-        patch("data.prepare_sparselibrimix.tarfile.open", side_effect=fake_tarfile_open),
+        patch("coralsep.data.prepare_sparselibrimix.tarfile.open", side_effect=fake_tarfile_open),
     ):
         result = download_librispeech_test(ls_dir)
 
@@ -140,7 +140,7 @@ def test_clone_skips_existing(tmp_path: Path) -> None:
     repo = tools / "SparseLibriMix"
     (repo / "metadata").mkdir(parents=True)
 
-    with patch("data.prepare_sparselibrimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run") as mock_run:
         result = clone_sparselibrimix(tools)
         mock_run.assert_not_called()
     assert result == repo
@@ -153,7 +153,7 @@ def test_clone_calls_git_clone(tmp_path: Path) -> None:
         repo = tools / "SparseLibriMix"
         (repo / "metadata").mkdir(parents=True, exist_ok=True)
 
-    with patch("data.prepare_sparselibrimix.subprocess.run", side_effect=fake_run) as mock_run:
+    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run", side_effect=fake_run) as mock_run:
         result = clone_sparselibrimix(tools)
 
     mock_run.assert_called_once()
@@ -175,7 +175,7 @@ def test_generate_skips_if_output_exists(tmp_path: Path) -> None:
     mix_clean.mkdir(parents=True)
     (mix_clean / "x.wav").write_bytes(b"RIFF")
 
-    with patch("data.prepare_sparselibrimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run") as mock_run:
         generate_sparselibrimix(repo, tmp_path / "ls", data_root, n_src_values=[2], ratios=["0.2"])
         mock_run.assert_not_called()
 
@@ -186,7 +186,7 @@ def test_generate_calls_script_with_positional_args(tmp_path: Path) -> None:
     ls = tmp_path / "ls" / "LibriSpeech" / "test-clean"
     ls.mkdir(parents=True)
 
-    with patch("data.prepare_sparselibrimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run") as mock_run:
         generate_sparselibrimix(repo, ls, data_root, n_src_values=[2], ratios=["0.2"], freq=16000)
 
     mock_run.assert_called_once()
@@ -208,7 +208,7 @@ def test_generate_adds_noise_dir_when_wham_given(tmp_path: Path) -> None:
     wham = tmp_path / "wham" / "tt"
     wham.mkdir(parents=True)
 
-    with patch("data.prepare_sparselibrimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run") as mock_run:
         generate_sparselibrimix(
             repo, ls, data_root, n_src_values=[3], ratios=["0.4"], wham_noise_dir=wham
         )
@@ -225,7 +225,7 @@ def test_generate_missing_metadata_raises(tmp_path: Path) -> None:
     # no metadata folders created
     data_root = tmp_path / "SparseLibriMix"
 
-    with patch("data.prepare_sparselibrimix.subprocess.run"):
+    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run"):
         with pytest.raises(FileNotFoundError, match="Metadata not found"):
             generate_sparselibrimix(
                 repo, tmp_path / "ls", data_root, n_src_values=[2], ratios=["0"]
@@ -237,7 +237,7 @@ def test_generate_loops_all_configs(tmp_path: Path) -> None:
     data_root = tmp_path / "SparseLibriMix"
     ls = tmp_path / "ls"
 
-    with patch("data.prepare_sparselibrimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run") as mock_run:
         generate_sparselibrimix(repo, ls, data_root, n_src_values=[2, 3], ratios=["0", "1"])
 
     # 2 speaker counts x 2 ratios = 4 generation calls

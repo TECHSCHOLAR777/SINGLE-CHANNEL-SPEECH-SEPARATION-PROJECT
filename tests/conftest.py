@@ -1,8 +1,8 @@
 """Shared pytest fixtures.
 
-The mock expert here replaces `MockCalmSepWrapper`, which lived in
+The mock expert here replaces `MockCoralSepWrapper`, which lived in
 `pipeline/infer.py` until the branch integration replaced that module with the
-`CalmSepPipeline` implementation. A test double belongs in the test tree rather
+`CoralSepPipeline` implementation. A test double belongs in the test tree rather
 than in the production package, so it was not restored to its old home.
 """
 
@@ -11,13 +11,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from schemas.separation_result import SeparationResult
+from coralsep.schemas.separation_result import SeparationResult
 
 
 class MockExpert:
     """Weight-free stand-in for `SRCorrNetExpert`.
 
-    Implements the only method `CalmSepPipeline` calls on its expert:
+    Implements the only method `CoralSepPipeline` calls on its expert:
     `separate(waveform, sample_rate, n_spks) -> SeparationResult`. Streams are
     produced by band-splitting the mixture, so outputs are deterministic,
     distinct from one another, and sum to roughly the input. That is enough to

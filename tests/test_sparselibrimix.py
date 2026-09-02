@@ -13,7 +13,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from data.sparselibrimix import (
+from coralsep.data.sparselibrimix import (
     SparseSample,
     _parse_config_dir,
     discover_sparse_samples,

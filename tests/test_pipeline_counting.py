@@ -9,12 +9,12 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from pipeline.infer import CalmSepPipeline, InferenceCfg
+from coralsep.pipeline.infer import CoralSepPipeline, InferenceCfg
 
 
-def _pipeline() -> CalmSepPipeline:
+def _pipeline() -> CoralSepPipeline:
     """A pipeline with no expert and no counter; only the readout is exercised."""
-    return CalmSepPipeline(expert=None, cfg=InferenceCfg())
+    return CoralSepPipeline(expert=None, cfg=InferenceCfg())
 
 
 def _probs(active_speakers: int) -> np.ndarray:
@@ -57,5 +57,5 @@ def test_fallback_takes_the_majority_across_chunks():
 
 
 def test_explicit_speaker_count_overrides_the_readout():
-    pipe = CalmSepPipeline(expert=None, cfg=InferenceCfg(default_n_speakers=4))
+    pipe = CoralSepPipeline(expert=None, cfg=InferenceCfg(default_n_speakers=4))
     assert pipe._three_vote_count([_probs(2)], None, []) == 4

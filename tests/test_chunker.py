@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from pipeline.chunker import (
+from coralsep.pipeline.chunker import (
     CHUNK_SAMPLES_8K,
     STEP_SAMPLES_8K,
     SR_8K,

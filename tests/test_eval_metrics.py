@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from eval.metrics import (
+from coralsep.eval.metrics import (
     count_accuracy,
     count_confusion_matrix,
     pairwise_si_sdr,
@@ -12,7 +12,7 @@ from eval.metrics import (
     si_sdr,
     si_sdr_improvement,
 )
-from schemas.separation_result import SeparationResult
+from coralsep.schemas.separation_result import SeparationResult
 
 RNG = np.random.default_rng(seed=1337)
 SAMPLES = 16000

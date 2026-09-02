@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from data.mixer import DynamicMixer, _speaker_id
-from data.mixer_stub import MixtureSample
+from coralsep.data.mixer import DynamicMixer, _speaker_id
+from coralsep.data.mixer_stub import MixtureSample
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -428,7 +428,7 @@ def test_explicit_partial_overlap_length(tmp_path: Path) -> None:
 
 
 def test_scheduler_drives_overlap_via_progress(tmp_path: Path) -> None:
-    from data.overlap_scheduler import OverlapScheduler
+    from coralsep.data.overlap_scheduler import OverlapScheduler
 
     files = _write_speakers(tmp_path, 3)
     sched = OverlapScheduler()  # 100% -> 40% -> 20%
@@ -443,7 +443,7 @@ def test_scheduler_drives_overlap_via_progress(tmp_path: Path) -> None:
 
 
 def test_explicit_ratio_overrides_scheduler(tmp_path: Path) -> None:
-    from data.overlap_scheduler import OverlapScheduler
+    from coralsep.data.overlap_scheduler import OverlapScheduler
 
     files = _write_speakers(tmp_path, 2)
     sched = OverlapScheduler(phases=[(0.0, 1.0)])  # scheduler would say full overlap

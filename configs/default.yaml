@@ -1,8 +1,14 @@
-# Shared default configuration placeholder.
-# Dev C owns the config loader; this file documents expected top-level keys.
+# Shared defaults, layered under every other config by utils/config.py.
+# Documents the expected top-level keys; any config may override them.
 
-project_name: ca-mose
+project_name: coralsep
+
+# Project-wide default. The backbone itself is locked to 8 kHz by its STFT
+# parameters, and every recorded evaluation used 8 kHz. 16000 here is the
+# post-band-recovery output rate, which is what pipeline results and the demo
+# emit. Stage configs set 8000 explicitly where the backbone is involved.
 sample_rate: 16000
+
 seed: 42
 
 # Overlap curriculum hook (P0-A6, consumed by data/overlap_scheduler.py).

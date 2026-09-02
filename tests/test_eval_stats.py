@@ -3,7 +3,7 @@
 import numpy as np
 import pytest
 
-from eval.stats import bootstrap_ci, compute_ci_table, format_summary_table
+from coralsep.eval.stats import bootstrap_ci, compute_ci_table, format_summary_table
 
 
 class TestBootstrapCI:

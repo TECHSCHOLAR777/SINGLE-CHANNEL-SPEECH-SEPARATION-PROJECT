@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-CALM-Sep Phase 0 — Step 1: Download raw datasets.
+CoRAL-Sep Phase 0 — Step 1: Download raw datasets.
 
 Downloads LibriSpeech (openslr.org) and WHAM! noise (S3) automatically,
 then extracts archives in-place.  DNS-4 requires a manual step (see below).
 
 Usage
 -----
-    python scripts/download_step1.py --output-dir ~/Downloads/calmsep-raw
+    python scripts/download_step1.py --output-dir ~/Downloads/coralsep-raw
 
 What gets downloaded
 --------------------
@@ -313,7 +313,7 @@ azcopy (Microsoft's tool).
     (it is the blob URL ending in DNS-Challenge_Noise.zip?<SAS_TOKEN>)
 
   Step C — Once downloaded, run the stratification script:
-    python data/prepare_dns4.py \\
+    python src/coralsep/data/prepare_dns4.py \\
       --out-dir {output_dir}/dns4-subset \\
       --target-gb 20 \\
       --materialize
@@ -332,7 +332,7 @@ azcopy (Microsoft's tool).
 def _upfront_summary(output_dir: Path) -> None:
     print()
     print("╔══════════════════════════════════════════════════════════════════╗")
-    print("║         CALM-Sep Phase 0 — Step 1: Dataset Download             ║")
+    print("║         CoRAL-Sep Phase 0 — Step 1: Dataset Download             ║")
     print("╚══════════════════════════════════════════════════════════════════╝")
     print()
     print(f"  Output directory : {output_dir}")
@@ -377,7 +377,7 @@ def _upfront_summary(output_dir: Path) -> None:
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Download CALM-Sep Phase 0 datasets (LibriSpeech + WHAM!).",
+        description="Download CoRAL-Sep Phase 0 datasets (LibriSpeech + WHAM!).",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=__doc__,
     )
@@ -385,9 +385,9 @@ def main() -> None:
         "--output-dir",
         "-o",
         type=Path,
-        default=Path.home() / "Downloads" / "calmsep-raw",
+        default=Path.home() / "Downloads" / "coralsep-raw",
         help="Root directory for downloaded and extracted datasets. "
-        "(default: ~/Downloads/calmsep-raw)",
+        "(default: ~/Downloads/coralsep-raw)",
     )
     parser.add_argument(
         "--skip-extract",
@@ -502,11 +502,11 @@ def main() -> None:
     print("═" * 70)
     print("  Ready for Step 2:")
     print()
-    print("  python data/prepare_librispeech_8k.py \\")
+    print("  python src/coralsep/data/prepare_librispeech_8k.py \\")
     print(f"    --input-dir  {output_dir}/LibriSpeech \\")
     print("    --output-dir ~/Desktop/calmsep-8k/librispeech-8k")
     print()
-    print("  python data/prepare_noise_staging.py \\")
+    print("  python src/coralsep/data/prepare_noise_staging.py \\")
     print(f"    --wham-dir   {output_dir}/wham_noise \\")
     print("    --output-dir ~/Desktop/calmsep-8k/noise")
     print("═" * 70)

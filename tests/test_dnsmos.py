@@ -3,8 +3,8 @@
 import numpy as np
 import pytest
 
-from eval.dnsmos import DNSMOS_SAMPLE_RATE, DnsmosScorer
-from utils.config import cfg_get, load_config
+from coralsep.eval.dnsmos import DNSMOS_SAMPLE_RATE, DnsmosScorer
+from coralsep.utils.config import cfg_get, load_config
 
 RNG = np.random.default_rng(seed=5)
 

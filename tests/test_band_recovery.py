@@ -4,7 +4,7 @@ import numpy as np
 import pytest
 import torch
 
-from models.band_recovery import (
+from coralsep.models.band_recovery import (
     BandRecoveryHead,
     _si_sdr_np,
     apply_band_recovery_guarded,

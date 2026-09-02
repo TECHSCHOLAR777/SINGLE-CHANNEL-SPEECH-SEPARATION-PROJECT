@@ -9,7 +9,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from data.overlap_scheduler import OverlapScheduler, apply_overlap
+from coralsep.data.overlap_scheduler import OverlapScheduler, apply_overlap
 
 # ---------------------------------------------------------------------------
 # OverlapScheduler — validation

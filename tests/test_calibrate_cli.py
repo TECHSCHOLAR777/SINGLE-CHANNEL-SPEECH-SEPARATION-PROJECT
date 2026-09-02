@@ -5,14 +5,14 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from train.calibrate import (
+from coralsep.train.calibrate import (
     ARTIFACT_FILES,
     REQUIRED_ARRAYS,
     fit_all,
     load_held_out,
     synthetic_held_out,
 )
-from utils.hashing import verify_manifest
+from coralsep.utils.hashing import verify_manifest
 
 
 def test_synthetic_bundle_has_every_required_array():

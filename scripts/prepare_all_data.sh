@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# CA-MoSE full data generation. One command, resumable, survives a dropped SSH.
+# CoRAL-Sep full data generation. One command, resumable, survives a dropped SSH.
 #
 #   bash scripts/prepare_all_data.sh --root /workspace/data
 #   bash scripts/prepare_all_data.sh --root /workspace/data --check   # dry run

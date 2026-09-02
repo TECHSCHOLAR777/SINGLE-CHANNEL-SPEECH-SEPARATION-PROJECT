@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 import torch
 
-from calibration.temperature import TemperatureScaler
-from calibration.completeness import CompletenessCalibrator
+from coralsep.calibration.temperature import TemperatureScaler
+from coralsep.calibration.completeness import CompletenessCalibrator
 
 
 class TestTemperatureScaler:

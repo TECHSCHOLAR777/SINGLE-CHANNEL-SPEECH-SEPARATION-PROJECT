@@ -26,8 +26,8 @@ from __future__ import annotations
 
 import numpy as np
 
-from align.integration import run_and_align_long
-from schemas.separation_result import SeparationResult, StreamMetadata
+from coralsep.align.integration import run_and_align_long
+from coralsep.schemas.separation_result import SeparationResult, StreamMetadata
 from scripts.validate_alignment import _assignment_trace, _identity_switches
 
 SR = 16000

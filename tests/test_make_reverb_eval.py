@@ -13,8 +13,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from data.make_reverb_eval import build_reverb_noisy_eval, verify_layout
-from data.mixer_stub import MixtureSample, discover_librimix_samples
+from coralsep.data.make_reverb_eval import build_reverb_noisy_eval, verify_layout
+from coralsep.data.mixer_stub import MixtureSample, discover_librimix_samples
 
 SR = 16000
 

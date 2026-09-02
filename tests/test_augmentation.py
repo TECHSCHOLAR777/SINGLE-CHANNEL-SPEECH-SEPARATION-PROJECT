@@ -16,8 +16,8 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from data.augmentation import AugmentationConfig, AugmentationPipeline, _fit_to_length
-from data.mixer_stub import MixtureSample
+from coralsep.data.augmentation import AugmentationConfig, AugmentationPipeline, _fit_to_length
+from coralsep.data.mixer_stub import MixtureSample
 
 
 # ---------------------------------------------------------------------------

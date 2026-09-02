@@ -1,1 +1,1 @@
-"""Unit tests for CA-MoSE (shared)."""
+"""Unit tests for CoRAL-Sep (shared)."""

@@ -5,13 +5,13 @@ from __future__ import annotations
 import numpy as np
 import torch
 
-from models.condition import (
-    CALMSEP_SR,
+from coralsep.models.condition import (
+    CORALSEP_SR,
     Level2Analyzer,
     level1_features,
     level1_tensor,
 )
-from models.gate import GateNetwork, GateSmoother
+from coralsep.models.gate import GateNetwork, GateSmoother
 
 
 def test_level1_features_on_random_audio():

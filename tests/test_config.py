@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from utils.config import cfg_get, load_config
+from coralsep.utils.config import cfg_get, load_config
 
 
 def _write(tmp_path: Path, name: str, text: str) -> Path:

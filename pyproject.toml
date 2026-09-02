@@ -56,11 +56,12 @@ deploy = [
 repository = "https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT"
 
 [project.scripts]
-calmsep-baseline = "scripts.run_baseline:main"
+coralsep-baseline = "scripts.run_baseline:main"
+coralsep-infer = "coralsep.infer:main"
+coralsep-demo = "coralsep.demo.cli:main"
 
 [tool.setuptools.packages.find]
-where = ["."]
-include = ["data*", "models*", "eval*", "train*", "align*", "demo*", "schemas*", "scripts*", "utils*"]
+where = ["src"]
 
 [tool.black]
 line-length = 100
@@ -75,9 +76,9 @@ select = ["E", "F", "I", "W", "UP", "B"]
 ignore = ["B008"]
 
 [tool.ruff.lint.per-file-ignores]
-"demo.py" = ["E501"]
-"eval/*.py" = ["E402", "F841", "E501"]
+"src/coralsep/demo/gradio_app.py" = ["E501"]
+"src/coralsep/eval/*.py" = ["E402", "F841", "E501"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["."]
+pythonpath = ["src", "."]

@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from align.chunking import ChunkStitcher
+from coralsep.align.chunking import ChunkStitcher
 
 SR = 16000
 D = 32

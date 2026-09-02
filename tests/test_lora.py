@@ -6,7 +6,7 @@ import pytest
 import torch
 import torch.nn as nn
 
-from models.lora import (
+from coralsep.models.lora import (
     ADAPTER_NAMES,
     LoRALayer,
     LoRALinear,

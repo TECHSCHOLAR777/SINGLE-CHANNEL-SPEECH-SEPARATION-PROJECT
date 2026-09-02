@@ -46,10 +46,10 @@ _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from align.hungarian import xcorr_cost_matrix  # noqa: E402
-from align.integration import run_and_align, run_and_align_long  # noqa: E402
-from data.mixer_stub import MixtureSample, discover_librimix_samples  # noqa: E402
-# MossFormer2Expert and get_expensive_expert removed in CALM-Sep pivot.
+from coralsep.align.hungarian import xcorr_cost_matrix  # noqa: E402
+from coralsep.align.integration import run_and_align, run_and_align_long  # noqa: E402
+from coralsep.data.mixer_stub import MixtureSample, discover_librimix_samples  # noqa: E402
+# MossFormer2Expert and get_expensive_expert removed in CoRAL-Sep pivot.
 # main() below must be rewritten to use SRCorrNetWrapper before use.
 
 

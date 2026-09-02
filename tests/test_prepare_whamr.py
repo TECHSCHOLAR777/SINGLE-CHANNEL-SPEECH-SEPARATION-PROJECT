@@ -13,7 +13,7 @@ from unittest.mock import patch
 
 import pytest
 
-from data.prepare_whamr import (
+from coralsep.data.prepare_whamr import (
     WHAMR_SCRIPT_NAME,
     find_whamr_script,
     generate_whamr,
@@ -66,7 +66,7 @@ def test_generate_skips_if_output_exists(tmp_path: Path) -> None:
     output_dir = tmp_path / "out"
     _make_whamr_layout(output_dir / "WHAMR")
 
-    with patch("data.prepare_whamr.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_whamr.subprocess.run") as mock_run:
         generate_whamr(scripts, tmp_path / "wsj0", tmp_path / "noise", output_dir)
         mock_run.assert_not_called()
 
@@ -77,7 +77,7 @@ def test_generate_calls_script_with_expected_args(tmp_path: Path) -> None:
     wsj0 = tmp_path / "wsj0"
     noise = tmp_path / "wham_noise"
 
-    with patch("data.prepare_whamr.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare_whamr.subprocess.run") as mock_run:
         result = generate_whamr(scripts, wsj0, noise, output_dir)
 
     cmd = mock_run.call_args.args[0]
@@ -113,8 +113,8 @@ def test_verify_layout_raises_when_missing(tmp_path: Path) -> None:
 
 def _run_main(argv: list[str]):
     with patch.object(sys, "argv", ["prepare_whamr.py", *argv]):
-        with patch("data.prepare_whamr.subprocess.run") as mock_run:
-            from data.prepare_whamr import main
+        with patch("coralsep.data.prepare_whamr.subprocess.run") as mock_run:
+            from coralsep.data.prepare_whamr import main
 
             main()
             return mock_run

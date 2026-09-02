@@ -12,7 +12,7 @@ from pathlib import Path
 
 import pytest
 
-from utils.hashing import (
+from coralsep.utils.hashing import (
     hash_bytes,
     hash_config,
     hash_file,

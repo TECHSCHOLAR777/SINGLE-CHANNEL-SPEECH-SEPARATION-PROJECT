@@ -14,13 +14,13 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from data.codec_augmentation import (
+from coralsep.data.codec_augmentation import (
     CodecAugmentor,
     CodecConfig,
     _fit_length,
     is_ffmpeg_available,
 )
-from data.mixer_stub import MixtureSample
+from coralsep.data.mixer_stub import MixtureSample
 
 
 # ---------------------------------------------------------------------------
@@ -213,10 +213,10 @@ def test_ffmpeg_called_with_opus_args(tmp_path) -> None:
     aug = CodecAugmentor(cfg, rng=np.random.default_rng(0))
     aug._ffmpeg_ok = True  # skip shutil.which check
 
-    with patch("data.codec_augmentation.subprocess.run") as mock_run:
+    with patch("coralsep.data.codec_augmentation.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
         # We don't need a real decoded file here — just check args
-        with patch("data.codec_augmentation.sf.read", return_value=(
+        with patch("coralsep.data.codec_augmentation.sf.read", return_value=(
             np.zeros((LENGTH, 1), dtype=np.float32), SR
         )):
             aug(sample)
@@ -233,9 +233,9 @@ def test_ffmpeg_called_with_aac_args(tmp_path) -> None:
     aug = CodecAugmentor(cfg, rng=np.random.default_rng(0))
     aug._ffmpeg_ok = True
 
-    with patch("data.codec_augmentation.subprocess.run") as mock_run:
+    with patch("coralsep.data.codec_augmentation.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
-        with patch("data.codec_augmentation.sf.read", return_value=(
+        with patch("coralsep.data.codec_augmentation.sf.read", return_value=(
             np.zeros((LENGTH, 1), dtype=np.float32), SR
         )):
             aug(sample)
@@ -251,7 +251,7 @@ def test_ffmpeg_failure_falls_back_to_mulaw() -> None:
     aug._ffmpeg_ok = True
 
     failing = MagicMock(returncode=1)
-    with patch("data.codec_augmentation.subprocess.run", return_value=failing):
+    with patch("coralsep.data.codec_augmentation.subprocess.run", return_value=failing):
         import warnings as _warnings
         with _warnings.catch_warnings(record=True):
             out = aug(sample)
@@ -278,7 +278,7 @@ def test_ffmpeg_unavailable_uses_mulaw() -> None:
 
 
 def test_random_codec_resolves_to_supported_codec() -> None:
-    from data.codec_augmentation import _SUPPORTED_CODECS
+    from coralsep.data.codec_augmentation import _SUPPORTED_CODECS
     cfg = CodecConfig(codec="random", codec_prob=1.0, use_ffmpeg=False)
     aug = CodecAugmentor(cfg, rng=np.random.default_rng(0))
     seen = set()

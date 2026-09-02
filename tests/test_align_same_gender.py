@@ -2,8 +2,8 @@
 
 import numpy as np
 
-from align.chunking import ChunkStitcher
-from align.hungarian import align_results, cosine_cost_matrix, reorder_result
+from coralsep.align.chunking import ChunkStitcher
+from coralsep.align.hungarian import align_results, cosine_cost_matrix, reorder_result
 from tests.test_align_hungarian import make_result
 
 RNG = np.random.default_rng(seed=42)

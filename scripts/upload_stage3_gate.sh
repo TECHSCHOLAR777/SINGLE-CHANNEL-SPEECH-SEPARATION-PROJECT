@@ -44,7 +44,7 @@ FINAL=$(find "$TMP_DIR" -name "final_gate.pt" | head -1)
 # Write dataset metadata
 cat > "$DS_DIR/dataset-metadata.json" << JSON
 {
-  "title": "CALM-Sep Stage 3 Gate Checkpoint",
+  "title": "CoRAL-Sep Stage 3 Gate Checkpoint",
   "id": "rishig777/${DATASET_NAME}",
   "licenses": [{"name": "unknown"}]
 }

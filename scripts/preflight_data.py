@@ -2,7 +2,7 @@
 """
 Preflight check for LibriMix generation (Dev C tooling).
 
-Both CA-MoSE data-generation failures to date had the same shape: a metadata
+Both CoRAL-Sep data-generation failures to date had the same shape: a metadata
 CSV referenced audio that was not on disk, and we only found out after the
 generator had already started, deep inside a ProcessPoolExecutor traceback.
 
@@ -151,7 +151,7 @@ def main() -> None:
         csvs = list(args.metadata_csv)
 
     print("=" * 72)
-    print("CA-MoSE  |  data preflight")
+    print("CoRAL-Sep  |  data preflight")
     print("=" * 72)
     print(f"  librispeech : {args.librispeech_dir}")
     print(f"  wham        : {args.wham_dir}")

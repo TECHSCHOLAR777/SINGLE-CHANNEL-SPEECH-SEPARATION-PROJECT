@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from data.mixer_stub import discover_librimix_samples
+from coralsep.data.mixer_stub import discover_librimix_samples
 
 SR = 16_000
 

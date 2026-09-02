@@ -1,6 +1,6 @@
 """End-to-end smoke test on a short synthetic fixture (BLUEPRINT §13).
 
-Runs the full `CalmSepPipeline` with a weight-free mock expert, so it exercises
+Runs the full `CoralSepPipeline` with a weight-free mock expert, so it exercises
 preprocessing, chunking, separation, stitching, counting, band recovery and the
 output contract without needing the frozen checkpoint.
 """
@@ -14,14 +14,14 @@ from pathlib import Path
 import numpy as np
 import soundfile as sf
 
-from pipeline.infer import CalmSepPipeline, InferenceCfg, PipelineResult
-from schemas.separation_result import SeparationResult
+from coralsep.pipeline.infer import CoralSepPipeline, InferenceCfg, PipelineResult
+from coralsep.schemas.separation_result import SeparationResult
 
 
 def test_smoke_end_to_end_mock(tmp_path: Path, mock_expert, two_tone_mixture):
     mix, sr = two_tone_mixture
 
-    pipeline = CalmSepPipeline(
+    pipeline = CoralSepPipeline(
         expert=mock_expert,
         cfg=InferenceCfg(default_n_speakers=2, run_band_recovery=False),
     )
@@ -42,7 +42,7 @@ def test_smoke_end_to_end_mock(tmp_path: Path, mock_expert, two_tone_mixture):
 def test_smoke_emits_the_shared_result_contract(mock_expert, two_tone_mixture):
     """The pipeline result must convert to the project-wide SeparationResult."""
     mix, sr = two_tone_mixture
-    pipeline = CalmSepPipeline(
+    pipeline = CoralSepPipeline(
         expert=mock_expert,
         cfg=InferenceCfg(default_n_speakers=2, run_band_recovery=False),
     )
@@ -64,7 +64,7 @@ def test_smoke_emits_the_shared_result_contract(mock_expert, two_tone_mixture):
 
 def test_smoke_outputs_are_writable_and_serialisable(tmp_path: Path, mock_expert, two_tone_mixture):
     mix, sr = two_tone_mixture
-    pipeline = CalmSepPipeline(
+    pipeline = CoralSepPipeline(
         expert=mock_expert,
         cfg=InferenceCfg(default_n_speakers=2, run_band_recovery=False),
     )

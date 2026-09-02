@@ -7,7 +7,7 @@ The gate that proves it needs trained adapters and the frozen checkpoint, so it
 is marked live and skips when they are absent.
 
 What runs unconditionally here is the structural half: both paths through
-`CalmSepPipeline` produce finite, scorable output with the same contract, so the
+`CoralSepPipeline` produce finite, scorable output with the same contract, so the
 live gate has something well formed to compare when weights arrive.
 """
 
@@ -16,10 +16,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from eval.metrics import pit_si_sdr
-from models.preprocess import resample_audio
-from models.srcorrnet import SRCorrNetWrapper
-from pipeline.infer import CalmSepPipeline, InferenceCfg
+from coralsep.eval.metrics import pit_si_sdr
+from coralsep.models.preprocess import resample_audio
+from coralsep.models.srcorrnet import SRCorrNetWrapper
+from coralsep.pipeline.infer import CoralSepPipeline, InferenceCfg
 
 TOLERANCE_DB = 0.1
 """The full system may not fall more than this below the base on clean audio."""
@@ -48,11 +48,11 @@ def test_principle2_both_paths_produce_finite_scores(make_mock_expert):
     refs = np.stack([wav * 0.6, wav * 0.4], axis=0).astype(np.float32)
     mix = refs.sum(0).astype(np.float32)
 
-    base = CalmSepPipeline(
+    base = CoralSepPipeline(
         expert=make_mock_expert(2),
         cfg=InferenceCfg(default_n_speakers=2, run_band_recovery=False),
     )
-    full = CalmSepPipeline(
+    full = CoralSepPipeline(
         expert=make_mock_expert(2),
         lora_library=None,
         cfg=InferenceCfg(default_n_speakers=2, run_band_recovery=True),

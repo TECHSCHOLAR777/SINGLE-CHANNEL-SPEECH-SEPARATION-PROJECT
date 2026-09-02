@@ -8,7 +8,7 @@ from unittest.mock import MagicMock
 import numpy as np
 import torch
 
-from models.experts.srcorrnet import SRCorrNetExpert, _extract_waveforms, _fix_length
+from coralsep.models.experts.srcorrnet import SRCorrNetExpert, _extract_waveforms, _fix_length
 
 
 def test_srcorrnet_not_available_without_repo() -> None:
