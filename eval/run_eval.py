@@ -42,7 +42,7 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 _SR = 8_000
-_LIBRIMIX_SPLITS = ["Libri2Mix", "Libri3Mix"]
+_LIBRIMIX_SPLITS = ["Libri2Mix", "Libri3Mix", "Libri4Mix", "Libri5Mix"]
 _HF_MODEL = "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"
 
 
@@ -119,7 +119,26 @@ def _run_baseline(ss_model, mix_wav: np.ndarray, n_spks: int, device: torch.devi
     )
 
 
-def _load_calmsep(ckpt_dir: Path, device: torch.device):
+def _load_universal_ckpt(path: Path) -> dict:
+    """Load best_universal from either a .pt file or a PyTorch zip directory."""
+    if path.is_dir():
+        import io
+        import zipfile
+
+        buf = io.BytesIO()
+        fixed = (2024, 1, 1, 0, 0, 0)
+        with zipfile.ZipFile(buf, "w") as zf:
+            for f in sorted(path.rglob("*")):
+                if f.is_file():
+                    zi = zipfile.ZipInfo("archive/" + str(f.relative_to(path)), date_time=fixed)
+                    zi.compress_type = zipfile.ZIP_STORED
+                    zf.writestr(zi, f.read_bytes())
+        buf.seek(0)
+        return torch.load(buf, map_location="cpu", weights_only=False)
+    return torch.load(str(path), map_location="cpu", weights_only=False)
+
+
+def _load_calmsep(ckpt_dir: Path, device: torch.device, universal_ckpt: Path | None = None):
     from models.condition import Level2Analyzer, level1_tensor
     from models.gate import GateNetwork
     from models.lora import ADAPTER_NAMES, LoRALibrary, LoRALinear
@@ -153,6 +172,25 @@ def _load_calmsep(ckpt_dir: Path, device: torch.device):
     else:
         log.warning("best_joint.pt not found at %s — using random gate", joint_ckpt)
 
+    if universal_ckpt is not None and universal_ckpt.exists():
+        univ = _load_universal_ckpt(universal_ckpt)
+        univ_state = univ.get("state_dict", univ)
+        loaded_u = 0
+        for mod_name, mod in inner.named_modules():
+            if not isinstance(mod, LoRALinear):
+                continue
+            if "universal" not in mod.branches:
+                continue
+            branch = mod.branches["universal"]
+            for param_name, param in branch.named_parameters():
+                key = f"adapter.universal.{mod_name}.branches.universal.{param_name}"
+                alt = f"{mod_name}.branches.universal.{param_name}"
+                src = univ_state.get(key) or univ_state.get(alt)
+                if src is not None:
+                    param.data.copy_(src.to(param.device))
+                    loaded_u += 1
+        log.info("Loaded universal adapter: %d tensors from %s", loaded_u, universal_ckpt)
+
     temperature = 1.0
     calib = ckpt_dir / "stage4c" / "calibration.pt"
     if calib.exists():
@@ -163,6 +201,23 @@ def _load_calmsep(ckpt_dir: Path, device: torch.device):
     inner.to(device).eval()
     gate_net.eval()
     analyzer.eval()
+
+    # Move STFT/iSTFT modules (engine-level) and sync wrapper device reference.
+    # Mirrors stage1_single.py lines 352-361 and 524-535.
+    engine = getattr(ss, "engine", None)
+    if engine is not None:
+        for attr in ("stft", "istft"):
+            mod = getattr(engine, attr, None)
+            if mod is not None and hasattr(mod, "to"):
+                mod.to(device)
+        try:
+            engine.device = device
+        except Exception:
+            pass
+    try:
+        ss.device = device
+    except Exception:
+        pass
 
     return ss, inner, lib, gate_net, temperature, level1_tensor, ADAPTER_NAMES
 
@@ -293,6 +348,11 @@ def _score_split(
             if base_sisdris and calm_sisdris
             else None
         ),
+        "delta_si_sdr": (
+            float(np.mean(calm_sisdrs)) - float(np.mean(base_sisdrs))
+            if base_sisdrs and calm_sisdrs
+            else None
+        ),
     }
 
 
@@ -335,6 +395,17 @@ def _parse_args() -> argparse.Namespace:
         default=100,
         help="Samples per split (default 100; set lower for quick smoke-test)",
     )
+    p.add_argument(
+        "--universal-ckpt",
+        default=None,
+        help="Path to Stage 2 best_universal checkpoint (file or directory)",
+    )
+    p.add_argument(
+        "--splits",
+        nargs="+",
+        default=None,
+        help="Which splits to run (default: all available in --librimix dir)",
+    )
     p.add_argument("--device", default="cpu")
     p.add_argument("--output", default="eval/eval_outputs/calmsep_eval.json")
     return p.parse_args()
@@ -352,12 +423,25 @@ def main() -> None:
     ss_base = _load_base_model(device)
 
     log.info("Loading CALM-Sep …")
+    universal_ckpt = Path(args.universal_ckpt) if args.universal_ckpt else None
     ss_calm, inner, lib, gate_net, temperature, l1fn, ADAPTER_NAMES = _load_calmsep(
-        ckpt_dir, device
+        ckpt_dir, device, universal_ckpt
     )
 
+    # Auto-detect available splits from the librimix directory
+    available = sorted(
+        d.name
+        for d in librimix.iterdir()
+        if d.is_dir()
+        and d.name.startswith("Libri")
+        and d.name.endswith("Mix")
+        and (d / "wav8k" / "min" / "test" / "mix_both").exists()
+    )
+    splits_to_run = args.splits if args.splits else [s for s in _LIBRIMIX_SPLITS if s in available]
+    log.info("Splits found: %s | running: %s", available, splits_to_run)
+
     results = []
-    for split in _LIBRIMIX_SPLITS:
+    for split in splits_to_run:
         log.info("─── %s (n=%d) ───", split, args.n_per_split)
         t0 = time.time()
         r = _score_split(
