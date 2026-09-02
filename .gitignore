@@ -23,11 +23,12 @@ htmlcov/
 .vscode/
 *.swp
 
-# Data and checkpoints (large files)
+# Data and checkpoints (large binary artifacts, held on Kaggle and Hugging Face)
 data/raw/
 data/processed/
 data/cache/
 checkpoints/
+pretrained_models/
 *.pt
 *.pth
 *.ckpt
@@ -38,14 +39,15 @@ checkpoints/
 .env
 .env.*
 
+# Generated outputs
+outputs/
+results/
+
+# Restoration evidence. Preserved on disk, deliberately not tracked:
+# it contains the supplied archive, its extraction and unsanitised context
+# files that carry credentials and unrelated personal notes.
+.restoration/
+
 # OS
 .DS_Store
 Thumbs.db
-
-# Baseline outputs
-outputs/
-results/
-pretrained_models/
-outputs/
-pretrained_models/
-outputs/
