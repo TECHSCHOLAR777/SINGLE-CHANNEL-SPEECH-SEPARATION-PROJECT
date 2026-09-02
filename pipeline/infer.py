@@ -75,6 +75,45 @@ class PipelineResult:
     mixture_16k: np.ndarray | None = None
 
 
+    def to_separation_result(self, sample_rate: int = 16000) -> SeparationResult:
+        """
+        Convert to the project-wide `SeparationResult` contract.
+
+        `PipelineResult` carries both rates because the pipeline needs them
+        internally. Alignment, evaluation, the demo and any external consumer
+        speak `SeparationResult`, which carries one rate, so callers choose it
+        here.
+
+        Args:
+            sample_rate: 16000 for the band-recovered streams (the default and
+                the project standard), or 8000 for the raw backbone output.
+
+        Returns:
+            A `SeparationResult` sharing the stream arrays with this object.
+
+        Raises:
+            ValueError: for any sample rate other than 8000 or 16000.
+        """
+        if sample_rate == 16000:
+            streams, mixture = self.streams_16k, self.mixture_16k
+        elif sample_rate == CALMSEP_SAMPLE_RATE:
+            streams, mixture = self.streams_8k, self.mixture_8k
+        else:
+            raise ValueError(
+                f"sample_rate must be {CALMSEP_SAMPLE_RATE} or 16000, got {sample_rate}"
+            )
+        return SeparationResult(
+            streams=streams,
+            sample_rate=sample_rate,
+            speaker_count=self.speaker_count,
+            mixture=mixture,
+            expert_used="calmsep",
+            gate_vector=dict(self.gate_vector),
+            completeness_prob=self.completeness_prob,
+            ood_flag=self.ood_flag,
+        )
+
+
 class CalmSepPipeline:
     """
     End-to-end CALM-Sep inference pipeline.
