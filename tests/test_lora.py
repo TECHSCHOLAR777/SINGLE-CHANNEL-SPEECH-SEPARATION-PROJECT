@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import pytest
 import torch
 import torch.nn as nn
 
@@ -95,3 +96,72 @@ def test_lora_summary_returns_adapter_counts_from_wrapped_linear():
     counts = lora_summary(m)
     assert set(counts.keys()) == set(ADAPTER_NAMES)
     assert all(v > 0 for v in counts.values())
+
+
+# ---------------------------------------------------------------------------
+# Regression: gate-vector misuse must fail loudly, not silently randomise gates
+# ---------------------------------------------------------------------------
+
+
+def _tiny_library() -> LoRALibrary:
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = nn.Linear(4, 4)
+
+    return LoRALibrary(M(), adapter_names=list(ADAPTER_NAMES))
+
+
+def test_set_adapter_rejects_a_gate_mapping():
+    """A gate dict passed where an adapter name belongs used to corrupt silently.
+
+    No adapter name compares equal to a dict, so every adapter fell through to
+    the co-activation branch and received a random gate, discarding the routed
+    vector entirely. It must raise instead.
+    """
+    lib = _tiny_library()
+    with pytest.raises(TypeError, match="set_gates"):
+        lib.set_adapter({"reverb": 0.9, "noise": 0.1, "codec": 0.0})
+
+
+def test_set_adapter_rejects_an_unknown_name():
+    lib = _tiny_library()
+    with pytest.raises(KeyError):
+        lib.set_adapter("bandwidth")
+
+
+def test_forward_context_without_a_name_preserves_the_routed_gates():
+    lib = _tiny_library()
+    routed = {"reverb": 0.9, "noise": 0.25, "codec": 0.0}
+    lib.set_gates(routed)
+    with lib.forward_context():
+        assert lib.gate_dict() == routed
+
+
+def test_set_gates_rejects_a_non_mapping():
+    lib = _tiny_library()
+    with pytest.raises(TypeError):
+        lib.set_gates("reverb")
+
+
+def test_set_gates_rejects_an_unknown_adapter():
+    lib = _tiny_library()
+    with pytest.raises(KeyError):
+        lib.set_gates({"reverb": 1.0, "bandwidth": 0.5})
+
+
+def test_injected_gates_reach_every_wrapped_linear():
+    base = nn.Linear(4, 4)
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.lin = LoRALinear(base, list(ADAPTER_NAMES), rank=2)
+
+    m = M()
+    lib = LoRALibrary(m, adapter_names=list(ADAPTER_NAMES))
+    routed = {"reverb": 0.9, "noise": 0.25, "codec": 0.0}
+    lib.set_gates(routed)
+    with lib.forward_context():
+        assert m.lin._injected_gates == routed
+    assert m.lin._injected_gates == {}

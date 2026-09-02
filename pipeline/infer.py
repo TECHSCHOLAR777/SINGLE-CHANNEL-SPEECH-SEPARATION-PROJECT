@@ -229,8 +229,11 @@ class CalmSepPipeline:
         """Run SR-CorrNet on one chunk with LoRA gate applied."""
         wav = chunk.waveform_8k
         if self.lora is not None:
-            # LoRA gate injection handled inside expert via context manager.
-            with self.lora.forward_context(gate_vec):
+            # Apply the routed gate vector, then inject it for the duration of
+            # the forward pass. forward_context() takes an adapter *name*, not a
+            # gate mapping, so the vector goes through set_gates first.
+            self.lora.set_gates(gate_vec)
+            with self.lora.forward_context():
                 return self.expert.separate(wav, sample_rate=CALMSEP_SAMPLE_RATE, n_spks=n_spks)
         return self.expert.separate(wav, sample_rate=CALMSEP_SAMPLE_RATE, n_spks=n_spks)
 

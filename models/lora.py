@@ -26,7 +26,7 @@ Target modules (37 per adapter from BLUEPRINT §5.3):
 from __future__ import annotations
 
 import math
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 
 import torch
 import torch.nn as nn
@@ -317,7 +317,22 @@ class LoRALibrary:
         With co_activate=True (Stage 1 warm-up), the other adapters are set to
         a random gate in [co_lo, co_hi] rather than 0.0, so the model learns to
         compose from the first epoch. BLUEPRINT §5.4.
+
+        Raises:
+            TypeError: if `name` is not a string. Passing a gate dict here is a
+                silent-corruption bug rather than a crash: no adapter name would
+                compare equal to the dict, so every adapter would fall through to
+                the co-activation branch and receive a random gate. Use
+                `set_gates` for a full gate vector.
+            KeyError: if `name` is not a known adapter.
         """
+        if not isinstance(name, str):
+            raise TypeError(
+                f"set_adapter expects an adapter name, got {type(name).__name__}. "
+                "To apply a full gate vector, call set_gates(gates) instead."
+            )
+        if name not in self.adapter_names:
+            raise KeyError(f"unknown adapter {name!r}; known adapters: {list(self.adapter_names)}")
         self._active_adapter = name
         for n in self.adapter_names:
             if n == name:
@@ -331,7 +346,18 @@ class LoRALibrary:
                 self._gates[n] = 0.0
 
     def set_gates(self, gates: dict[str, float]) -> None:
-        """Directly set gate values (used in Stage 4 joint training)."""
+        """
+        Directly set gate values (Stage 4 joint training and gated inference).
+
+        Raises:
+            TypeError: if `gates` is not a mapping.
+            KeyError: if `gates` names an adapter this library does not manage.
+        """
+        if not isinstance(gates, Mapping):
+            raise TypeError(f"set_gates expects a mapping of adapter name to gate, got {type(gates).__name__}")
+        unknown = set(gates) - set(self.adapter_names)
+        if unknown:
+            raise KeyError(f"unknown adapters {sorted(unknown)}; known adapters: {list(self.adapter_names)}")
         self._gates = dict(gates)
         self._active_adapter = None
 
