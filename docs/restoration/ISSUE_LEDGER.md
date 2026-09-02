@@ -2,58 +2,92 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** [AMBER] 34 tickets opened from the 2026-09-02 forensic pass. None closed.
+**Status:** 🟠 39 tickets. 9 closed, 1 in progress, 29 open or blocked.
 
 **Last verified:** 2026-09-02
 
-## Tag legend
+---
 
-**Type:** [TASK] [BUG] [ARCH] [DOC] [TEST] [REPRO] [DATA] [MODEL] [EXP] [SEC] [PERF] [CLEANUP] [DECISION] [RESEARCH]
+## Legend
 
-**Priority:** [P0] blocks reliable operation or invalidates core results · [P1] blocks an important workflow · [P2] degrades quality, maintainability or reproducibility · [P3] improvement
+| Priority | | Meaning |
+|---|---|---|
+| 🔴 | **P0** | Blocks reliable operation or invalidates core results |
+| 🟠 | **P1** | Blocks an important workflow |
+| 🟡 | **P2** | Degrades quality, maintainability or reproducibility |
+| ⚪ | **P3** | Improvement |
 
-**Lifecycle:** [OPEN] [INVESTIGATING] [READY] [IN_PROGRESS] [BLOCKED] [VERIFY] [CLOSED] [WONT_FIX] [DUPLICATE]
+| Lifecycle | | Meaning |
+|---|---|---|
+| 🟢 | **CLOSED** | Fixed and validated. Never closed on a code change alone |
+| 🔵 | **IN_PROGRESS** | Being worked now |
+| 🟠 | **READY** | Scoped, actionable, not started |
+| 🟡 | **INVESTIGATING** | Evidence still being gathered |
+| 🔴 | **BLOCKED** | Needs compute, credentials or an external answer |
+| ⚪ | **OPEN** | Recorded, not yet scoped |
+
+**Type:** `[TASK]` `[BUG]` `[ARCH]` `[DOC]` `[TEST]` `[REPRO]` `[DATA]` `[MODEL]` `[EXP]` `[SEC]` `[PERF]` `[CLEANUP]` `[DECISION]` `[RESEARCH]`
 
 ---
 
 ## Index
 
-| ID | Type | Pri | Title | State | Evidence |
-|---|---|---|---|---|---|
-| I-001 | [SEC] | P0 | Live API credentials present in the supplied archive | [READY] | `CONTEXT.md` lines 9-15 |
-| I-002 | [EXP] | P0 | Evaluation supplies the oracle speaker count, so count accuracy is never measured | [READY] | `eval/run_eval.py`, `NUMBERS.md` section 3.1 |
-| I-003 | [MODEL] | P1 | Gate temperature 4.9872 flattens the sigmoid and disables condition routing | [READY] | `NUMBERS.md` section 3.4 |
-| I-004 | [BUG] | P1 | `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE` | [READY] | import sweep |
-| I-005 | [BUG] | P1 | `eval/matrix.py` imports `si_snr`; the function is `si_sdr` | [READY] | import sweep |
-| I-006 | [BUG] | P1 | `CalmSepEngine` and `MockCalmSepWrapper` do not exist; the class is `CalmSepPipeline` | [READY] | import sweep, pytest collection |
-| I-007 | [BUG] | P2 | `eval/ablation_gate.py` imports the non-existent `utils.logging` | [READY] | import sweep |
-| I-008 | [BUG] | P2 | `train/calibrate.py` imports the non-existent `calibration.fit` | [READY] | import sweep |
-| I-009 | [CLEANUP] | P2 | Three modules import v1 CA-MoSE code that no longer exists | [READY] | import sweep |
-| I-010 | [BUG] | P2 | `scripts/slice_for_kaggle.py` runs work at import time and hard-codes a data path | [READY] | import sweep side effect |
-| I-011 | [BUG] | P1 | CI triggers on `main` while the default branch is `master`, so CI has never run | [READY] | `.github/workflows/ci.yml` |
-| I-012 | [TASK] | P1 | Recover the uncommitted `run_eval.py` improvements held only in the archive | [READY] | ZIP versus all 13 branches |
-| I-013 | [TASK] | P1 | Recover the uncommitted `demo.py` transcription work held only in the archive | [READY] | ZIP versus all 13 branches |
-| I-014 | [TASK] | P2 | Recover `modal_deploy.py`, which exists nowhere in Git history | [READY] | ZIP versus all 13 branches |
-| I-015 | [EXP] | P1 | Recover the Libri5Mix raw result and the Stage 4 training log from the archive | [READY] | `calmsep_eval_5.json`, Stage 4 log |
-| I-016 | [DOC] | P0 | README results table is empty while verified raw results exist | [READY] | README line 440, `calmsep_eval.json` |
-| I-017 | [DOC] | P1 | README repository-structure section describes files that do not exist | [READY] | README lines 454-543 |
-| I-018 | [DOC] | P1 | `pyproject.toml` still declares the abandoned v1 project | [READY] | `pyproject.toml` |
-| I-019 | [REPRO] | P0 | The `sr_corrnet` backbone is an undeclared external dependency with no provenance | [BLOCKED] | `demo.py` line 24, import sweep |
-| I-020 | [REPRO] | P1 | `requirements.txt` claims pinned versions but declares only lower bounds | [READY] | `requirements.txt` |
-| I-021 | [DATA] | P2 | Two documents give different backbone parameter counts | [INVESTIGATING] | `CONTEXT.md` versus `NUMBERS.md` |
-| I-022 | [DATA] | P2 | Two sources give different Stage 1 noise adapter epoch counts | [INVESTIGATING] | `NUMBERS.md` versus project memory note |
-| I-023 | [EXP] | P1 | Libri4Mix was never evaluated and every split used only 30 samples | [BLOCKED] | `NUMBERS.md` section 2.2 |
-| I-024 | [EXP] | P1 | The Stage 2 universal adapter was never trained | [BLOCKED] | `CONTEXT.md` checkpoint table |
-| I-025 | [MODEL] | P1 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition | [BLOCKED] | `eval/eval_outputs/eval.log` |
-| I-026 | [TEST] | P2 | No confidence interval or significance test has been run on any result | [READY] | `eval/stats.py` exists and is never called |
-| I-027 | [CLEANUP] | P3 | `.gitignore` repeats `outputs/` and `pretrained_models/` | [READY] | `.gitignore` |
-| I-028 | [ARCH] | P2 | Flat top-level packages shadow standard library and third-party names | [READY] | repository root |
-| I-029 | [DOC] | P2 | `configs/baseline.yaml` carries an unresolved data-root TODO | [READY] | `configs/baseline.yaml` line 4 |
-| I-030 | [SEC] | P2 | The archive `memory/` directory holds unrelated personal notes | [READY] | `memory/` |
-| I-031 | [DECISION] | P1 | The project name must change from CALM-Sep | [READY] | user instruction 2026-09-02 |
-| I-032 | [PERF] | P3 | CPU inference takes 72 to 116 seconds per 6 second clip | [OPEN] | `NUMBERS.md` section 5.1 |
-| I-033 | [CLEANUP] | P3 | `eval/eval_reverb_adapter.py` hard-codes Lightning AI paths for a banned platform | [READY] | file lines 12-51 |
-| I-034 | [EXP] | P2 | Calibration ECE and reliability diagrams were never produced | [BLOCKED] | `NUMBERS.md` section 3.4 |
+| ID | Type | Pri | Title | State | Commit |
+|---|---|:---:|---|---|---|
+| I-001 | `[SEC]` | 🔴 P0 | Live API credentials present in the supplied archive | 🔴 BLOCKED on owner | rotation is the owner's action |
+| I-002 | `[EXP]` | 🔴 P0 | Evaluation supplies the oracle speaker count, so count accuracy is never measured | 🟠 READY | |
+| I-003 | `[MODEL]` | 🟠 P1 | Gate temperature 4.9872 flattens the sigmoid and disables condition routing | 🔴 BLOCKED on compute | |
+| I-004 | `[BUG]` | 🟠 P1 | `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE` | 🟢 CLOSED | `aacca0e` |
+| I-005 | `[BUG]` | 🟠 P1 | `eval/matrix.py` imports `si_snr`; the function is `si_sdr` | 🟢 CLOSED | `ad4ffb7` |
+| I-006 | `[BUG]` | 🟠 P1 | `CalmSepEngine` and `MockCalmSepWrapper` do not exist | 🟢 CLOSED | `ac42f28` |
+| I-007 | `[BUG]` | 🟡 P2 | `eval/ablation_gate.py` imports the non-existent `utils.logging` | 🟢 CLOSED | `3a42a94` |
+| I-008 | `[BUG]` | 🟡 P2 | `train/calibrate.py` imports the non-existent `calibration.fit` | 🟢 CLOSED | `3d35204` |
+| I-009 | `[CLEANUP]` | 🟡 P2 | Three modules import v1 CA-MoSE code that no longer exists | 🔵 IN_PROGRESS | |
+| I-010 | `[BUG]` | 🟡 P2 | `scripts/slice_for_kaggle.py` runs work at import time and hard-codes a data path | 🟠 READY | |
+| I-011 | `[BUG]` | 🟠 P1 | CI triggers on `main` while the default branch is `master`, so CI has never run | 🟠 READY | |
+| I-012 | `[TASK]` | 🟠 P1 | Recover the uncommitted `run_eval.py` improvements held only in the archive | 🟠 READY | |
+| I-013 | `[TASK]` | 🟠 P1 | Recover the uncommitted `demo.py` transcription work held only in the archive | 🟠 READY | |
+| I-014 | `[TASK]` | 🟡 P2 | Recover `modal_deploy.py`, which exists nowhere in Git history | 🟠 READY | |
+| I-015 | `[EXP]` | 🟠 P1 | Recover the Libri5Mix raw result and the Stage 4 training log from the archive | 🟠 READY | |
+| I-016 | `[DOC]` | 🔴 P0 | README results table is empty while verified raw results exist | 🟠 READY | |
+| I-017 | `[DOC]` | 🟠 P1 | README repository-structure section describes files that do not exist | 🟠 READY | |
+| I-018 | `[DOC]` | 🟠 P1 | `pyproject.toml` still declares the abandoned v1 project | 🟠 READY | |
+| I-019 | `[REPRO]` | 🔴 P0 | The `sr_corrnet` backbone had no recorded upstream or license | 🟢 CLOSED | see below |
+| I-020 | `[REPRO]` | 🟠 P1 | `requirements.txt` claims pinned versions but declares only lower bounds | 🟠 READY | |
+| I-021 | `[DATA]` | 🟡 P2 | Three documents give three different backbone parameter counts | 🟢 CLOSED | measured |
+| I-022 | `[DATA]` | 🟡 P2 | Two sources give different Stage 1 noise adapter epoch counts | 🔴 BLOCKED on Kaggle | |
+| I-023 | `[EXP]` | 🟠 P1 | Libri4Mix was never evaluated and every split used only 30 samples | 🔴 BLOCKED on compute | |
+| I-024 | `[EXP]` | 🟠 P1 | The Stage 2 universal adapter was never trained | 🔴 BLOCKED on compute | |
+| I-025 | `[MODEL]` | 🟠 P1 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition | 🟡 INVESTIGATING | |
+| I-026 | `[TEST]` | 🟡 P2 | No confidence interval or significance test has been run on any result | 🟠 READY | |
+| I-027 | `[CLEANUP]` | ⚪ P3 | `.gitignore` repeats `outputs/` and `pretrained_models/` | 🟢 CLOSED | `8fdcb15` |
+| I-028 | `[ARCH]` | 🟡 P2 | Flat top-level packages shadow standard library and third-party names | 🟠 READY | |
+| I-029 | `[DOC]` | 🟡 P2 | `configs/baseline.yaml` carries an unresolved data-root TODO and a v1 sample rate | 🟠 READY | |
+| I-030 | `[SEC]` | 🟡 P2 | The archive `memory/` directory holds unrelated personal notes | 🟢 CLOSED | `8fdcb15` |
+| I-031 | `[DECISION]` | 🟠 P1 | The project name must change from CALM-Sep | 🔵 IN_PROGRESS | DEC-006 |
+| I-032 | `[PERF]` | ⚪ P3 | CPU inference takes 72 to 116 seconds per 6 second clip | ⚪ OPEN | |
+| I-033 | `[CLEANUP]` | ⚪ P3 | `eval/eval_reverb_adapter.py` hard-codes Lightning AI paths for a banned platform | 🟠 READY | |
+| I-034 | `[EXP]` | 🟡 P2 | Calibration ECE and reliability diagrams were never produced | 🔴 BLOCKED on compute | |
+| I-035 | `[BUG]` | 🟠 P1 | `scripts/run_baseline.py` is a v1 CLI calling functions deleted in July | 🟠 READY | |
+| I-036 | `[BUG]` | 🔴 P0 | Inference passed a gate mapping where an adapter name belongs, randomising every gate | 🟢 CLOSED | `1eb2496` |
+| I-037 | `[BUG]` | 🟠 P1 | The attractor count readout crashed on numpy and counted non-speaker slots | 🟢 CLOSED | `efcc27f` |
+| I-038 | `[ARCH]` | 🟡 P2 | The four calibrators use three serialisation formats, two of them bare pickle | 🟠 READY | |
+| I-039 | `[DOC]` | 🟡 P2 | BLUEPRINT records 17 LoRA attachment points; the measured count is 37 | 🟠 READY | |
+
+---
+
+## Progress
+
+```mermaid
+pie showData
+    title Ticket state
+    "CLOSED" : 9
+    "READY" : 17
+    "BLOCKED" : 7
+    "IN_PROGRESS" : 2
+    "INVESTIGATING" : 3
+    "OPEN" : 1
+```
 
 ---
 
@@ -61,22 +95,29 @@
 
 ```mermaid
 flowchart TD
-    I019[I-019 sr_corrnet provenance] --> I002[I-002 oracle N in eval]
+    I019["I-019 sr_corrnet provenance<br/>CLOSED"]:::done --> I002[I-002 oracle N in eval]
     I019 --> I023[I-023 Libri4Mix and n=30]
+    I019 --> I021["I-021 parameter count<br/>CLOSED"]:::done
     I020[I-020 unpinned deps] --> I019
-    I004[I-004 CALMSEP_SR] --> I016[I-016 empty results table]
-    I005[I-005 si_snr] --> I026[I-026 no CIs]
-    I006[I-006 CalmSepEngine] --> I011[I-011 CI never runs]
+    I004["I-004 CALMSEP_SR<br/>CLOSED"]:::done --> I016[I-016 empty results table]
+    I005["I-005 si_snr<br/>CLOSED"]:::done --> I026[I-026 no CIs]
+    I006["I-006 CalmSepEngine<br/>CLOSED"]:::done --> I011[I-011 CI never runs]
+    I006 --> I036["I-036 gate randomised<br/>CLOSED"]:::done
+    I006 --> I037["I-037 count readout<br/>CLOSED"]:::done
     I009[I-009 v1 residue] --> I011
+    I035[I-035 v1 baseline CLI] --> I018[I-018 stale pyproject]
     I012[I-012 recover run_eval] --> I002
     I012 --> I023
     I015[I-015 recover 5Mix result] --> I016
     I031[I-031 rename] --> I028[I-028 package layout]
+    I031 --> I018
     I003[I-003 flat gate] --> I025[I-025 reverb adapter hurts]
     I002 --> I016
+
+    classDef done fill:#1a7f37,stroke:#1a7f37,color:#fff
 ```
 
-Reading: I-019 is the deepest blocker. Nothing that needs a live backbone can be validated until the `sr_corrnet` dependency is packaged or vendored with a license. Everything on the left of the graph can proceed without it.
+Reading: I-019 was the deepest blocker and is now closed, which unblocks everything that needs a live backbone. What remains blocked is blocked on compute, on Kaggle credentials or on the owner, not on missing knowledge.
 
 ---
 
@@ -84,7 +125,7 @@ Reading: I-019 is the deepest blocker. Nothing that needs a live backbone can be
 
 ### I-001 [SEC] [P0] Live API credentials present in the supplied archive
 
-**State:** [READY]
+**State:** 🔴 BLOCKED , rotation is the project owner's action
 
 **Problem.** `CONTEXT.md` in the supplied archive lists working credentials in plain text: a Hugging Face read token, a Hugging Face write token for account `parv0511`, a Kaggle API token for account `rishig777`, and Modal token-id and token-secret values.
 
@@ -111,7 +152,7 @@ Reading: I-019 is the deepest blocker. Nothing that needs a live backbone can be
 
 ### I-002 [EXP] [P0] Evaluation supplies the oracle speaker count, so count accuracy is never measured
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** `eval/run_eval.py` derives the speaker count from the LibriMix directory name and passes it to both the baseline and the full system. Speaker count accuracy is the primary graded axis of the project, and no run has ever measured it.
 
@@ -139,7 +180,7 @@ Reading: I-019 is the deepest blocker. Nothing that needs a live backbone can be
 
 ### I-003 [MODEL] [P1] Gate temperature 4.9872 flattens the sigmoid and disables condition routing
 
-**State:** [READY]
+**State:** 🔴 BLOCKED , needs the Stage 4 checkpoint
 
 **Problem.** Stage 4c fitted a gate temperature of 4.9872 by golden-section search. `sigmoid(logit / 4.9872)` is close to linear near zero, so all three adapter gates sit near 0.5 for every input. The system is a fixed uniform blend of three adapters, not the condition-aware router the architecture claims.
 
@@ -165,7 +206,7 @@ Reading: I-019 is the deepest blocker. Nothing that needs a live backbone can be
 
 ### I-004 [BUG] [P1] `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE`
 
-**State:** [READY]
+**State:** 🟢 CLOSED , commit `aacca0e`
 
 **Problem.** `models/baseline_runner.py` and `scripts/run_baseline.py` both import `CALMSEP_SR` from `models.preprocess`. That module defines `CALMSEP_SAMPLE_RATE`.
 
@@ -191,7 +232,7 @@ Both modules fail the import sweep. `models/preprocess.py` line 29 defines `CALM
 
 ### I-005 [BUG] [P1] `eval/matrix.py` imports `si_snr`; the function is `si_sdr`
 
-**State:** [READY]
+**State:** 🟢 CLOSED , commit `ad4ffb7`
 
 **Problem.** `eval/matrix.py` imports `si_snr` from `eval.metrics`, which exports `si_sdr` and `si_sdr_improvement`.
 
@@ -216,7 +257,7 @@ ImportError: cannot import name 'si_snr' from 'eval.metrics'
 
 ### I-006 [BUG] [P1] `CalmSepEngine` and `MockCalmSepWrapper` do not exist; the class is `CalmSepPipeline`
 
-**State:** [READY]
+**State:** 🟢 CLOSED , commit `ac42f28`
 
 **Problem.** `eval/baselines.py`, `tests/principle2_test.py`, and `tests/smoke_test.py` import `CalmSepEngine` and `MockCalmSepWrapper` from `pipeline.infer`. That module defines `CalmSepPipeline`, `InferenceCfg`, and `PipelineResult`, and no mock wrapper.
 
@@ -244,7 +285,7 @@ Two of the four tests the README calls blocking or smoke tests fail at collectio
 
 ### I-007 [BUG] [P2] `eval/ablation_gate.py` imports the non-existent `utils.logging`
 
-**State:** [READY]
+**State:** 🟢 CLOSED , commit `3a42a94`
 
 **Problem.** `eval/ablation_gate.py` imports `utils.logging`. The `utils` package contains only `config.py` and `hashing.py`.
 
@@ -269,7 +310,7 @@ ModuleNotFoundError: No module named 'utils.logging'
 
 ### I-008 [BUG] [P2] `train/calibrate.py` imports the non-existent `calibration.fit`
 
-**State:** [READY]
+**State:** 🟢 CLOSED , commit `3d35204`
 
 **Problem.** `train/calibrate.py` imports `calibration.fit`. The `calibration` package contains `temperature.py`, `confidence.py`, `completeness.py`, and `ood.py`.
 
@@ -294,7 +335,7 @@ ModuleNotFoundError: No module named 'calibration.fit'
 
 ### I-009 [CLEANUP] [P2] Three modules import v1 CA-MoSE code that no longer exists
 
-**State:** [READY]
+**State:** 🔵 IN_PROGRESS
 
 **Problem.** Three modules still reference the abandoned v1 cascade architecture:
 
@@ -323,7 +364,7 @@ ModuleNotFoundError: No module named 'calibration.fit'
 
 ### I-010 [BUG] [P2] `scripts/slice_for_kaggle.py` runs work at import time and hard-codes a data path
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The script has no `if __name__ == "__main__"` guard. Importing it starts slicing work immediately. It then fails on a hard-coded relative path.
 
@@ -348,7 +389,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'data\\calmsep-8k\\libri
 
 ### I-011 [BUG] [P1] CI triggers on `main` while the default branch is `master`, so CI has never run
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** `.github/workflows/ci.yml` triggers on push and pull request against `main`. The repository default branch is `master`. No workflow run has ever been triggered.
 
@@ -372,7 +413,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'data\\calmsep-8k\\libri
 
 ### I-012 [TASK] [P1] Recover the uncommitted `run_eval.py` improvements held only in the archive
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The archive holds a version of `eval/run_eval.py` that is strictly ahead of every branch in the repository and was never committed.
 
@@ -406,7 +447,7 @@ The recovered work:
 
 ### I-013 [TASK] [P1] Recover the uncommitted `demo.py` transcription work held only in the archive
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The archive `demo.py` adds 226 lines against 12 removed, relative to the committed version, and exists in no branch.
 
@@ -431,7 +472,7 @@ The recovered work:
 
 ### I-014 [TASK] [P2] Recover `modal_deploy.py`, which exists nowhere in Git history
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The archive contains `src/modal_deploy.py`. No path resembling it appears in any commit on any branch.
 
@@ -453,7 +494,7 @@ The recovered work:
 
 ### I-015 [EXP] [P1] Recover the Libri5Mix raw result and the Stage 4 training log from the archive
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** Two raw evidence artifacts exist only in the archive: `eval_outputs/calmsep_eval_5.json` and `training_logs/calm-sep-stage-4-joint-training.log`.
 
@@ -476,7 +517,7 @@ The Stage 4 log independently confirms the loss curve quoted in `NUMBERS.md` sec
 
 ### I-016 [DOC] [P0] README results table is empty while verified raw results exist
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The README results section says results will be populated as training stages complete, and presents a table of five systems with every cell showing an em dash. Raw result artifacts for three of the four LibriMix splits exist and are internally consistent with `NUMBERS.md`.
 
@@ -499,7 +540,7 @@ The Stage 4 log independently confirms the loss curve quoted in `NUMBERS.md` sec
 
 ### I-017 [DOC] [P1] README repository-structure section describes files that do not exist
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The repository-structure block lists a test suite that is not the one in the tree, and omits directories that are.
 
@@ -520,7 +561,7 @@ The Stage 4 log independently confirms the loss curve quoted in `NUMBERS.md` sec
 
 ### I-018 [DOC] [P1] `pyproject.toml` still declares the abandoned v1 project
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The project metadata describes CA-MoSE, the architecture abandoned on 2026-07-16.
 
@@ -550,7 +591,7 @@ ca-mose-baseline = "scripts.run_baseline:main"
 
 ### I-019 [REPRO] [P0] The `sr_corrnet` backbone is an undeclared external dependency with no provenance
 
-**State:** [BLOCKED]
+**State:** 🟢 CLOSED , upstream identified and verified installable
 
 **Problem.** The frozen backbone that the entire architecture wraps is a Python package named `sr_corrnet` that is not vendored, not declared in any dependency file, and not installable from any public index. The only recorded location is a directory under a personal Downloads folder.
 
@@ -574,7 +615,23 @@ _SR_CORRNET_SRC = Path.home() / "Downloads/SR_CorrNet_local_mixboth/future_work"
 
 **Validation.** From a fresh virtual environment, a documented command sequence makes `import sr_corrnet` succeed.
 
-**Blocked by:** the upstream identity is not determinable from the archive or the repository. This needs the project owner.
+**Resolution, 2026-09-02.** The upstream is `https://github.com/dmlguq456/SR_CorrNet_SS`, MIT licensed, single commit `7340365b9cc9a021bf7d400f52fce4b88593b67a` dated 2026-05-14, authored by Ui-Hyeop Shin at `shinuh@mpwav.com`. That address matches the Hugging Face account holding the weights, which closes the identity question.
+
+Three pieces of evidence converged. `configs/baseline.yaml` line 17 carried the comment `clone https://github.com/dmlguq456/SR_CorrNet`, which returns 404 because the repository name ends `_SS`. A GitHub search for the corrected name returns the official repository. Its file tree contains every path named in the BLUEPRINT section 16 audit: `engine_infer.py`, `model.py`, `inference.py`, `modules/module.py`, `loss.py`, `engine.py`, `export.py`.
+
+The install command was already in the codebase, inside the `RuntimeError` message of `SRCorrNetWrapper.load()`. It appears in no README, requirements file, pyproject or setup document, so it was reachable only by someone who had already imported the module they could not import.
+
+Verified live, into a directory outside the repository so nothing was installed into the working environment:
+
+```
+pip install "git+https://github.com/dmlguq456/SR_CorrNet_SS@7340365b..."
+SRCorrNetWrapper(device="cpu").is_available  ->  True
+SRCorrNetWrapper(device="cpu").load()        ->  loads, patches A, B and C apply
+```
+
+The package declares `numpy`, `loguru`, `rotary-embedding-torch`, `pyyaml`, `soundfile`, `librosa`, `tqdm` and `scipy`. Those account for exactly the five undeclared runtime imports recorded in I-020, and explain why the Kaggle notebooks build base64 stubs for `loguru` and `rotary-embedding-torch` to run offline.
+
+**Remaining work, carried to I-020:** declare the dependency with the pinned commit, so a clean environment obtains it from a documented command rather than from an error message.
 
 **Documentation.** `DATA_AND_MODEL_INVENTORY.md`, `REPRODUCTION.md`, `DECISIONS.md`.
 
@@ -582,7 +639,7 @@ _SR_CORRNET_SRC = Path.home() / "Downloads/SR_CorrNet_local_mixboth/future_work"
 
 ### I-020 [REPRO] [P1] `requirements.txt` claims pinned versions but declares only lower bounds
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The file header says the dependencies are pinned for reproducible installs. Every line is a lower bound.
 
@@ -615,7 +672,7 @@ The numpy upper bound matters: `CONTEXT.md` records five Modal deployment iterat
 
 ### I-021 [DATA] [P2] Two documents give different backbone parameter counts
 
-**State:** [INVESTIGATING]
+**State:** 🟢 CLOSED , measured
 
 **Problem.** `CONTEXT.md` states the backbone has 7.4M parameters. `NUMBERS.md` states 13,270,124. Both were written on 2026-09-01 by the same author about the same checkpoint.
 
@@ -630,15 +687,30 @@ The numpy upper bound matters: `CONTEXT.md` records five Modal deployment iterat
 - [ ] Both documents agree with the measurement.
 - [ ] Every derived percentage is recomputed.
 
-**Validation.** A script that loads the Hugging Face checkpoint and prints the parameter count. Requires network access and roughly 50 MB of download; it does not require a GPU, so it can run on this machine once the loader from I-019 is available.
+**Resolution, 2026-09-02.** Measured after I-019 made the backbone loadable.
 
-**Dependencies.** Depends on I-019.
+| Quantity | Documented | Measured |
+|---|---|---|
+| Frozen backbone | 7.4M in `CONTEXT.md`, 13,270,124 in `NUMBERS.md`, 13.6M in BLUEPRINT | **14,031,768** |
+| LoRA-wrapped modules per adapter | 37 in `NUMBERS.md`, 17 in `docs/decisions.md` | **37** |
+| Parameters per adapter | 101,404 | **101,404** |
+| Total trainable | 440,285 | **440,285** |
+| Adapter share of backbone | 2.29 percent | **2.168 percent** |
+| Total trainable share | 3.32 percent | **3.138 percent** |
+
+The 13,270,124 figure is explained rather than simply wrong. `LoRALinear` registers the base weight as a **buffer**, not a parameter, which is how the freeze is implemented. Counting `model.parameters()` after attaching the library therefore omits 1,065,856 base weights across the 37 replaced layers. Someone measured after attachment and recorded the result as the backbone size. No weights are lost and the mechanism is correct.
+
+The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
+
+**Consequence.** Every derived percentage in `NUMBERS.md` section 1.7 is computed against the wrong denominator and must be restated. The parameter-efficiency claim becomes slightly stronger, not weaker: 3.138 percent rather than 3.32 percent.
+
+**Follow-up.** The 17 versus 37 disagreement in `docs/decisions.md` is tracked separately as I-039.
 
 ---
 
 ### I-022 [DATA] [P2] Two sources give different Stage 1 noise adapter epoch counts
 
-**State:** [INVESTIGATING]
+**State:** 🔴 BLOCKED , needs Kaggle access
 
 **Problem.** `NUMBERS.md` records `best_noise.pt` at roughly 40 epochs. The project memory note dated 2026-07-18 records the local `best_noise.pt` as an epoch-2 artifact and states that all three adapters needed retraining.
 
@@ -660,7 +732,7 @@ The numpy upper bound matters: `CONTEXT.md` records five Modal deployment iterat
 
 ### I-023 [EXP] [P1] Libri4Mix was never evaluated and every split used only 30 samples
 
-**State:** [BLOCKED]
+**State:** 🔴 BLOCKED
 
 **Problem.** Three of four required splits were evaluated, each on 30 test clips out of roughly 3,000 available.
 
@@ -683,7 +755,7 @@ The numpy upper bound matters: `CONTEXT.md` records five Modal deployment iterat
 
 ### I-024 [EXP] [P1] The Stage 2 universal adapter was never trained
 
-**State:** [BLOCKED]
+**State:** 🔴 BLOCKED
 
 **Problem.** The architecture uses three condition-specific adapters. The stated justification for three rather than one is the Stage 2 universal-adapter ablation, which was never run.
 
@@ -705,7 +777,7 @@ The numpy upper bound matters: `CONTEXT.md` records five Modal deployment iterat
 
 ### I-025 [MODEL] [P1] The Stage 1 reverb adapter degrades SI-SNR in every tested condition
 
-**State:** [BLOCKED]
+**State:** 🔴 BLOCKED
 
 **Problem.** The reverb adapter, trained for 40 epochs, makes output worse than the frozen backbone in all three tested conditions.
 
@@ -740,7 +812,7 @@ The wet-reference hypothesis is the strongest, because it explains the sign of t
 
 ### I-026 [TEST] [P2] No confidence interval or significance test has been run on any result
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** `eval/stats.py` implements bootstrap BCa confidence intervals and a Wilcoxon signed-rank test. Neither has been applied to any recorded result.
 
@@ -763,7 +835,7 @@ The wet-reference hypothesis is the strongest, because it explains the sign of t
 
 ### I-027 [CLEANUP] [P3] `.gitignore` repeats `outputs/` and `pretrained_models/`
 
-**State:** [READY]
+**State:** 🟢 CLOSED , commit `8fdcb15`
 
 **Problem.** The last lines of `.gitignore` repeat `outputs/` three times and `pretrained_models/` twice.
 
@@ -783,7 +855,7 @@ The wet-reference hypothesis is the strongest, because it explains the sign of t
 
 ### I-028 [ARCH] [P2] Flat top-level packages shadow standard library and third-party names
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The repository puts eleven packages at the top level, including `eval`, `data`, `demo`, `schemas`, `align`, `pipeline`, and `utils`. `eval` shadows nothing in the standard library as a module name but reads as the builtin; `utils`, `schemas`, `data`, and `align` are common enough to collide with installed distributions on `sys.path`.
 
@@ -809,7 +881,7 @@ There is also a name collision inside the repository: `demo.py` and the `demo/` 
 
 ### I-029 [DOC] [P2] `configs/baseline.yaml` carries an unresolved data-root TODO
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.**
 ```yaml
@@ -833,7 +905,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-030 [SEC] [P2] The archive `memory/` directory holds unrelated personal notes
 
-**State:** [READY]
+**State:** 🟢 CLOSED , commit `8fdcb15`
 
 **Problem.** The archive contains twelve agent memory files. Eleven describe projects unrelated to this one, including named third parties, other people's internship deliverables, a commercial venture, and business details of a named company.
 
@@ -855,7 +927,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-031 [DECISION] [P1] The project name must change from CALM-Sep
 
-**State:** [READY]
+**State:** 🔵 IN_PROGRESS , see DECISIONS.md DEC-006
 
 **Problem.** The project owner has asked for a new name. CALM-Sep also carries a naming inconsistency: `pyproject.toml` still says `ca-mose`, so the tree currently answers to two dead names at once.
 
@@ -879,7 +951,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-032 [PERF] [P3] CPU inference takes 72 to 116 seconds per 6 second clip
 
-**State:** [OPEN]
+**State:** ⚪ OPEN
 
 **Problem.** Measured wall time is 12 to 20 times slower than real time on CPU.
 
@@ -895,7 +967,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-033 [CLEANUP] [P3] `eval/eval_reverb_adapter.py` hard-codes Lightning AI paths for a banned platform
 
-**State:** [READY]
+**State:** 🟠 READY
 
 **Problem.** The module's docstring and its `sys.path` search hard-code `/teamspace/studios/this_studio/...`, which is a Lightning AI workspace. `CONTEXT.md` records Lightning AI as permanently banned from the project after the account was deleted on 2026-07-18.
 
@@ -915,7 +987,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-034 [EXP] [P2] Calibration ECE and reliability diagrams were never produced
 
-**State:** [BLOCKED]
+**State:** 🔴 BLOCKED
 
 **Problem.** Four calibration components are implemented and one is fitted. None has a measured calibration error.
 
@@ -934,6 +1006,121 @@ The comment refers to a task assignment from the three-developer phase in early 
 **Dependencies.** Depends on I-019 and I-023.
 
 ---
+
+---
+
+### I-035 `[BUG]` P1 `scripts/run_baseline.py` is a v1 CLI calling functions deleted in July
+
+**State:** READY
+
+**Problem.** The script imports `BaselineConfig` and `run_baseline` from `models.baseline_runner`. Neither exists. That module exports `run_corpus_transfer_baseline` and `write_baseline_log`.
+
+**Evidence.** `git log -S "class BaselineConfig"` shows commit `f160942`, "retire CA-MoSE cascade, re-baseline to CALM-Sep", removed both symbols on 2026-07-17. The CLI was never updated. Its arguments describe a v1 world: `--source-files` with `DynamicMixer`, `--n-dynamic`, `--allowed-n`, and a `--config` whose schema (`data_root`, `subset`, `experts: [sepformer, srcorrnet]`, `sample_rate: 16000`) belongs to the abandoned architecture. The parser help string still reads "Run Phase 0 CA-MoSE baseline on Libri3Mix".
+
+**Impact.** `pyproject.toml` declares `ca-mose-baseline = "scripts.run_baseline:main"`. The one console script the package installs cannot start. `data/prepare_librimix.py` line 463 prints this command as the suggested next step after data preparation, so the documented happy path ends in an ImportError.
+
+**Suspected cause.** The v1 to v2 refactor replaced the provider and left the consumer.
+
+**Scope.** Decide between two outcomes and record which. Either rewrite the CLI as a thin front end over `run_corpus_transfer_baseline`, or classify it [SUPERSEDED] by `eval/run_eval.py`, which already computes the frozen-base baseline alongside the full system on the same clips. Whichever is chosen, `pyproject.toml` and the `prepare_librimix.py` hint must agree with it.
+
+**Acceptance criteria.**
+- [ ] `scripts/run_baseline.py` either imports and runs `--help`, or is removed with a recorded classification.
+- [ ] No console script points at a module that cannot import.
+- [ ] The command printed by `data/prepare_librimix.py` works.
+
+**Validation.** `pip install -e .` then invoke every declared console script with `--help`.
+
+**Dependencies.** Feeds I-018.
+
+---
+
+### I-036 `[BUG]` P0 Inference passed a gate mapping where an adapter name belongs, randomising every gate
+
+**State:** CLOSED, commit `1eb2496`
+
+**Problem.** `CalmSepPipeline._separate_chunk` called `self.lora.forward_context(gate_vec)` with a dict of gate values. `forward_context` takes an adapter **name**.
+
+**Evidence.** The dict reached `LoRALibrary.set_adapter`, whose loop compares each adapter name against the argument. A string never equals a dict, so every adapter fell through to the co-activation branch and was assigned a random gate from `Uniform(0.0, 0.2)`.
+
+**Impact.** With adapters attached, inference applied random routing and discarded the gate network output entirely, while still reporting the computed gate vector in the result. No exception, plausible-sounding audio, and a result object that disagreed with what the model actually did. It escaped notice because nothing in the repository currently runs the pipeline with a LoRA library attached, and because the trained gate is flat at roughly 0.5 anyway (I-003), so the difference would have been hard to hear.
+
+**Solution.** Call `set_gates(gate_vec)`, then enter `forward_context()` with no adapter name. Harden the seam so the mistake cannot recur silently: `set_adapter` raises `TypeError` on a non-string name and names `set_gates` in the message; both methods reject unknown adapter names.
+
+**Validation.** Six regression tests in `tests/test_lora.py`, including one that passes a gate mapping to `set_adapter` and asserts `TypeError`, and one asserting the routed gates reach every wrapped Linear and are cleared on exit.
+
+---
+
+### I-037 `[BUG]` P1 The attractor count readout crashed on numpy and counted non-speaker slots
+
+**State:** CLOSED, commit `efcc27f`
+
+**Problem.** Two defects in the no-counter fallback of `CalmSepPipeline._three_vote_count`.
+
+**Evidence.** First, `SeparationResult` declares `attractor_probs` as numpy, and the fallback called the torch method `.clamp` on the result: `AttributeError: 'numpy.int64' object has no attribute 'clamp'`. Second, it thresholded the whole 7-element attractor vector. Only slots 1 to 5 are speaker slots; slot 0 and slot 6 are not.
+
+**Impact.** The second defect is the worse one. It inflated the count by however many non-speaker slots crossed threshold, then clipped into the 2 to 5 range, so a wrong answer arrived looking like a plausible one rather than an obvious error. Two implementations of "which slots mean speakers" existed and disagreed.
+
+**Solution.** Convert the probabilities to torch once, where they are collected, so the method has a single type. Delegate the readout to `models.counting.count_from_attractors`, which implements the slot semantics correctly and is the canonical readout named in the architecture.
+
+**Validation.** `tests/test_pipeline_counting.py`, six cases. Every fixture deliberately sets slots 0 and 6 high, so counting them fails the assertions.
+
+---
+
+### I-038 `[ARCH]` P2 The four calibrators use three serialisation formats, two of them bare pickle
+
+**State:** READY
+
+**Problem.** Four classes in one package, four different `save` implementations:
+
+| Class | Format | Written file |
+|---|---|---|
+| `TemperatureScaler` | `torch.save` | as given |
+| `ConfidenceCalibrator` | `pickle.dump` | as given |
+| `CompletenessCalibrator` | `np.save` | **appends `.npy` silently** |
+| `OODCalibrator` | `pickle.dump` | as given |
+
+**Evidence.** Found while rebuilding `train/calibrate.py` (I-008). Passing `completeness.json` to `CompletenessCalibrator.save` produced `completeness.json.npy`, so hashing `completeness.json` then raised `FileNotFoundError`. The path a caller passes is not the path that gets written.
+
+**Impact.** Three concerns, in order of seriousness.
+
+1. `ConfidenceCalibrator` pickles a fitted scikit-learn `IsotonicRegression`, and `OODCalibrator` pickles its detector object. Unpickling executes arbitrary code, so a calibration artifact is only as trustworthy as its source. These artifacts are intended to be published alongside checkpoints.
+2. A pickled scikit-learn estimator does not reliably load across library versions, so a calibration artifact can become unreadable after a routine dependency bump.
+3. `np.save` rewriting the caller's path is a silent surprise that has already caused one bug.
+
+**Scope.** Move all four to one explicit, inspectable format. JSON fits three of them directly, since they hold only scalars and a small covariance matrix. `ConfidenceCalibrator` needs its isotonic knots serialised as arrays rather than the estimator object pickled.
+
+**Constraint.** Calibration artifacts may already exist on Kaggle in the current formats. Keep `load` able to read the old format for at least one release, and record the deprecation.
+
+**Acceptance criteria.**
+- [ ] One documented format across all four classes.
+- [ ] No `pickle` in the calibration package.
+- [ ] `save(path)` writes exactly `path`.
+- [ ] Round-trip tests for each class, and a test that an old-format artifact still loads.
+
+**Validation.** `pytest tests/test_calibration.py tests/test_calibrate_cli.py`.
+
+**Dependencies.** Discovered by I-008.
+
+---
+
+### I-039 `[DOC]` P2 BLUEPRINT records 17 LoRA attachment points; the measured count is 37
+
+**State:** READY
+
+**Problem.** `docs/decisions.md`, entry dated 2026-07-17, states "Primary LoRA attach set = 17 QKV+filter layers; Matches BLUEPRINT section 5.3 layer count". The measured count is 37.
+
+**Evidence.** `LoRALibrary` attached to the real backbone reports `n_attached = 37`. The docstring of `models/lora.py` itemises the same 37 and attributes them to BLUEPRINT section 5.3: 8 encoder, 16 decoder, 8 cross-attention, 1 filter head, 4 auxiliary filter heads. `NUMBERS.md` also says 37. Only the decision log says 17.
+
+**Impact.** Low in isolation, but it is a decision record, which is the document a future engineer trusts to explain why the attach set is what it is. If 17 was a deliberate narrower choice that was later widened, the reason for widening is unrecorded. If it was always 37, the entry is simply wrong.
+
+**Scope.** Determine which reading is right from the commit history around 2026-07-17, then either correct the entry or add a follow-up entry recording the widening and its reason. Do not silently edit a historical decision log; append a dated correction.
+
+**Acceptance criteria.**
+- [ ] The decision log and the measured count agree, or the log explains the change.
+- [ ] The correction is dated and does not rewrite the original entry in place.
+
+**Validation.** Attach `LoRALibrary` to the loaded backbone and assert `n_attached == 37` in a test that skips when the backbone is unavailable.
+
 
 ## Ticket protocol
 
