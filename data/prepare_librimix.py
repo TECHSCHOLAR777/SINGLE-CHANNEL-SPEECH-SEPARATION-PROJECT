@@ -459,8 +459,8 @@ def main() -> None:
     print()
     print(f'  data_root: "{data_root}"')
     print()
-    print("Then run the Phase 0 baseline:")
-    print("  python scripts/run_baseline.py --config configs/baseline.yaml")
+    print("Then score the frozen backbone on one split:")
+    print(f"  python scripts/run_baseline.py --data-root {data_root}/Libri2Mix --max-samples 30")
     print("=" * 60)
 
 

@@ -1,111 +1,98 @@
 #!/usr/bin/env python3
-"""
-CLI entry point for Phase 0 baseline evaluation.
+"""Score the frozen backbone alone on a LibriMix split.
 
-Usage:
-    python scripts/run_baseline.py --config configs/baseline.yaml
-    python scripts/run_baseline.py --config configs/baseline.yaml --max-samples 10
+This is the corpus-transfer baseline: the number every adapter configuration
+has to beat. It runs the frozen backbone with no adapters, no gate and no band
+recovery, and reports PIT SI-SDRi against the clean stems.
 
-    # Dynamic mode — no pre-mixed Libri3Mix needed:
-    python scripts/run_baseline.py --source-files data/libri/*.wav --n-dynamic 20
+    python scripts/run_baseline.py --data-root <librimix>/Libri2Mix --max-samples 30
+
+Defaults match the recorded evaluations: 8 kHz, `min` mode, `test` subset. Those
+are the settings behind every number in docs/restoration/RESULTS.md.
+
+Relationship to `eval/run_eval.py`: that script scores the baseline and the full
+system side by side and is what produced the published comparisons. This one
+scores the baseline alone, which is useful when checking a fresh environment or
+a new split before committing to a full run.
 """
 
 from __future__ import annotations
 
 import argparse
+import json
 import sys
 from pathlib import Path
 
-# Ensure project root is on sys.path when invoked as a script.
+# Ensure the project root is importable when invoked as a script.
 _ROOT = Path(__file__).resolve().parent.parent
 if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
-from models.baseline_runner import BaselineConfig, run_baseline  # noqa: E402
-from utils.config import load_config  # noqa: E402
+from data.mixer_stub import discover_librimix_samples  # noqa: E402
+from models.baseline_runner import run_corpus_transfer_baseline, write_baseline_log  # noqa: E402
+from utils.logging import get_logger  # noqa: E402
+
+log = get_logger("run_baseline")
 
 
-def main() -> None:
-    parser = argparse.ArgumentParser(description="Run Phase 0 CA-MoSE baseline on Libri3Mix")
-    parser.add_argument(
-        "--config",
-        type=str,
-        default="configs/baseline.yaml",
-        help="Path to baseline YAML config",
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
     )
-    parser.add_argument(
-        "--defaults",
-        type=str,
-        default="configs/default.yaml",
-        help="Optional shared defaults YAML layered under --config",
+    p.add_argument(
+        "--data-root",
+        required=True,
+        help="Root of one LibriMix split, for example <librimix>/Libri2Mix",
     )
-    parser.add_argument(
+    p.add_argument("--subset", default="test", choices=("train", "dev", "test"))
+    p.add_argument("--sample-rate", type=int, default=8000, choices=(8000, 16000))
+    p.add_argument("--mode", default="min", choices=("min", "max"))
+    p.add_argument(
         "--max-samples",
         type=int,
         default=None,
-        help="Override max_samples from config",
+        help="Cap the number of mixtures. The recorded runs used 30.",
     )
-    parser.add_argument(
-        "--data-root",
-        type=str,
-        default=None,
-        help="Override data_root from config",
-    )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default=None,
-        help="Override device (cuda / cpu)",
-    )
-    parser.add_argument(
-        "--source-files",
-        nargs="+",
-        metavar="PATH",
-        default=None,
-        help=(
-            "Clean single-speaker WAV/FLAC files for on-the-fly mixing "
-            "(DynamicMixer). When set, --data-root is ignored."
-        ),
-    )
-    parser.add_argument(
-        "--n-dynamic",
-        type=int,
-        default=None,
-        help="Number of on-the-fly mixes to generate (dynamic mode only).",
-    )
-    parser.add_argument(
-        "--allowed-n",
-        nargs="+",
-        type=int,
-        metavar="N",
-        default=None,
-        help="Speaker counts for dynamic mixing, e.g. --allowed-n 2 3.",
-    )
-    args = parser.parse_args()
+    p.add_argument("--device", default="cpu")
+    p.add_argument("--out", default=None, help="Write the result JSON here")
+    return p.parse_args(argv)
 
-    defaults_path = Path(args.defaults)
-    config_paths = [args.config]
-    if defaults_path.exists():
-        config_paths = [defaults_path, args.config]
 
-    overrides: dict = {}
-    if args.max_samples is not None:
-        overrides["max_samples"] = args.max_samples
-    if args.data_root is not None:
-        overrides["data_root"] = args.data_root
-    if args.device is not None:
-        overrides["device"] = args.device
-    if args.source_files is not None:
-        overrides["source_files"] = args.source_files
-    if args.n_dynamic is not None:
-        overrides["n_dynamic"] = args.n_dynamic
-    if args.allowed_n is not None:
-        overrides["allowed_n"] = args.allowed_n
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
 
-    cfg_dict = load_config(*config_paths, overrides=overrides) if overrides else load_config(*config_paths)
+    samples = discover_librimix_samples(
+        args.data_root,
+        subset=args.subset,
+        max_samples=args.max_samples,
+        sample_rate=args.sample_rate,
+        mode=args.mode,
+    )
+    if not samples:
+        raise SystemExit(
+            f"no mixtures found under {args.data_root} "
+            f"(subset={args.subset}, sample_rate={args.sample_rate}, mode={args.mode})"
+        )
+    log.info("samples_discovered", n=len(samples), data_root=args.data_root)
 
-    config = BaselineConfig.from_dict(cfg_dict)
-    run_baseline(config)
+    stats = run_corpus_transfer_baseline(
+        [s.mixture for s in samples],
+        [s.references for s in samples],
+        device=args.device,
+    )
+    stats.update(
+        {
+            "data_root": str(args.data_root),
+            "subset": args.subset,
+            "mode": args.mode,
+            "requested_sample_rate": args.sample_rate,
+        }
+    )
+
+    if args.out:
+        write_baseline_log(stats, args.out)
+        log.info("baseline_written", path=args.out)
+    print(json.dumps(stats, indent=2))
 
 
 if __name__ == "__main__":

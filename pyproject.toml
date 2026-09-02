@@ -35,7 +35,7 @@ experts = [
 ]
 
 [project.scripts]
-ca-mose-baseline = "scripts.run_baseline:main"
+calmsep-baseline = "scripts.run_baseline:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
