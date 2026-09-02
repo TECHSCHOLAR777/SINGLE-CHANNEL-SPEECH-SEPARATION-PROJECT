@@ -33,6 +33,7 @@ _HF_MODEL = "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"
 MAX_SPKS = 5
 
 ADAPTER_LABELS = {"reverb": "Reverb", "noise": "Noise", "codec": "Codec"}
+_WHISPER_SR = 16_000
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Model state
@@ -99,8 +100,17 @@ def _ensure_loaded():
             "level1": level1_tensor,
             "ADAPTER_NAMES": ADAPTER_NAMES,
             "device": device,
+            "whisper": None,
         }
     )
+
+    # Whisper loads last so a failure never corrupts separation state
+    try:
+        import whisper as _whisper
+
+        _state["whisper"] = _whisper.load_model("base")
+    except Exception as _e:
+        print(f"[warn] Whisper unavailable: {_e}")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -135,6 +145,46 @@ def _to_16k(wav_8k: np.ndarray) -> np.ndarray:
         out = np.zeros(len(wav_8k) * 2, dtype=np.float32)
         out[::2] = wav_8k
         return out
+
+
+def _transcribe_to_html(wav_16k: np.ndarray, uid: str, color: str = "#00D4B8") -> str:
+    """Run Whisper with word timestamps and return a self-syncing HTML transcript block."""
+    model = _state.get("whisper")
+    if model is None:
+        return ""
+    try:
+        audio_fp32 = wav_16k.astype(np.float32)
+        # Whisper expects float32 in [-1, 1] at 16 kHz — already satisfied
+        result = model.transcribe(audio_fp32, word_timestamps=True, language="en", fp16=False)
+    except Exception:
+        return ""
+
+    words_html = ""
+    for seg in result.get("segments", []):
+        for w in seg.get("words", []):
+            word = w.get("word", "").replace("<", "&lt;").replace(">", "&gt;")
+            start = w.get("start", 0.0)
+            end = w.get("end", 0.0)
+            words_html += (
+                f'<span class="cs-tw" data-s="{start:.3f}" data-e="{end:.3f}">{word}</span>'
+            )
+
+    if not words_html:
+        text = result.get("text", "").strip()
+        return (
+            (
+                f'<div class="cs-transcript-box" style="--tw-color:{color}">'
+                f'<p class="cs-transcript-plain">{text}</p></div>'
+            )
+            if text
+            else ""
+        )
+
+    return (
+        f'<div class="cs-transcript-box" id="tx-{uid}" style="--tw-color:{color}">'
+        f'<div class="cs-transcript-words">{words_html}</div>'
+        f"</div>"
+    )
 
 
 def _extract_waves(out_dict: dict) -> list[np.ndarray]:
@@ -301,7 +351,7 @@ def process(audio_input, progress=gr.Progress(track_tqdm=False)):
     progress(0.55, desc="Running CALM-Sep …")
     calm_waves, calm_time, gate_vals = _run_calmsep(wav_8k)
 
-    progress(0.92, desc="Rendering …")
+    progress(0.85, desc="Rendering …")
 
     n_det = max(len(base_waves), len(calm_waves))
     while len(base_waves) < n_det:
@@ -309,8 +359,34 @@ def process(audio_input, progress=gr.Progress(track_tqdm=False)):
     while len(calm_waves) < n_det:
         calm_waves.append(np.zeros(len(wav_8k), dtype=np.float32))
 
-    base_audio = [(_SR_OUT, _to_16k(w)) for w in base_waves[:MAX_SPKS]]
-    calm_audio = [(_SR_OUT, _to_16k(w)) for w in calm_waves[:MAX_SPKS]]
+    base_audio_16k = [_to_16k(w) for w in base_waves[:MAX_SPKS]]
+    calm_audio_16k = [_to_16k(w) for w in calm_waves[:MAX_SPKS]]
+    base_audio = [(_SR_OUT, w) for w in base_audio_16k]
+    calm_audio = [(_SR_OUT, w) for w in calm_audio_16k]
+
+    progress(0.88, desc="Transcribing input …")
+    # Transcribe input at 16 kHz (upsample from 8k resampled version)
+    mix_tx_html = _transcribe_to_html(_to_16k(wav_8k), "mix", "#888888")
+
+    progress(0.92, desc="Transcribing speakers …")
+    base_tx = [
+        (
+            _transcribe_to_html(base_audio_16k[i], f"base{i}", "#818cf8")
+            if i < len(base_audio_16k)
+            else ""
+        )
+        for i in range(MAX_SPKS)
+    ]
+    calm_tx = [
+        (
+            _transcribe_to_html(calm_audio_16k[i], f"calm{i}", "#00D4B8")
+            if i < len(calm_audio_16k)
+            else ""
+        )
+        for i in range(MAX_SPKS)
+    ]
+
+    progress(0.97, desc="Done.")
 
     gate_h = _gate_html(gate_vals)
     stat_h = _status_html(base_time, calm_time, _state["temperature"], n_det)
@@ -318,13 +394,15 @@ def process(audio_input, progress=gr.Progress(track_tqdm=False)):
     base_fig = _waveform_fig(base_waves[0], "#818cf8")
     calm_fig = _waveform_fig(calm_waves[0], "#00D4B8")
 
-    outputs = [gate_h, stat_h, mix_fig, base_fig, calm_fig]
+    outputs = [gate_h, stat_h, mix_fig, base_fig, calm_fig, mix_tx_html]
     for i in range(MAX_SPKS):
         outputs.append(gr.update(visible=(i < n_det)))
         outputs.append(base_audio[i] if i < len(base_audio) else None)
+        outputs.append(base_tx[i] if i < n_det else "")
     for i in range(MAX_SPKS):
         outputs.append(gr.update(visible=(i < n_det)))
         outputs.append(calm_audio[i] if i < len(calm_audio) else None)
+        outputs.append(calm_tx[i] if i < n_det else "")
     return outputs
 
 
@@ -809,6 +887,68 @@ audio { border-radius: 8px; width: 100%; }
   margin: 1rem 0 0.6rem;
 }
 
+/* ── Transcripts ── */
+@keyframes tx-fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cs-transcript-box {
+  --tw-color: #00D4B8;
+  position: relative;
+  margin-top: 12px;
+  padding: 14px 18px 14px 22px;
+  background: rgba(255,255,255,0.04);
+  border: 1px solid rgba(255,255,255,0.09);
+  border-radius: 12px;
+  max-height: 130px;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  animation: tx-fade-in 0.35s ease both;
+}
+.cs-transcript-box::before {
+  content: "";
+  position: absolute;
+  left: 0; top: 8px; bottom: 8px;
+  width: 3px;
+  background: var(--tw-color);
+  border-radius: 0 2px 2px 0;
+  opacity: 0.7;
+}
+.cs-transcript-words {
+  font-size: 0.92rem;
+  line-height: 2;
+  color: rgba(255,255,255,0.38);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  letter-spacing: 0.01em;
+}
+.cs-tw {
+  display: inline;
+  border-radius: 4px;
+  padding: 2px 3px;
+  transition: background 0.07s, color 0.07s, text-shadow 0.07s;
+  cursor: default;
+  white-space: pre-wrap;
+}
+.cs-tw-active {
+  background: var(--tw-color) !important;
+  color: #000 !important;
+  font-weight: 700 !important;
+  text-shadow: 0 0 18px var(--tw-color) !important;
+}
+.cs-transcript-plain {
+  font-size: 0.92rem;
+  color: rgba(255,255,255,0.6);
+  line-height: 1.8;
+}
+.cs-mix-tx-label {
+  font-size: 0.58rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(255,255,255,0.3);
+  margin: 1.2rem 0 0.4rem;
+  display: block;
+}
+
 /* ── Demo content (Gradio Group) ── */
 #cs-demo-content {
   max-width: 920px !important;
@@ -1055,7 +1195,75 @@ def _make_theme():
 
 
 def build_ui():
-    with gr.Blocks(css=CSS, title="CALM-Sep", theme=_make_theme()) as demo:
+    _sync_js = """
+function() {
+  /* ── Word-highlight engine ─────────────────────────────────────────────
+     Strategy: listen for every audio 'play' event at capture phase.
+     When one fires, walk up from the audio element to find .cs-spk-grp,
+     then find the .cs-transcript-box inside it, bind timeupdate/seeked.
+     Also handle the mix-level transcript that has no speaker group.
+  ──────────────────────────────────────────────────────────────────────── */
+
+  function bindHighlight(aud, box) {
+    if (!box || box.dataset.csBound) return;
+    box.dataset.csBound = '1';
+    var spans = box.querySelectorAll('.cs-tw');
+    if (!spans.length) return;
+    function tick() {
+      var t = aud.currentTime;
+      spans.forEach(function(s) {
+        var on = t >= parseFloat(s.dataset.s) && t < parseFloat(s.dataset.e);
+        s.classList.toggle('cs-tw-active', on);
+      });
+    }
+    aud.addEventListener('timeupdate', tick);
+    aud.addEventListener('seeked', tick);
+    /* scroll active word into view */
+    aud.addEventListener('timeupdate', function() {
+      var active = box.querySelector('.cs-tw-active');
+      if (active) active.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+    });
+  }
+
+  function findBox(aud) {
+    /* speaker-level: walk to .cs-spk-grp, then find transcript */
+    var grp = aud.closest('.cs-spk-grp');
+    if (grp) {
+      var box = grp.querySelector('.cs-transcript-box');
+      if (box) return box;
+    }
+    /* fallback: try querying all boxes near any ancestor */
+    var anc = aud.parentElement;
+    for (var d = 0; d < 12 && anc; d++, anc = anc.parentElement) {
+      var box = anc.querySelector('.cs-transcript-box');
+      if (box) return box;
+    }
+    return null;
+  }
+
+  /* Capture-phase so we fire before waveform component consumes the event */
+  document.addEventListener('play', function(e) {
+    if (e.target.tagName !== 'AUDIO') return;
+    setTimeout(function() {          /* tiny defer so DOM has settled */
+      var box = findBox(e.target);
+      if (box) bindHighlight(e.target, box);
+    }, 50);
+  }, true);
+
+  /* Also bind eagerly whenever transcript HTML is injected via MutationObserver */
+  function attachAll() {
+    document.querySelectorAll('.cs-transcript-box:not([data-cs-bound])').forEach(function(box) {
+      var grp = box.closest('.cs-spk-grp');
+      if (!grp) return;
+      var aud = grp.querySelector('audio');
+      if (aud) bindHighlight(aud, box);
+    });
+  }
+  var obs = new MutationObserver(function() { setTimeout(attachAll, 80); });
+  obs.observe(document.body, { childList: true, subtree: true });
+}
+"""
+    with gr.Blocks(css=CSS, title="CALM-Sep", theme=_make_theme(), js=_sync_js) as demo:
 
         # ── Nav + landing ─────────────────────────────────────────────────
         gr.HTML(_NAV_HTML)
@@ -1094,17 +1302,22 @@ def build_ui():
 
             status_out = gr.HTML("", elem_classes=["cs-status"])
 
+            # Input mixture transcript
+            gr.HTML('<span class="cs-mix-tx-label">Input transcript</span>')
+            mix_transcript = gr.HTML("")
+
             with gr.Row(equal_height=False):
 
                 with gr.Column():
                     gr.HTML(
                         '<div class="cs-col-head"><div class="cs-col-dot" style="background:#7c83e0"></div><span class="cs-col-title" style="color:#7c83e0">Baseline · SR-CorrNet</span></div>'
                     )
-                    base_groups, base_players = [], []
+                    base_groups, base_players, base_transcripts = [], [], []
                     for i in range(MAX_SPKS):
-                        with gr.Group(visible=(i < 2)) as grp:
+                        with gr.Group(visible=(i < 2), elem_classes=["cs-spk-grp"]) as grp:
                             gr.HTML(f'<span class="cs-spk-lbl">Speaker {i+1}</span>')
                             base_players.append(gr.Audio(label="", type="numpy", interactive=False))
+                            base_transcripts.append(gr.HTML(""))
                         base_groups.append(grp)
 
                 with gr.Column():
@@ -1113,18 +1326,19 @@ def build_ui():
                     )
                     gate_html_out = gr.HTML("")
                     gr.HTML('<div class="cs-gate-head">Adapter gate activations</div>')
-                    calm_groups, calm_players = [], []
+                    calm_groups, calm_players, calm_transcripts = [], [], []
                     for i in range(MAX_SPKS):
-                        with gr.Group(visible=(i < 2)) as grp:
+                        with gr.Group(visible=(i < 2), elem_classes=["cs-spk-grp"]) as grp:
                             gr.HTML(f'<span class="cs-spk-lbl">Speaker {i+1}</span>')
                             calm_players.append(gr.Audio(label="", type="numpy", interactive=False))
+                            calm_transcripts.append(gr.HTML(""))
                         calm_groups.append(grp)
 
-        outputs = [gate_html_out, status_out, mix_wave, base_wave, calm_wave]
+        outputs = [gate_html_out, status_out, mix_wave, base_wave, calm_wave, mix_transcript]
         for i in range(MAX_SPKS):
-            outputs += [base_groups[i], base_players[i]]
+            outputs += [base_groups[i], base_players[i], base_transcripts[i]]
         for i in range(MAX_SPKS):
-            outputs += [calm_groups[i], calm_players[i]]
+            outputs += [calm_groups[i], calm_players[i], calm_transcripts[i]]
 
         run_btn.click(fn=process, inputs=[audio_in], outputs=outputs)
 
