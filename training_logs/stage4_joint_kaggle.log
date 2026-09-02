@@ -1,0 +1,161 @@
+[{"stream_name":"stderr","time":6.459873704,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":6.459920346,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":6.459926854,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":6.459930979,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stderr","time":7.051759423,"data":"0.00s - Debugger warning: It seems that frozen modules are being used, which may\n"}
+,{"stream_name":"stderr","time":7.051799554,"data":"0.00s - make the debugger miss breakpoints. Please pass -Xfrozen_modules=off\n"}
+,{"stream_name":"stderr","time":7.051819687,"data":"0.00s - to python to disable frozen modules.\n"}
+,{"stream_name":"stderr","time":7.051824995,"data":"0.00s - Note: Debugging will proceed. Set PYDEVD_DISABLE_FILE_VALIDATION=1 to disable this validation.\n"}
+,{"stream_name":"stdout","time":12.637362648,"data":"GPU: Tesla T4\n"}
+,{"stream_name":"stdout","time":12.637426308,"data":"VRAM: 15.6 GB\n"}
+,{"stream_name":"stdout","time":12.695246257,"data":"BF16: True\n"}
+,{"stream_name":"stdout","time":12.695290799,"data":"  [OK] AUDIO: /kaggle/input/datasets/rishig777/calmsep-8k-slice/calmsep-kaggle\n"}
+,{"stream_name":"stdout","time":12.695296826,"data":"  [OK] MODEL_DS: /kaggle/input/datasets/rishig777/calmsep-model/calmsep-tiny\n"}
+,{"stream_name":"stdout","time":12.695300988,"data":"  [OK] ADAPTERS: /kaggle/input/datasets/rishig777/calmsep-stage1-adapters\n"}
+,{"stream_name":"stdout","time":12.695304893,"data":"  [OK] GATE_DS: /kaggle/input/datasets/rishig777/calmsep-stage3-gate\n"}
+,{"stream_name":"stdout","time":12.889162964,"data":"SR-CorrNet src copied from: /kaggle/input/datasets/rishig777/calmsep-model/calmsep-tiny/sr_corrnet_src\n"}
+,{"stream_name":"stdout","time":16.985118378,"data":"SSInference: OK\n"}
+,{"stream_name":"stdout","time":17.055886046,"data":"Copied best_reverb.pt: 432.3 KB\n"}
+,{"stream_name":"stdout","time":17.055948581,"data":"Copied best_noise.pt: 433.1 KB\n"}
+,{"stream_name":"stdout","time":17.055955709,"data":"Copied best_codec.pt: 433.1 KB\n"}
+,{"stream_name":"stdout","time":17.055960523,"data":"Copied best_gate.pt: 367.9 KB\n"}
+,{"stream_name":"stdout","time":17.055964981,"data":"Copied final_gate.pt: 367.9 KB\n"}
+,{"stream_name":"stdout","time":17.155625665,"data":"  train/__init__.py: 58 bytes\n"}
+,{"stream_name":"stdout","time":17.155664303000002,"data":"  train/losses.py: 7564 bytes\n"}
+,{"stream_name":"stdout","time":17.155670209,"data":"  train/stage1_single.py: 29588 bytes\n"}
+,{"stream_name":"stdout","time":17.155674522,"data":"  train/stage3_gate.py: 15986 bytes\n"}
+,{"stream_name":"stdout","time":17.155678981,"data":"  train/stage4_joint.py: 14381 bytes\n"}
+,{"stream_name":"stdout","time":17.155682615,"data":"  models/__init__.py: 56 bytes\n"}
+,{"stream_name":"stdout","time":17.155686617,"data":"  models/lora.py: 16876 bytes\n"}
+,{"stream_name":"stdout","time":17.155689985,"data":"  models/condition.py: 12000 bytes\n"}
+,{"stream_name":"stdout","time":17.155708331,"data":"  models/gate.py: 6840 bytes\n"}
+,{"stream_name":"stdout","time":17.155712547,"data":"  data/__init__.py: 83 bytes\n"}
+,{"stream_name":"stdout","time":17.155724123,"data":"  data/calmsep_mixer.py: 13914 bytes\n"}
+,{"stream_name":"stdout","time":17.15573475,"data":"  data/degradations.py: 14185 bytes\n"}
+,{"stream_name":"stdout","time":17.155738636,"data":"  data/mixer_stub.py: 4269 bytes\n"}
+,{"stream_name":"stdout","time":17.155757779,"data":"  data/rir_bank.py: 16742 bytes\n"}
+,{"stream_name":"stdout","time":17.155810703,"data":"  data/codec_augmentation.py: 12804 bytes\n"}
+,{"stream_name":"stdout","time":17.155817431,"data":"All files baked.\n"}
+,{"stream_name":"stdout","time":17.186548801,"data":"cwd: /tmp/calmsep_project\n"}
+,{"stream_name":"stdout","time":17.186582539,"data":"  models.lora: OK\n"}
+,{"stream_name":"stdout","time":17.186586504,"data":"  models.gate: OK\n"}
+,{"stream_name":"stdout","time":17.186589563,"data":"  models.condition: OK\n"}
+,{"stream_name":"stdout","time":17.207387996,"data":"  train.losses: OK\n"}
+,{"stream_name":"stdout","time":17.207444725,"data":"  train.stage1_single: OK\n"}
+,{"stream_name":"stdout","time":17.2074512,"data":"  train.stage3_gate: OK\n"}
+,{"stream_name":"stdout","time":17.207456266,"data":"  train.stage4_joint: OK\n"}
+,{"stream_name":"stdout","time":17.2074602,"data":"RIR bank: True /kaggle/input/datasets/rishig777/calmsep-8k-slice/calmsep-kaggle/rirs/bank.json\n"}
+,{"stream_name":"stdout","time":17.207464444,"data":"Noise dir: True /kaggle/input/datasets/rishig777/calmsep-8k-slice/calmsep-kaggle/noise\n"}
+,{"stream_name":"stdout","time":17.207468962,"data":"Gate ckpt: True /kaggle/working/checkpoints/stage4_joint/best_gate_init.pt\n"}
+,{"stream_name":"stdout","time":17.207472757,"data":"Reverb: True\n"}
+,{"stream_name":"stdout","time":17.207476404,"data":"Noise: True\n"}
+,{"stream_name":"stdout","time":17.207479872,"data":"Codec: True\n"}
+,{"stream_name":"stderr","time":17.264994945,"data":"2026-07-21 11:34:57,366 INFO Precision: AMP torch.bfloat16\n"}
+,{"stream_name":"stderr","time":17.265028677,"data":"\n"}
+,{"stream_name":"stderr","time":17.265033888,"data":"2026-07-21 11:34:57,366 INFO Precision: AMP torch.bfloat16\n"}
+,{"stream_name":"stderr","time":17.265997822,"data":"2026-07-21 11:34:57,367 INFO Loading frozen checkpoint: shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk (on cpu, will move to cuda)\n"}
+,{"stream_name":"stderr","time":17.266030099,"data":"\n"}
+,{"stream_name":"stderr","time":17.266034983,"data":"2026-07-21 11:34:57,367 INFO Loading frozen checkpoint: shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk (on cpu, will move to cuda)\n"}
+,{"stream_name":"stdout","time":17.356652814,"data":"Stage 4 joint training — 20 epochs, 1000 samples/epoch\n"}
+,{"stream_name":"stdout","time":17.35671484,"data":"lr_adapter=1e-5  lr_gate=2e-5  bf16=True\n"}
+,{"stream_name":"stderr","time":17.982544059,"data":"2026-07-21 11:34:58,082 INFO Entering '{}' (args={}, kwargs={})\n"}
+,{"stream_name":"stderr","time":17.982580115,"data":"\n"}
+,{"stream_name":"stderr","time":17.98258399,"data":"2026-07-21 11:34:58,082 INFO Entering '{}' (args={}, kwargs={})\n"}
+,{"stream_name":"stderr","time":17.999833638,"data":"2026-07-21 11:34:58,101 INFO Exiting '{}' (result={})\n"}
+,{"stream_name":"stderr","time":17.999863955,"data":"\n"}
+,{"stream_name":"stderr","time":17.999869378,"data":"2026-07-21 11:34:58,101 INFO Exiting '{}' (result={})\n"}
+,{"stream_name":"stderr","time":20.212647354,"data":"2026-07-21 11:35:00,313 INFO Loaded checkpoint: /kaggle/input/datasets/rishig777/calmsep-model/calmsep-tiny/hf_cache/hub/models--shinuh--sr-corrnet-ss-1ch-wsj-var-2-5spk/snapshots/e92af46a2bc3b7f53c14a951c4cc551abea6d637/model.pt\n"}
+,{"stream_name":"stderr","time":20.21268012,"data":"\n"}
+,{"stream_name":"stderr","time":20.212684416,"data":"2026-07-21 11:35:00,313 INFO Loaded checkpoint: /kaggle/input/datasets/rishig777/calmsep-model/calmsep-tiny/hf_cache/hub/models--shinuh--sr-corrnet-ss-1ch-wsj-var-2-5spk/snapshots/e92af46a2bc3b7f53c14a951c4cc551abea6d637/model.pt\n"}
+,{"stream_name":"stderr","time":20.2783053,"data":"2026-07-21 11:35:00,378 INFO Loaded reverb adapter: 74 tensors, 386 missing, 0 unexpected\n"}
+,{"stream_name":"stderr","time":20.278350059,"data":"\n"}
+,{"stream_name":"stderr","time":20.278355386,"data":"2026-07-21 11:35:00,378 INFO Loaded reverb adapter: 74 tensors, 386 missing, 0 unexpected\n"}
+,{"stream_name":"stderr","time":20.290608489,"data":"2026-07-21 11:35:00,391 INFO Loaded noise adapter: 74 tensors, 386 missing, 0 unexpected\n"}
+,{"stream_name":"stderr","time":20.290641653,"data":"\n"}
+,{"stream_name":"stderr","time":20.290646749,"data":"2026-07-21 11:35:00,391 INFO Loaded noise adapter: 74 tensors, 386 missing, 0 unexpected\n"}
+,{"stream_name":"stderr","time":20.302527212,"data":"2026-07-21 11:35:00,403 INFO Loaded codec adapter: 74 tensors, 386 missing, 0 unexpected\n"}
+,{"stream_name":"stderr","time":20.302555130000002,"data":"\n"}
+,{"stream_name":"stderr","time":20.302560039,"data":"2026-07-21 11:35:00,403 INFO Loaded codec adapter: 74 tensors, 386 missing, 0 unexpected\n"}
+,{"stream_name":"stderr","time":20.346584738,"data":"2026-07-21 11:35:00,447 INFO Loaded Stage 3 checkpoint: /kaggle/working/checkpoints/stage4_joint/best_gate_init.pt\n"}
+,{"stream_name":"stderr","time":20.346613555,"data":"\n"}
+,{"stream_name":"stderr","time":20.346618735,"data":"2026-07-21 11:35:00,447 INFO Loaded Stage 3 checkpoint: /kaggle/working/checkpoints/stage4_joint/best_gate_init.pt\n"}
+,{"stream_name":"stderr","time":45.160188754,"data":"2026-07-21 11:35:25,258 INFO Noise files found: 979\n"}
+,{"stream_name":"stderr","time":45.160234283,"data":"\n"}
+,{"stream_name":"stderr","time":45.160238601,"data":"2026-07-21 11:35:25,258 INFO Noise files found: 979\n"}
+,{"stream_name":"stderr","time":45.162851838,"data":"2026-07-21 11:35:25,261 INFO Stage 4 | epochs=20  samples/epoch=1000  lr_adapter=1.00e-05  lr_gate=2.00e-05\n"}
+,{"stream_name":"stderr","time":45.162888274,"data":"\n"}
+,{"stream_name":"stderr","time":45.162893813,"data":"2026-07-21 11:35:25,261 INFO Stage 4 | epochs=20  samples/epoch=1000  lr_adapter=1.00e-05  lr_gate=2.00e-05\n"}
+,{"stream_name":"stdout","time":46.368566105,"data":"Downloading: \"https://github.com/snakers4/silero-vad/zipball/master\" to /root/.cache/torch/hub/master.zip\n"}
+,{"stream_name":"stderr","time":3030.411199976,"data":"2026-07-21 12:25:10,505 INFO Epoch 1/20  loss=11.8453  time=2985.2s\n"}
+,{"stream_name":"stderr","time":3030.411263231,"data":"\n"}
+,{"stream_name":"stderr","time":3030.411271025,"data":"2026-07-21 12:25:10,505 INFO Epoch 1/20  loss=11.8453  time=2985.2s\n"}
+,{"stream_name":"stderr","time":3030.430871734,"data":"2026-07-21 12:25:10,532 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":3030.430898479,"data":"\n"}
+,{"stream_name":"stderr","time":3030.430904876,"data":"2026-07-21 12:25:10,532 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":5974.30092929,"data":"2026-07-21 13:14:14,392 INFO Epoch 2/20  loss=11.3396  time=2943.9s\n"}
+,{"stream_name":"stderr","time":5974.301001633,"data":"\n"}
+,{"stream_name":"stderr","time":5974.301009996,"data":"2026-07-21 13:14:14,392 INFO Epoch 2/20  loss=11.3396  time=2943.9s\n"}
+,{"stream_name":"stderr","time":5974.323203179,"data":"2026-07-21 13:14:14,423 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":5974.32324533,"data":"\n"}
+,{"stream_name":"stderr","time":5974.323250958,"data":"2026-07-21 13:14:14,423 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":8934.510405364,"data":"2026-07-21 14:03:34,605 INFO Epoch 3/20  loss=10.7426  time=2960.2s\n"}
+,{"stream_name":"stderr","time":8934.510469896,"data":"\n"}
+,{"stream_name":"stderr","time":8934.510477311,"data":"2026-07-21 14:03:34,605 INFO Epoch 3/20  loss=10.7426  time=2960.2s\n"}
+,{"stream_name":"stderr","time":8934.530490571,"data":"2026-07-21 14:03:34,631 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":8934.530525223,"data":"\n"}
+,{"stream_name":"stderr","time":8934.530531244,"data":"2026-07-21 14:03:34,631 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":11956.356675689,"data":"2026-07-21 14:53:56,447 INFO Epoch 4/20  loss=9.8575  time=3021.8s\n"}
+,{"stream_name":"stderr","time":11956.356751277,"data":"\n"}
+,{"stream_name":"stderr","time":11956.356759968,"data":"2026-07-21 14:53:56,447 INFO Epoch 4/20  loss=9.8575  time=3021.8s\n"}
+,{"stream_name":"stderr","time":11956.377664069,"data":"2026-07-21 14:53:56,478 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":11956.377709781,"data":"\n"}
+,{"stream_name":"stderr","time":11956.377719307,"data":"2026-07-21 14:53:56,478 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":14905.502518254,"data":"2026-07-21 15:43:05,595 INFO Epoch 5/20  loss=13.4661  time=2949.1s\n"}
+,{"stream_name":"stderr","time":14905.502561532,"data":"\n"}
+,{"stream_name":"stderr","time":14905.502565882,"data":"2026-07-21 15:43:05,595 INFO Epoch 5/20  loss=13.4661  time=2949.1s\n"}
+,{"stream_name":"stderr","time":17890.408424848,"data":"2026-07-21 16:32:50,503 INFO Epoch 6/20  loss=9.5856  time=2984.9s\n"}
+,{"stream_name":"stderr","time":17890.408493401,"data":"\n"}
+,{"stream_name":"stderr","time":17890.408501585,"data":"2026-07-21 16:32:50,503 INFO Epoch 6/20  loss=9.5856  time=2984.9s\n"}
+,{"stream_name":"stderr","time":17890.429727481,"data":"2026-07-21 16:32:50,530 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":17890.429759439,"data":"\n"}
+,{"stream_name":"stderr","time":17890.429765152,"data":"2026-07-21 16:32:50,530 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":20815.148869304,"data":"2026-07-21 17:21:35,243 INFO Epoch 7/20  loss=9.4863  time=2924.7s\n"}
+,{"stream_name":"stderr","time":20815.148918103,"data":"\n"}
+,{"stream_name":"stderr","time":20815.148925043,"data":"2026-07-21 17:21:35,243 INFO Epoch 7/20  loss=9.4863  time=2924.7s\n"}
+,{"stream_name":"stderr","time":20815.169283684,"data":"2026-07-21 17:21:35,270 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":20815.169313424,"data":"\n"}
+,{"stream_name":"stderr","time":20815.169318898,"data":"2026-07-21 17:21:35,270 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":23745.258034702,"data":"2026-07-21 18:10:25,353 INFO Epoch 8/20  loss=9.4310  time=2930.1s\n"}
+,{"stream_name":"stderr","time":23745.258095944,"data":"\n"}
+,{"stream_name":"stderr","time":23745.258121152,"data":"2026-07-21 18:10:25,353 INFO Epoch 8/20  loss=9.4310  time=2930.1s\n"}
+,{"stream_name":"stderr","time":23745.278563182,"data":"2026-07-21 18:10:25,379 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":23745.278590342,"data":"\n"}
+,{"stream_name":"stderr","time":23745.278607057,"data":"2026-07-21 18:10:25,379 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":26680.256558483,"data":"2026-07-21 18:59:20,348 INFO Epoch 9/20  loss=10.9350  time=2935.0s\n"}
+,{"stream_name":"stderr","time":26680.256611594,"data":"\n"}
+,{"stream_name":"stderr","time":26680.256616656,"data":"2026-07-21 18:59:20,348 INFO Epoch 9/20  loss=10.9350  time=2935.0s\n"}
+,{"stream_name":"stderr","time":29626.254067858,"data":"2026-07-21 19:48:26,348 INFO Epoch 10/20  loss=8.8908  time=2946.0s\n"}
+,{"stream_name":"stderr","time":29626.254104569,"data":"\n"}
+,{"stream_name":"stderr","time":29626.254111046,"data":"2026-07-21 19:48:26,348 INFO Epoch 10/20  loss=8.8908  time=2946.0s\n"}
+,{"stream_name":"stderr","time":29626.275150374,"data":"2026-07-21 19:48:26,375 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":29626.275178205,"data":"\n"}
+,{"stream_name":"stderr","time":29626.27518397,"data":"2026-07-21 19:48:26,375 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":32539.75409959,"data":"2026-07-21 20:36:59,845 INFO Epoch 11/20  loss=10.3125  time=2913.5s\n"}
+,{"stream_name":"stderr","time":32539.754166775,"data":"\n"}
+,{"stream_name":"stderr","time":32539.75417469,"data":"2026-07-21 20:36:59,845 INFO Epoch 11/20  loss=10.3125  time=2913.5s\n"}
+,{"stream_name":"stderr","time":35536.615030737,"data":"2026-07-21 21:26:56,704 INFO Epoch 12/20  loss=8.7204  time=2996.9s\n"}
+,{"stream_name":"stderr","time":35536.615083213,"data":"\n"}
+,{"stream_name":"stderr","time":35536.615101809,"data":"2026-07-21 21:26:56,704 INFO Epoch 12/20  loss=8.7204  time=2996.9s\n"}
+,{"stream_name":"stderr","time":35536.634503506,"data":"2026-07-21 21:26:56,735 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":35536.634530796,"data":"\n"}
+,{"stream_name":"stderr","time":35536.634536707,"data":"2026-07-21 21:26:56,735 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":38516.29153877,"data":"2026-07-21 22:16:36,382 INFO Epoch 13/20  loss=8.9367  time=2979.6s\n"}
+,{"stream_name":"stderr","time":38516.29160344,"data":"\n"}
+,{"stream_name":"stderr","time":38516.29161113,"data":"2026-07-21 22:16:36,382 INFO Epoch 13/20  loss=8.9367  time=2979.6s\n"}
+,{"stream_name":"stderr","time":41473.837858814,"data":"2026-07-21 23:05:53,932 INFO Epoch 14/20  loss=8.6809  time=2957.5s\n"}
+,{"stream_name":"stderr","time":41473.837911325,"data":"\n"}
+,{"stream_name":"stderr","time":41473.83791863,"data":"2026-07-21 23:05:53,932 INFO Epoch 14/20  loss=8.6809  time=2957.5s\n"}
+,{"stream_name":"stderr","time":41473.858530372,"data":"2026-07-21 23:05:53,959 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+,{"stream_name":"stderr","time":41473.858559947,"data":"\n"}
+,{"stream_name":"stderr","time":41473.858565983,"data":"2026-07-21 23:05:53,959 INFO Saved: /kaggle/working/checkpoints/stage4_joint/best_joint.pt  (222 adapter tensors)\n"}
+]

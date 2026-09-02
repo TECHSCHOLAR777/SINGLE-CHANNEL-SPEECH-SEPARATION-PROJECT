@@ -1,0 +1,21 @@
+{
+  "results": [
+    {
+      "split": "Libri5Mix",
+      "n_samples": 30,
+      "baseline": {
+        "si_sdr": 1.0398774545130964,
+        "si_sdri": 9.427502213466722
+      },
+      "calmsep": {
+        "si_sdr": 1.6624200099159774,
+        "si_sdri": 10.050044768869604
+      },
+      "delta_si_sdri": 0.6225425554028821,
+      "delta_si_sdr": 0.622542555402881,
+      "wall_time_s": 3480.5
+    }
+  ],
+  "model": "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk",
+  "checkpoint_dir": "checkpoints"
+}
