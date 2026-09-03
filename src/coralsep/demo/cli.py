@@ -1,5 +1,5 @@
 """
-Gradio demo interface — CoRAL-Sep edition (Dev C, P4-C4).
+Gradio demo interface, CoRAL-Sep edition (Dev C, P4-C4).
 
 Upload a mixture, get per-speaker streams, estimated speaker count with
 calibrated confidence, adapter gate routing visualization, Whisper transcript,
@@ -103,7 +103,6 @@ class CoralSepEngine:
             )
             for _ in range(result.speaker_count)
         ]
-        sr_out = result.streams_16k.shape[1]
         return SeparationResult(
             streams=result.streams_16k,
             sample_rate=16000,
@@ -147,9 +146,11 @@ def _whisper_transcript(streams: np.ndarray, sample_rate: int) -> str:
     Requires `pip install openai-whisper`. Returns empty string if unavailable.
     """
     try:
-        import whisper
-        import tempfile, os
+        import os
+        import tempfile
+
         import soundfile as sf
+        import whisper
 
         model = whisper.load_model("tiny")  # fast, low VRAM
         wav = streams[0]
@@ -196,7 +197,7 @@ def run_separation(
         f"Engine: `{result.expert_used}`"
     )
     if result.expert_used == "mock":
-        badge = "**MOCK ENGINE — frequency bands, not speech separation.**\n" + badge
+        badge = "**MOCK ENGINE, frequency bands, not speech separation.**\n" + badge
 
     # Per-speaker audio slots.
     slots: list[tuple[int, np.ndarray] | None] = [None] * MAX_DISPLAY_STREAMS
@@ -246,8 +247,7 @@ def build_demo(engine: Engine):
 
         with gr.Row():
             outputs = [
-                gr.Audio(label=f"Speaker {i + 1}", type="numpy")
-                for i in range(MAX_DISPLAY_STREAMS)
+                gr.Audio(label=f"Speaker {i + 1}", type="numpy") for i in range(MAX_DISPLAY_STREAMS)
             ]
 
         with gr.Row():

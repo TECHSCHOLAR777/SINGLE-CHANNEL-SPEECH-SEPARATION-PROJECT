@@ -1,5 +1,5 @@
 """
-Tests for data/mixer.py — DynamicMixer.
+Tests for data/mixer.py, DynamicMixer.
 
 All tests use synthetic WAV files written to tmp_path with soundfile.
 No GPU, no internet, and no real LibriSpeech data required.

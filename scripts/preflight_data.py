@@ -70,7 +70,13 @@ def check_csv(
     limit: int | None,
 ) -> dict[str, object]:
     if not csv_path.is_file():
-        return {"csv": str(csv_path), "error": "csv not found", "rows": 0, "missing": [], "ok": False}
+        return {
+            "csv": str(csv_path),
+            "error": "csv not found",
+            "rows": 0,
+            "missing": [],
+            "ok": False,
+        }
 
     missing: list[str] = []
     unreadable: list[str] = []
@@ -127,19 +133,36 @@ def check_csv(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--metadata-csv", type=Path, nargs="+", help="One or more mixture CSVs.")
     group.add_argument("--metadata-dir", type=Path, help="Directory of mixture_*.csv files.")
-    parser.add_argument("--librispeech-dir", type=Path, required=True,
-                        help="LibriSpeech root (the dir containing train-clean-100/, dev-clean/, ...).")
-    parser.add_argument("--wham-dir", type=Path, default=None,
-                        help="WHAM noise root (the dir containing tr/, cv/, tt/). Required for mix_both CSVs.")
-    parser.add_argument("--deep", action="store_true",
-                        help="Also open each file with soundfile. Catches truncated or corrupt downloads, "
-                             "not just missing ones. Slower.")
-    parser.add_argument("--limit", type=int, default=None,
-                        help="Only check the first N rows of each CSV. Use for a fast smoke check.")
+    parser.add_argument(
+        "--librispeech-dir",
+        type=Path,
+        required=True,
+        help="LibriSpeech root (the dir containing train-clean-100/, dev-clean/, ...).",
+    )
+    parser.add_argument(
+        "--wham-dir",
+        type=Path,
+        default=None,
+        help="WHAM noise root (the dir containing tr/, cv/, tt/). Required for mix_both CSVs.",
+    )
+    parser.add_argument(
+        "--deep",
+        action="store_true",
+        help="Also open each file with soundfile. Catches truncated or corrupt downloads, "
+        "not just missing ones. Slower.",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=None,
+        help="Only check the first N rows of each CSV. Use for a fast smoke check.",
+    )
     args = parser.parse_args()
 
     if args.metadata_dir is not None:
@@ -160,14 +183,18 @@ def main() -> None:
 
     all_ok = True
     for csv_path in csvs:
-        report = check_csv(csv_path, args.librispeech_dir, args.wham_dir, deep=args.deep, limit=args.limit)
+        report = check_csv(
+            csv_path, args.librispeech_dir, args.wham_dir, deep=args.deep, limit=args.limit
+        )
         status = "OK  " if report["ok"] else "FAIL"
         print(f"[{status}] {report['csv']}")
         if "error" in report:
             print(f"         {report['error']}")
             all_ok = False
             continue
-        print(f"         rows={report['rows']}  unique files checked={report['unique_files_checked']}")
+        print(
+            f"         rows={report['rows']}  unique files checked={report['unique_files_checked']}"
+        )
         if report["missing_count"]:
             all_ok = False
             print(f"         MISSING {report['missing_count']} file(s). First few:")

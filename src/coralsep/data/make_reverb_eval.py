@@ -1,5 +1,5 @@
 """
-Build a reverberant-noisy evaluation set from Libri3Mix — CoRAL-Sep Phase 1 (P1-A3, WHAMR! alt).
+Build a reverberant-noisy evaluation set from Libri3Mix, CoRAL-Sep Phase 1 (P1-A3, WHAMR! alt).
 
 WHAMR! itself is generated from WSJ0, which is LDC-licensed and cannot be
 auto-downloaded (see data/prepare_whamr.py for the gated, WSJ0-required path).
@@ -9,7 +9,7 @@ our own two-stage augmentation (pyroomacoustics RIR reverb + WHAM! noise) to the
 clean Libri3Mix test set, once, with a fixed seed, and writes a frozen eval set.
 
 The clean reference stems are copied through unchanged, so SI-SDRi is still
-computed against the original clean sources — only the mixture is degraded.
+computed against the original clean sources: only the mixture is degraded.
 
 Output layout mirrors LibriMix so the existing ``discover_librimix_samples``
 loader reads it with no changes::
@@ -149,7 +149,7 @@ def verify_layout(out_root: Path, *, subset: str = "test", freq: int = DEFAULT_F
         )
 
     n = len(list((base / "mix_both").glob("*.wav")))
-    print(f"  Layout OK: {base}  [mix_both, s1, s2(, s3)] — {n} mixtures")
+    print(f"  Layout OK: {base}  [mix_both, s1, s2(, s3)], {n} mixtures")
 
 
 def main() -> None:

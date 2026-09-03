@@ -9,14 +9,12 @@ Provides:
 
 from __future__ import annotations
 
-from pathlib import Path
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 
-
 # ---------------------------------------------------------------------------
-# Bootstrap CIs (BCa — bias-corrected and accelerated)
+# Bootstrap CIs (BCa, bias-corrected and accelerated)
 # ---------------------------------------------------------------------------
 
 
@@ -50,10 +48,9 @@ def bootstrap_ci(
 
     estimate = float(statistic(samples))
 
-    boot_stats = np.array([
-        statistic(rng.choice(samples, size=n, replace=True))
-        for _ in range(n_boot)
-    ])
+    boot_stats = np.array(
+        [statistic(rng.choice(samples, size=n, replace=True)) for _ in range(n_boot)]
+    )
 
     # Bias-correction factor z0.
     z0 = _norm_ppf(np.mean(boot_stats < estimate))
@@ -78,12 +75,14 @@ def bootstrap_ci(
 def _norm_ppf(p: float) -> float:
     """Standard normal percent-point function (inverse CDF)."""
     from scipy.special import ndtri
+
     p = float(np.clip(p, 1e-10, 1 - 1e-10))
     return float(ndtri(p))
 
 
 def _norm_cdf(z: float) -> float:
     from scipy.special import ndtr
+
     return float(ndtr(float(z)))
 
 

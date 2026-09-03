@@ -1,4 +1,4 @@
-# LoRA adapter configuration — noise adapter.
+# LoRA adapter configuration, noise adapter.
 # Trained on noisy mixtures only (Stage 1).
 
 adapter:

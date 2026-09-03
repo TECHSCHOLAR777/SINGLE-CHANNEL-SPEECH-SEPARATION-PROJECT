@@ -18,7 +18,7 @@ output_dir/
   noise_manifest.json
 
 The manifest lists every staged clip with its source, duration (at 8 kHz),
-and the sha256 of the 8k file — not of the 16k copy, so that DNSMOS consumers
+and the sha256 of the 8k file: not of the 16k copy, so that DNSMOS consumers
 can load 16k without the manifest pointing them at stale hashes.
 
 Usage
@@ -99,9 +99,7 @@ def stage_source(
     Returns a list of manifest entry dicts. Skips corrupt files and already-
     staged files (idempotent).
     """
-    audio_files = sorted(
-        p for p in src_dir.rglob("*") if p.suffix.lower() in _AUDIO_EXTENSIONS
-    )
+    audio_files = sorted(p for p in src_dir.rglob("*") if p.suffix.lower() in _AUDIO_EXTENSIONS)
     if not audio_files:
         raise RuntimeError(
             f"No audio files found under {src_dir} "
@@ -119,14 +117,16 @@ def stage_source(
         if both_exist:
             # Read duration from the 8k file for the manifest
             info = sf.info(str(dst_8k))
-            entries.append({
-                "source": source_name,
-                "clip_name": clip_name,
-                "src_path": str(src),
-                "path_8k": str(dst_8k),
-                "path_16k": str(dst_16k),
-                "duration_s": round(info.duration, 6),
-            })
+            entries.append(
+                {
+                    "source": source_name,
+                    "clip_name": clip_name,
+                    "src_path": str(src),
+                    "path_8k": str(dst_8k),
+                    "path_16k": str(dst_16k),
+                    "duration_s": round(info.duration, 6),
+                }
+            )
             continue
 
         if not _validate_audio(src):
@@ -145,14 +145,16 @@ def stage_source(
         _write_wav(audio_8k, target_8k, dst_8k)
         _write_wav(audio_16k, target_16k, dst_16k)
 
-        entries.append({
-            "source": source_name,
-            "clip_name": clip_name,
-            "src_path": str(src),
-            "path_8k": str(dst_8k),
-            "path_16k": str(dst_16k),
-            "duration_s": round(float(len(audio_8k)) / target_8k, 6),
-        })
+        entries.append(
+            {
+                "source": source_name,
+                "clip_name": clip_name,
+                "src_path": str(src),
+                "path_8k": str(dst_8k),
+                "path_16k": str(dst_16k),
+                "duration_s": round(float(len(audio_8k)) / target_8k, 6),
+            }
+        )
 
     return entries
 
@@ -162,15 +164,31 @@ def main() -> None:
         description="Stage WHAM! and DNS-4 noise at 8 kHz and 16 kHz.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--wham-dir", type=Path, default=None, metavar="DIR",
-                        help="Root of the WHAM! noise corpus (optional).")
-    parser.add_argument("--dns4-dir", type=Path, default=None, metavar="DIR",
-                        help="Root of the DNS-4 noise corpus (optional).")
-    parser.add_argument("--output-dir", required=True, type=Path, metavar="DIR",
-                        help="Staging destination.")
-    parser.add_argument("--target-sr", type=int, default=TARGET_SR_8K, metavar="HZ",
-                        help=f"Low-rate target (default {TARGET_SR_8K}). "
-                             "16 kHz copies are always written alongside.")
+    parser.add_argument(
+        "--wham-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Root of the WHAM! noise corpus (optional).",
+    )
+    parser.add_argument(
+        "--dns4-dir",
+        type=Path,
+        default=None,
+        metavar="DIR",
+        help="Root of the DNS-4 noise corpus (optional).",
+    )
+    parser.add_argument(
+        "--output-dir", required=True, type=Path, metavar="DIR", help="Staging destination."
+    )
+    parser.add_argument(
+        "--target-sr",
+        type=int,
+        default=TARGET_SR_8K,
+        metavar="HZ",
+        help=f"Low-rate target (default {TARGET_SR_8K}). "
+        "16 kHz copies are always written alongside.",
+    )
     args = parser.parse_args()
 
     if args.wham_dir is None and args.dns4_dir is None:

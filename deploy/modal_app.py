@@ -7,6 +7,7 @@ Deploy:
 The @modal.cls pattern ensures models are loaded once per container
 in @modal.enter() before any request arrives.
 """
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,9 +15,7 @@ from pathlib import Path
 import modal
 
 _HERE = Path(__file__).parent
-_SR_SRC = (
-    Path.home() / "Downloads/SR_CorrNet_local_mixboth/future_work/sr_corrnet"
-)
+_SR_SRC = Path.home() / "Downloads/SR_CorrNet_local_mixboth/future_work/sr_corrnet"
 
 _image = (
     modal.Image.debian_slim(python_version="3.11")
@@ -41,10 +40,10 @@ _image = (
         "rotary-embedding-torch",
     )
     .run_commands(
-        "python3 -c \""
+        'python3 -c "'
         "from huggingface_hub import snapshot_download;"
         "snapshot_download('shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk')"
-        "\"",
+        '"',
         "python3 -c \"import whisper; whisper.load_model('base')\"",
     )
     .add_local_dir(str(_HERE / "models"), "/app/models")
@@ -76,7 +75,7 @@ app = modal.App("coral-sep", image=_image)
 class CoralSep:
     @modal.enter()
     def load(self):
-        """Runs once when the container boots — before any request."""
+        """Runs once when the container boots, before any request."""
         import os
         import sys
 
@@ -86,7 +85,7 @@ class CoralSep:
         from coralsep.demo import _ensure_loaded
 
         _ensure_loaded()
-        print("[coral-sep] Models loaded — container is warm.")
+        print("[coral-sep] Models loaded, container is warm.")
 
     @modal.asgi_app()
     def serve(self):

@@ -95,9 +95,7 @@ def discover_librimix_samples(
     # Only raise if there are mix files but no stem dirs (corrupted dataset).
     max_n = sum(1 for i in range(1, 6) if (subset_dir / f"s{i}").is_dir())
     if mix_files and max_n < 1:
-        raise FileNotFoundError(
-            f"No speaker stem directories (s1/..s5/) found under {subset_dir}"
-        )
+        raise FileNotFoundError(f"No speaker stem directories (s1/..s5/) found under {subset_dir}")
 
     samples: list[MixtureSample] = []
     for mix_path in mix_files:

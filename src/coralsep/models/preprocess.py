@@ -165,9 +165,9 @@ class CoralSepPreprocessedAudio:
     Dual-branch preprocessed mixture for the CoRAL-Sep inference pipeline.
 
     Attributes:
-        waveform_8k: [T_8k] float32 at 8 kHz — fed directly to SR-CorrNet.
+        waveform_8k: [T_8k] float32 at 8 kHz, fed directly to SR-CorrNet.
         stft_8k: [65, frames] complex64 STFT at 8 kHz (win=128, hop=64).
-        waveform_16k: [T_16k] float32 at 16 kHz — for band recovery & DNSMOS.
+        waveform_16k: [T_16k] float32 at 16 kHz, for band recovery & DNSMOS.
         stft_16k: [257, frames] complex64 STFT at 16 kHz (win=512, hop=128).
         sample_rate_8k: Always CORALSEP_SAMPLE_RATE (8000).
         sample_rate_16k: Always PROJECT_SAMPLE_RATE (16000).

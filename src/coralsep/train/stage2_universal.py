@@ -87,7 +87,7 @@ def _build_universal_dataset(args: argparse.Namespace) -> object:
         else:
             log.warning("bank.json not found at %s; reverb will use clean audio", _rb_dir)
 
-    # Pre-compute noise files ONCE — avoid 28k glob calls per epoch inside __getitem__
+    # Pre-compute noise files ONCE, avoid 28k glob calls per epoch inside __getitem__
     noise_files: list[Path] = []
     noise_dir = Path(getattr(args, "noise_dir", ""))
     if noise_dir.exists():
@@ -115,7 +115,7 @@ def _build_universal_dataset(args: argparse.Namespace) -> object:
 
             m = mixer.mix(split="train")
 
-            # Clip before degradation — reverb on 30s is ~15× slower than on 2s
+            # Clip before degradation, reverb on 30s is ~15× slower than on 2s
             if m.mixture.shape[0] > max_clip:
                 _start = int(self._rng.integers(0, m.mixture.shape[0] - max_clip))
                 m = dataclasses.replace(
@@ -225,7 +225,7 @@ def train_universal(args: argparse.Namespace) -> None:
             B = mixture.shape[0]
 
             # Per-sample backward: forward one sample, backward immediately, free graph.
-            # Avoids holding B activation graphs at once — safe even on large GPUs.
+            # Avoids holding B activation graphs at once, safe even on large GPUs.
             optimizer.zero_grad(set_to_none=True)
             batch_loss = 0.0
             lib.set_adapter("universal", co_activate=False)

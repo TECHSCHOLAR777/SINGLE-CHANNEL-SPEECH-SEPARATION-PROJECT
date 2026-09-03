@@ -48,7 +48,9 @@ def main() -> None:
     p.add_argument("--per-layer-scores", type=str, help="JSON list of SI-SDRi values")
     p.add_argument("--per-adapter-scores", type=str, help="JSON list of SI-SDRi values")
     p.add_argument("--out", type=str, default="reports/gate_ablation.json")
-    p.add_argument("--demo", action="store_true", help="Write placeholder verdict with empty scores")
+    p.add_argument(
+        "--demo", action="store_true", help="Write placeholder verdict with empty scores"
+    )
     args = p.parse_args()
 
     if args.demo or not args.per_layer_scores:

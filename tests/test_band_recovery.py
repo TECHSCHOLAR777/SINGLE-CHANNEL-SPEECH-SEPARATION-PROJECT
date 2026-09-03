@@ -1,14 +1,12 @@
 """Tests for models/band_recovery.py (Dev C)."""
 
 import numpy as np
-import pytest
 import torch
 
 from coralsep.models.band_recovery import (
     BandRecoveryHead,
     _si_sdr_np,
     apply_band_recovery_guarded,
-    stft_to_waveform,
 )
 
 

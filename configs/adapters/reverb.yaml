@@ -1,4 +1,4 @@
-# LoRA adapter configuration — reverb adapter.
+# LoRA adapter configuration, reverb adapter.
 # Trained on reverberated mixtures only (Stage 1).
 # Co-activation warm-up: other adapters active at U(0.0, 0.2) (BLUEPRINT §5.5).
 
@@ -23,7 +23,7 @@ training:
 
 data:
   condition: "reverb"
-  # BUT ReverbDB (SLR17 — NOT SLR28/AISHELL-2) (BLUEPRINT §7.2).
+  # BUT ReverbDB (SLR17: NOT SLR28/AISHELL-2) (BLUEPRINT §7.2).
   rir_source: "but_reverbdb"
   t60_range: [0.1, 0.9]       # >0.9 s is severity holdout (BLUEPRINT §7.4)
   # Fraction of severity-holdout examples allowed in training.

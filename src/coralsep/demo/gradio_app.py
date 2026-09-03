@@ -1,5 +1,5 @@
 """
-CoRAL-Sep Demo — Condition-Aware LoRA Mixture for speech separation.
+CoRAL-Sep Demo, Condition-Aware LoRA Mixture for speech separation.
 
 Usage:
     PYTHONPATH=/path/to/sr_corrnet_src:. .venv/bin/python3 demo.py
@@ -154,7 +154,7 @@ def _transcribe_to_html(wav_16k: np.ndarray, uid: str, color: str = "#00D4B8") -
         return ""
     try:
         audio_fp32 = wav_16k.astype(np.float32)
-        # Whisper expects float32 in [-1, 1] at 16 kHz — already satisfied
+        # Whisper expects float32 in [-1, 1] at 16 kHz, already satisfied
         result = model.transcribe(audio_fp32, word_timestamps=True, language="en", fp16=False)
     except Exception:
         return ""
@@ -955,7 +955,7 @@ audio { border-radius: 8px; width: 100%; }
   margin: 0 auto !important;
   padding: 0 2rem 5rem !important;
 }
-/* Button column — align to bottom of upload */
+/* Button column, align to bottom of upload */
 .cs-btn-col { display: flex !important; align-items: flex-end !important; padding-bottom: 4px !important; }
 """
 
@@ -988,8 +988,7 @@ _HERO_HTML = """
   <div class="cs-display-muted">hear each one clearly.</div>
 
   <p class="cs-hero-sub">
-    CoRAL-Sep dynamically routes each mixture through condition-specific LoRA adapters —
-    achieving <strong>+1.76 dB SI-SDR</strong> over the SR-CorrNet baseline
+    CoRAL-Sep dynamically routes each mixture through condition-specific LoRA adapters, achieving <strong>+1.76 dB SI-SDR</strong> over the SR-CorrNet baseline
     on LibriMix benchmarks.
   </p>
 
@@ -1086,7 +1085,7 @@ _PIPELINE_HTML = """
       <div class="cs-pipe-card">
         <span class="cs-pipe-n">Stage 01</span>
         <span class="cs-pipe-name">Adapter Training</span>
-        <span class="cs-pipe-desc">Three condition-specific LoRA adapters — reverb, noise, codec — trained independently on augmented LibriSpeech mixtures.</span>
+        <span class="cs-pipe-desc">Three condition-specific LoRA adapters, reverb, noise, codec, trained independently on augmented LibriSpeech mixtures.</span>
       </div>
       <div class="cs-pipe-card">
         <span class="cs-pipe-n">Stage 02</span>
@@ -1272,13 +1271,13 @@ function() {
         gr.HTML(_PIPELINE_HTML)
         gr.HTML(_DEMO_HEAD_HTML)
 
-        # ── Interactive demo — constrained to 920px ────────────────────────
+        # ── Interactive demo, constrained to 920px ────────────────────────
         with gr.Group(elem_id="cs-demo-content"):
 
             with gr.Row():
                 with gr.Column(scale=4, elem_classes=["cs-upload-block"]):
                     audio_in = gr.Audio(
-                        label="Input mixture — any format, any sample rate",
+                        label="Input mixture, any format, any sample rate",
                         type="numpy",
                         sources=["upload", "microphone"],
                     )
@@ -1291,12 +1290,12 @@ function() {
                     mix_wave = gr.Plot(show_label=False)
                 with gr.Column():
                     gr.HTML(
-                        '<span class="cs-wave-lbl" style="color:#7c83e0">Baseline — Spk 1</span>'
+                        '<span class="cs-wave-lbl" style="color:#7c83e0">Baseline, Spk 1</span>'
                     )
                     base_wave = gr.Plot(show_label=False)
                 with gr.Column():
                     gr.HTML(
-                        '<span class="cs-wave-lbl" style="color:#00D4B8">CoRAL-Sep — Spk 1</span>'
+                        '<span class="cs-wave-lbl" style="color:#00D4B8">CoRAL-Sep, Spk 1</span>'
                     )
                     calm_wave = gr.Plot(show_label=False)
 

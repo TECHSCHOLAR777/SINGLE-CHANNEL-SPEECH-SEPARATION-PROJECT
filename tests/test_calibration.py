@@ -1,11 +1,10 @@
 """Tests for calibration/ package (Dev C)."""
 
 import numpy as np
-import pytest
 import torch
 
-from coralsep.calibration.temperature import TemperatureScaler
 from coralsep.calibration.completeness import CompletenessCalibrator
+from coralsep.calibration.temperature import TemperatureScaler
 
 
 class TestTemperatureScaler:
@@ -32,7 +31,7 @@ class TestTemperatureScaler:
         assert float(prob_high[:, 0]) < float(prob_low[:, 0])
 
     def test_calibrate_reduces_nll(self):
-        # Confident model on easy labels — calibration should converge.
+        # Confident model on easy labels, calibration should converge.
         N = 100
         rng = np.random.default_rng(0)
         labels = torch.tensor(rng.integers(0, 4, size=N))

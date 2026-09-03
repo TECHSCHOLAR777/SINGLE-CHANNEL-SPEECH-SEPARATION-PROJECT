@@ -69,7 +69,7 @@ class ConfidenceCalibrator:
         bins = np.linspace(0.0, 1.0, n_bins + 1)
         ece = 0.0
         n = len(cal)
-        for lo, hi in zip(bins[:-1], bins[1:]):
+        for lo, hi in zip(bins[:-1], bins[1:], strict=True):
             mask = (cal >= lo) & (cal < hi)
             if mask.sum() == 0:
                 continue
@@ -80,12 +80,14 @@ class ConfidenceCalibrator:
 
     def save(self, path: str | Path) -> None:
         import pickle
+
         with open(str(path), "wb") as f:
             pickle.dump({"ir": self._ir, "fitted": self._fitted}, f)
 
     @classmethod
-    def load(cls, path: str | Path) -> "ConfidenceCalibrator":
+    def load(cls, path: str | Path) -> ConfidenceCalibrator:
         import pickle
+
         with open(str(path), "rb") as f:
             state = pickle.load(f)
         obj = cls()

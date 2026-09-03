@@ -44,7 +44,7 @@ class EvalTierSpec:
 EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
     EvalTierSpec(
         tier_id="clean_2_3",
-        description="Libri2Mix / Libri3Mix test at 8 kHz — literature baseline",
+        description="Libri2Mix / Libri3Mix test at 8 kHz, literature baseline",
         speaker_counts=(2, 3),
         n_items=500,
         conditions={"degradation": "clean", "overlap": "full"},
@@ -52,7 +52,7 @@ EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
     ),
     EvalTierSpec(
         tier_id="sparse_overlap",
-        description="SparseLibriMix test — overlap ratio 0–100%",
+        description="SparseLibriMix test, overlap ratio 0–100%",
         speaker_counts=(2,),
         n_items=200,
         conditions={"degradation": "clean", "overlap": "sparse"},
@@ -71,7 +71,11 @@ EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
         description="Primary benchmark: reverb + noise LibriMix at 8 kHz",
         speaker_counts=(2,),
         n_items=500,
-        conditions={"degradation": "reverb+noise", "snr_db_range": [-6, 10], "t60_range": [0.2, 1.0]},
+        conditions={
+            "degradation": "reverb+noise",
+            "snr_db_range": [-6, 10],
+            "t60_range": [0.2, 1.0],
+        },
         source="synthesis",
     ),
     EvalTierSpec(
@@ -79,12 +83,16 @@ EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
         description="Reverb-noisy at N=3,4,5",
         speaker_counts=(3, 4, 5),
         n_items=200,
-        conditions={"degradation": "reverb+noise", "snr_db_range": [-6, 10], "t60_range": [0.2, 1.0]},
+        conditions={
+            "degradation": "reverb+noise",
+            "snr_db_range": [-6, 10],
+            "t60_range": [0.2, 1.0],
+        },
         source="synthesis",
     ),
     EvalTierSpec(
         tier_id="reverb_only",
-        description="Clean-reverb LibriMix — isolates adapter_reverb",
+        description="Clean-reverb LibriMix, isolates adapter_reverb",
         speaker_counts=(2, 3),
         n_items=200,
         conditions={"degradation": "reverb", "t60_range": [0.2, 1.0]},
@@ -108,7 +116,7 @@ EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
     ),
     EvalTierSpec(
         tier_id="reverb_codec_holdout",
-        description="Reverb + codec — held out of gate training",
+        description="Reverb + codec, held out of gate training",
         speaker_counts=(2, 4),
         n_items=200,
         conditions={"degradation": "reverb+codec", "t60_range": [0.2, 1.0]},
@@ -117,7 +125,7 @@ EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
     ),
     EvalTierSpec(
         tier_id="noise_codec_holdout",
-        description="Noise + codec — held out of gate training",
+        description="Noise + codec, held out of gate training",
         speaker_counts=(2, 4),
         n_items=200,
         conditions={"degradation": "noise+codec", "snr_db_range": [-6, 10]},
@@ -126,7 +134,7 @@ EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
     ),
     EvalTierSpec(
         tier_id="high_count_clean",
-        description="Libri4Mix / Libri5Mix test — count break-point curve",
+        description="Libri4Mix / Libri5Mix test, count break-point curve",
         speaker_counts=(4, 5),
         n_items=200,
         conditions={"degradation": "clean", "overlap": "full"},
@@ -137,12 +145,16 @@ EVAL_MATRIX: tuple[EvalTierSpec, ...] = (
         description="High count under reverb + noise",
         speaker_counts=(4, 5),
         n_items=200,
-        conditions={"degradation": "reverb+noise", "snr_db_range": [-6, 10], "t60_range": [0.2, 1.0]},
+        conditions={
+            "degradation": "reverb+noise",
+            "snr_db_range": [-6, 10],
+            "t60_range": [0.2, 1.0],
+        },
         source="synthesis",
     ),
     EvalTierSpec(
         tier_id="libricss_real",
-        description="LibriCSS 1ch downmix — no clean references",
+        description="LibriCSS 1ch downmix: no clean references",
         speaker_counts=(2, 3, 4, 5),
         n_items=0,
         conditions={"degradation": "real_recording"},
@@ -184,10 +196,20 @@ def _placeholder_recipe(
             for k in range(n_speakers)
         ],
         "snr_db": None if "noise" not in degradation else float(-6 + (item_seed % 17)),
-        "t60_s": None if "reverb" not in degradation and degradation != "real_rir" else float(0.2 + (item_seed % 9) * 0.1),
-        "codec_name": None if "codec" not in degradation else ["opus", "aac", "amr-nb"][item_seed % 3],
-        "codec_bitrate_bps": None if "codec" not in degradation else [6000, 16000, 4750][item_seed % 3],
-        "overlap_ratio": 1.0 if spec.conditions.get("overlap") != "sparse" else float((item_seed % 101) / 100.0),
+        "t60_s": (
+            None
+            if "reverb" not in degradation and degradation != "real_rir"
+            else float(0.2 + (item_seed % 9) * 0.1)
+        ),
+        "codec_name": (
+            None if "codec" not in degradation else ["opus", "aac", "amr-nb"][item_seed % 3]
+        ),
+        "codec_bitrate_bps": (
+            None if "codec" not in degradation else [6000, 16000, 4750][item_seed % 3]
+        ),
+        "overlap_ratio": (
+            1.0 if spec.conditions.get("overlap") != "sparse" else float((item_seed % 101) / 100.0)
+        ),
         "rir_file": (
             f"PLACEHOLDER/but_reverbdb/rir_{item_seed % 1244:04d}.wav"
             if degradation == "real_rir"

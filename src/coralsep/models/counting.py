@@ -4,16 +4,16 @@ Three-vote speaker counting subsystem (Dev B, P3-B2).
 The SR-CorrNet model produces K0=5 output streams but only N of them
 contain a real speaker. Counting combines three evidence sources:
 
-Vote 1 — Attractor probabilities p_k (BLUEPRINT §4.3):
+Vote 1, Attractor probabilities p_k (BLUEPRINT §4.3):
     p_k = softmax(model output "pres["probs"]")[k], k=1..5
     Active speakers: slots where p_k > 0.5 (hardcoded in AttractorSplit).
     This is the primary estimate; directly from the model's learned priors.
 
-Vote 2 — E(0) count prior (Level-2 analyzer):
+Vote 2, E(0) count prior (Level-2 analyzer):
     CountPriorMLP from models/condition.py, trained on free count labels.
     Provides a prior before seeing the separated streams.
 
-Vote 3 — Bounded residual sweep (BLUEPRINT §4.3):
+Vote 3, Bounded residual sweep (BLUEPRINT §4.3):
     Only runs when Vote 1 and Vote 2 disagree.
     Tests N_mode−1, N_mode, N_mode+1 (clipped to [2,5]) by computing SI-SDR
     with N streams against the mixture (using decoder only, no full re-pass).
@@ -29,7 +29,6 @@ from __future__ import annotations
 import numpy as np
 import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 _N_MIN = 2
 _N_MAX = 5
@@ -238,10 +237,9 @@ class ThreeVoteCounter:
         # Vote 3: sweep only when v1 and v2 disagree (BLUEPRINT §4.3).
         if not self.sweep_disagreement_only or n_v1 != n_v2:
             mode = n_v1  # use v1 as the mode
-            candidates = sorted(set(
-                int(np.clip(c, _N_MIN, _N_MAX))
-                for c in [mode - 1, mode, mode + 1]
-            ))
+            candidates = sorted(
+                set(int(np.clip(c, _N_MIN, _N_MAX)) for c in [mode - 1, mode, mode + 1])
+            )
             n_v3 = residual_sweep_sisdr(mixture, separated, candidates)
         else:
             n_v3 = n_v1

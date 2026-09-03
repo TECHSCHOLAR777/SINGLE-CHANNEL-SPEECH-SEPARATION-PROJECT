@@ -2,7 +2,7 @@
 Shared separation result schema.
 
 Defines the standard object returned by every expert wrapper, the fusion head,
-and the full CoRAL-Sep pipeline. All modules must use this schema — never redefine
+and the full CoRAL-Sep pipeline. All modules must use this schema, never redefine
 ad hoc result types.
 """
 

@@ -70,14 +70,18 @@ class StructuredLogger:
         payload.update(self.context.extra)
         payload.update(fields)
 
-        msg = json.dumps(payload, sort_keys=True, default=str) if self._json_lines else self._format_plain(payload)
+        msg = (
+            json.dumps(payload, sort_keys=True, default=str)
+            if self._json_lines
+            else self._format_plain(payload)
+        )
         getattr(self._logger, level.lower())(msg)
 
     @staticmethod
     def _format_plain(payload: dict[str, Any]) -> str:
         event = payload.pop("event", "log")
         level = payload.pop("level", "INFO")
-        ts = payload.pop("ts", None)
+        payload.pop("ts", None)  # plain format omits the timestamp
         rest = " ".join(f"{k}={v!r}" for k, v in payload.items())
         return f"[{level}] {event}" + (f" ({rest})" if rest else "")
 

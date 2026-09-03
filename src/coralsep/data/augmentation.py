@@ -2,8 +2,8 @@
 Augmentation pipeline for CoRAL-Sep training data.
 
 Two-stage probabilistic augmentation applied to MixtureSample objects:
-  Stage 1 — RIR reverb: convolve mixture with a simulated room impulse response
-  Stage 2 — WHAM! noise: add ambient noise at a random SNR
+  Stage 1, RIR reverb: convolve mixture with a simulated room impulse response
+  Stage 2, WHAM! noise: add ambient noise at a random SNR
 
 Ground-truth references are NEVER modified; only the mixture is augmented.
 SI-SDRi is always computed against the original clean stems.
@@ -12,7 +12,7 @@ SI-SDRi is always computed against the original clean stems.
 from __future__ import annotations
 
 import warnings
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 
 import numpy as np
@@ -25,7 +25,7 @@ from coralsep.data.mixer_stub import MixtureSample
 class AugmentationConfig:
     """Configuration for the two-stage augmentation pipeline."""
 
-    # Stage 1 — RIR reverb
+    # Stage 1, RIR reverb
     rir_prob: float = 0.5
     room_dim_min: tuple[float, float, float] = (3.0, 3.0, 2.0)
     room_dim_max: tuple[float, float, float] = (8.0, 8.0, 4.0)
@@ -33,7 +33,7 @@ class AugmentationConfig:
     absorption_max: float = 0.6
     max_rir_order: int = 17
 
-    # Stage 2 — WHAM! noise
+    # Stage 2, WHAM! noise
     noise_prob: float = 0.5
     snr_min_db: float = 5.0
     snr_max_db: float = 20.0
@@ -100,22 +100,26 @@ class AugmentationPipeline:
     def _generate_rir(self, pra: object, sr: int) -> np.ndarray:
         """Generate a random RIR using pyroomacoustics ShoeBox."""
         cfg = self.config
-        dims = np.array([
-            self.rng.uniform(cfg.room_dim_min[i], cfg.room_dim_max[i]) for i in range(3)
-        ])
+        dims = np.array(
+            [self.rng.uniform(cfg.room_dim_min[i], cfg.room_dim_max[i]) for i in range(3)]
+        )
         absorption = float(self.rng.uniform(cfg.absorption_min, cfg.absorption_max))
 
         margin = 0.5
-        source_pos = np.array([
-            self.rng.uniform(margin, dims[0] - margin),
-            self.rng.uniform(margin, dims[1] - margin),
-            self.rng.uniform(margin, dims[2] - margin),
-        ])
-        mic_pos = np.array([
-            self.rng.uniform(margin, dims[0] - margin),
-            self.rng.uniform(margin, dims[1] - margin),
-            self.rng.uniform(margin, dims[2] - margin),
-        ])
+        source_pos = np.array(
+            [
+                self.rng.uniform(margin, dims[0] - margin),
+                self.rng.uniform(margin, dims[1] - margin),
+                self.rng.uniform(margin, dims[2] - margin),
+            ]
+        )
+        mic_pos = np.array(
+            [
+                self.rng.uniform(margin, dims[0] - margin),
+                self.rng.uniform(margin, dims[1] - margin),
+                self.rng.uniform(margin, dims[2] - margin),
+            ]
+        )
 
         materials = pra.Material(absorption)
         room = pra.ShoeBox(
@@ -142,8 +146,8 @@ class AugmentationPipeline:
         """Add a WHAM! noise clip to audio at a random SNR."""
         noise = self._load_noise_clip(len(audio), sr)
 
-        signal_rms = float(np.sqrt(np.mean(audio ** 2)))
-        noise_rms = float(np.sqrt(np.mean(noise ** 2)))
+        signal_rms = float(np.sqrt(np.mean(audio**2)))
+        noise_rms = float(np.sqrt(np.mean(noise**2)))
 
         if signal_rms < 1e-8 or noise_rms < 1e-8:
             return audio
@@ -183,6 +187,7 @@ class AugmentationPipeline:
 # ------------------------------------------------------------------
 # Helpers
 # ------------------------------------------------------------------
+
 
 def _fit_to_length(audio: np.ndarray, length: int, rng: np.random.Generator) -> np.ndarray:
     """Tile or crop audio to exactly `length` samples."""

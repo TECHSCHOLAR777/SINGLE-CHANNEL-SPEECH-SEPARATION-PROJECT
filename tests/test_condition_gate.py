@@ -6,7 +6,6 @@ import numpy as np
 import torch
 
 from coralsep.models.condition import (
-    CORALSEP_SR,
     Level2Analyzer,
     level1_features,
     level1_tensor,

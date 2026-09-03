@@ -21,11 +21,15 @@ from dataclasses import dataclass, field
 import numpy as np
 import torch
 
-from coralsep.models.preprocess import coralsep_preprocess, CoralSepPreprocessedAudio, CORALSEP_SAMPLE_RATE
-from coralsep.pipeline.chunker import Chunker, AudioChunk
-from coralsep.pipeline.stitcher import ChunkStitcher, StitchedOutput
 from coralsep.models.counting import count_from_attractors
-from coralsep.schemas.separation_result import SeparationResult, StreamMetadata
+from coralsep.models.preprocess import (
+    CORALSEP_SAMPLE_RATE,
+    CoralSepPreprocessedAudio,
+    coralsep_preprocess,
+)
+from coralsep.pipeline.chunker import AudioChunk, Chunker
+from coralsep.pipeline.stitcher import ChunkStitcher, StitchedOutput
+from coralsep.schemas.separation_result import SeparationResult
 
 # Sentinel when optional modules are unavailable.
 _MISSING = object()
@@ -73,7 +77,6 @@ class PipelineResult:
     vote_details: dict = field(default_factory=dict)
     mixture_8k: np.ndarray | None = None
     mixture_16k: np.ndarray | None = None
-
 
     def to_separation_result(self, sample_rate: int = 16000) -> SeparationResult:
         """
@@ -320,7 +323,9 @@ class CoralSepPipeline:
 
         # Pool attractor probs across chunks.
         probs = torch.stack(probs_list).mean(dim=0)  # (1, 7) mean
-        count_prior = count_prior_probs.mean(0).unsqueeze(0) if count_prior_probs is not None else None
+        count_prior = (
+            count_prior_probs.mean(0).unsqueeze(0) if count_prior_probs is not None else None
+        )
 
         # Residual sweep uses the first chunk as a proxy (full audio too long).
         mix_proxy = chunk_results[0].mixture if chunk_results else None
@@ -345,6 +350,7 @@ class CoralSepPipeline:
             return _zero_pad_to_16k(streams_8k, T_16k)
 
         from coralsep.models.band_recovery import apply_band_recovery_guarded
+
         return apply_band_recovery_guarded(
             self.band_recovery,
             separated_8k=streams_8k,
@@ -387,6 +393,7 @@ def _level1_condition(proc: CoralSepPreprocessedAudio) -> dict:
     """Compute Level-1 DSP features from the 8 kHz preprocessed audio."""
     try:
         from coralsep.models.condition import level1_features
+
         return level1_features(proc.waveform_8k)
     except Exception:
         return {
@@ -408,13 +415,13 @@ def _pool_e0(e0_list: list[torch.Tensor]) -> torch.Tensor:
     """
     Concatenate and mean-pool E(0) tensors from multiple chunks.
 
-    Each tensor is (1, T, F, D). Returns (1, T_pooled, F, D) — all frames
+    Each tensor is (1, T, F, D). Returns (1, T_pooled, F, D), all frames
     concatenated along T then mean-pooled to the median chunk length.
     """
     # Stack along T axis.
     chunks = [e.squeeze(0) for e in e0_list]  # each (T, F, D)
-    cat = torch.cat(chunks, dim=0)              # (T_total, F, D)
-    return cat.unsqueeze(0)                     # (1, T_total, F, D)
+    cat = torch.cat(chunks, dim=0)  # (T_total, F, D)
+    return cat.unsqueeze(0)  # (1, T_total, F, D)
 
 
 def _zero_pad_to_16k(streams_8k: np.ndarray, T_16k: int) -> np.ndarray:

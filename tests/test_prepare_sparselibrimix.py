@@ -153,7 +153,9 @@ def test_clone_calls_git_clone(tmp_path: Path) -> None:
         repo = tools / "SparseLibriMix"
         (repo / "metadata").mkdir(parents=True, exist_ok=True)
 
-    with patch("coralsep.data.prepare_sparselibrimix.subprocess.run", side_effect=fake_run) as mock_run:
+    with patch(
+        "coralsep.data.prepare_sparselibrimix.subprocess.run", side_effect=fake_run
+    ) as mock_run:
         result = clone_sparselibrimix(tools)
 
     mock_run.assert_called_once()

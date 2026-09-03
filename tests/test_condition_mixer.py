@@ -1,14 +1,13 @@
 """
 Unit tests for data/condition_mixer.py (Dev A, P0-A1).
 
-All tests synthesize 8 kHz WAV files in a temp directory — no corpus download
+All tests synthesize 8 kHz WAV files in a temp directory: no corpus download
 required. Tests verify speaker isolation, N constraints, recipe fields, and the
 mixture invariants the rest of the pipeline depends on.
 """
 
 from __future__ import annotations
 
-import struct
 import wave
 from pathlib import Path
 
@@ -22,7 +21,6 @@ from coralsep.data.condition_mixer import (
     MixtureRecipe,
     _speaker_id,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -90,6 +88,7 @@ def test_condition_vector_all_set():
 
 def test_codec_class_indices():
     from coralsep.data.condition_mixer import _CODEC_CLASS_INDEX
+
     assert _CODEC_CLASS_INDEX["none"] == 0
     assert _CODEC_CLASS_INDEX["opus"] == 1
     assert _CODEC_CLASS_INDEX["aac"] == 2
@@ -210,6 +209,7 @@ def test_mix_sample_rate_locked(tmp_path):
 def test_mix_rejects_wrong_sample_rate(tmp_path):
     """A 16 kHz file must raise rather than silently resample."""
     import wave
+
     bad = tmp_path / "200-001-0000.wav"
     with wave.open(str(bad), "wb") as wf:
         wf.setnchannels(1)

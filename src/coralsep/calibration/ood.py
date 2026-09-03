@@ -39,6 +39,7 @@ class OODCalibrator:
                 flattened mean pooled E(0) for one utterance.
         """
         from coralsep.models.confidence import MahalanobisOOD
+
         self._detector = MahalanobisOOD()
         self._detector.fit(features)
         self._fitted = True
@@ -104,6 +105,7 @@ class OODCalibrator:
 
     def save(self, path: str | Path) -> None:
         import pickle
+
         state = {
             "detector": self._detector,
             "threshold": self._threshold,
@@ -114,8 +116,9 @@ class OODCalibrator:
             pickle.dump(state, f)
 
     @classmethod
-    def load(cls, path: str | Path) -> "OODCalibrator":
+    def load(cls, path: str | Path) -> OODCalibrator:
         import pickle
+
         with open(str(path), "rb") as f:
             state = pickle.load(f)
         obj = cls(fpr_target=state["fpr_target"])

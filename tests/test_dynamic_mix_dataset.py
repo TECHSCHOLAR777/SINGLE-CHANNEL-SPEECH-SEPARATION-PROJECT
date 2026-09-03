@@ -1,4 +1,4 @@
-"""Tests for data/dynamic_mix_dataset.py — DynamicMixDataset + collate."""
+"""Tests for data/dynamic_mix_dataset.py, DynamicMixDataset + collate."""
 
 from __future__ import annotations
 
@@ -32,6 +32,7 @@ def _make_files(root: Path, n_speakers: int = 5, duration_s: float = 1.0) -> lis
 
 # ── Construction ──────────────────────────────────────────────────────────────
 
+
 def test_dataset_length(tmp_path: Path) -> None:
     files = _make_files(tmp_path)
     ds = DynamicMixDataset(files, n_samples=7, allowed_n=[2])
@@ -53,6 +54,7 @@ def test_invalid_n_samples_raises(tmp_path: Path) -> None:
 
 
 # ── Item shape and type ───────────────────────────────────────────────────────
+
 
 def test_item_is_mixture_sample(tmp_path: Path) -> None:
     files = _make_files(tmp_path)
@@ -83,6 +85,7 @@ def test_mixture_equals_sum_of_refs_full_overlap(tmp_path: Path) -> None:
 
 # ── Progress / overlap curriculum ─────────────────────────────────────────────
 
+
 def test_progress_reaches_first_and_last_phase(tmp_path: Path) -> None:
     """idx=0 → progress=0 (full overlap), idx=n-1 → progress=1 (sparser)."""
     files = _make_files(tmp_path, n_speakers=5)
@@ -99,6 +102,7 @@ def test_progress_reaches_first_and_last_phase(tmp_path: Path) -> None:
 
 
 # ── Reproducibility ───────────────────────────────────────────────────────────
+
 
 def test_same_seed_gives_same_first_item(tmp_path: Path) -> None:
     files = _make_files(tmp_path)
@@ -117,6 +121,7 @@ def test_different_seeds_give_different_items(tmp_path: Path) -> None:
 
 
 # ── Collation ─────────────────────────────────────────────────────────────────
+
 
 def test_collate_uniform_batch(tmp_path: Path) -> None:
     files = _make_files(tmp_path)
@@ -153,7 +158,7 @@ def test_collate_pads_variable_length(tmp_path: Path) -> None:
 
 
 def test_collate_variable_n_speakers(tmp_path: Path) -> None:
-    """Batch with 2-speaker and 3-speaker items — N dim padded to max."""
+    """Batch with 2-speaker and 3-speaker items, N dim padded to max."""
     s2 = MixtureSample(
         mixture=np.zeros(100, dtype=np.float32),
         references=np.zeros((2, 100), dtype=np.float32),
@@ -174,6 +179,7 @@ def test_collate_variable_n_speakers(tmp_path: Path) -> None:
 
 
 # ── DataLoader integration ────────────────────────────────────────────────────
+
 
 def test_dataloader_round_trip(tmp_path: Path) -> None:
     files = _make_files(tmp_path)

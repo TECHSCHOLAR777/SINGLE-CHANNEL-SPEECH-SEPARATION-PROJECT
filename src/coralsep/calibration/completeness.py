@@ -62,7 +62,9 @@ class CompletenessCalibrator:
             layer.weight.fill_(1.0)
             layer.bias.fill_(0.0)
 
-        opt = torch.optim.LBFGS(layer.parameters(), lr=lr, max_iter=max_iter, line_search_fn="strong_wolfe")
+        opt = torch.optim.LBFGS(
+            layer.parameters(), lr=lr, max_iter=max_iter, line_search_fn="strong_wolfe"
+        )
         bce = nn.BCEWithLogitsLoss()
 
         def _closure():
@@ -97,7 +99,7 @@ class CompletenessCalibrator:
         np.save(str(path), np.array([self._a, self._b]))
 
     @classmethod
-    def load(cls, path: str | Path) -> "CompletenessCalibrator":
+    def load(cls, path: str | Path) -> CompletenessCalibrator:
         ab = np.load(str(path))
         obj = cls()
         obj._a = float(ab[0])

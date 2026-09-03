@@ -29,7 +29,10 @@ if str(_ROOT) not in sys.path:
     sys.path.insert(0, str(_ROOT))
 
 from coralsep.data.mixer_stub import discover_librimix_samples  # noqa: E402
-from coralsep.models.baseline_runner import run_corpus_transfer_baseline, write_baseline_log  # noqa: E402
+from coralsep.models.baseline_runner import (  # noqa: E402
+    run_corpus_transfer_baseline,
+    write_baseline_log,
+)
 from coralsep.utils.logging import get_logger  # noqa: E402
 
 log = get_logger("run_baseline")

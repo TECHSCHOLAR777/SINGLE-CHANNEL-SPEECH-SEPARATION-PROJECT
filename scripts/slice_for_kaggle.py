@@ -158,10 +158,18 @@ def summarise(out_root: Path) -> tuple[int, int]:
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--src-root", type=Path, default=DEFAULT_SRC_ROOT, help="Local 8 kHz dataset root")
-    p.add_argument("--out-dir", type=Path, default=DEFAULT_OUT_ROOT, help="Where to write the slice")
-    p.add_argument("--seed", type=int, default=DEFAULT_SEED, help="Sampling seed, recorded for reproducibility")
+    p = argparse.ArgumentParser(
+        description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+    p.add_argument(
+        "--src-root", type=Path, default=DEFAULT_SRC_ROOT, help="Local 8 kHz dataset root"
+    )
+    p.add_argument(
+        "--out-dir", type=Path, default=DEFAULT_OUT_ROOT, help="Where to write the slice"
+    )
+    p.add_argument(
+        "--seed", type=int, default=DEFAULT_SEED, help="Sampling seed, recorded for reproducibility"
+    )
     p.add_argument("--n-speakers", type=int, default=DEFAULT_TRAIN_SPEAKERS)
     p.add_argument("--max-utterances", type=int, default=DEFAULT_MAX_UTTERANCES)
     p.add_argument("--n-noise", type=int, default=DEFAULT_NOISE_CLIPS)

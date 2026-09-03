@@ -25,9 +25,7 @@ from pathlib import Path
 TARGET_GB_DEFAULT: float = 20.0
 """BLUEPRINT §7.3 stratified subset target."""
 
-DNS4_README = (
-    "https://github.com/microsoft/DNS-Challenge/blob/master/DNS-Challenge/README.md"
-)
+DNS4_README = "https://github.com/microsoft/DNS-Challenge/blob/master/DNS-Challenge/README.md"
 
 
 @dataclass
@@ -63,7 +61,7 @@ STRATIFIED_CATEGORIES: tuple[NoiseCategory, ...] = (
     ),
     NoiseCategory(
         name="babble",
-        description="Speech-like babble — capped fraction",
+        description="Speech-like babble, capped fraction",
         target_fraction=0.15,
         max_files=500,
         patterns=["*babble*", "*crowd*", "*speech*"],

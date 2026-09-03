@@ -1,13 +1,10 @@
 """Tests for the CoRAL-Sep dual-branch preprocessor (Dev C)."""
 
 import numpy as np
-import pytest
 
 from coralsep.models.preprocess import (
     CORALSEP_SAMPLE_RATE,
     CORALSEP_STFT_BINS,
-    CORALSEP_STFT_HOP,
-    CORALSEP_STFT_WIN,
     CoralSepPreprocessedAudio,
     coralsep_preprocess,
 )
@@ -62,6 +59,7 @@ class TestCoralSepPreprocess:
 
     def test_waveform_8k_torch(self):
         import torch
+
         wav = _sine()
         result = coralsep_preprocess(wav, 16000)
         t = result.waveform_8k_torch("cpu")

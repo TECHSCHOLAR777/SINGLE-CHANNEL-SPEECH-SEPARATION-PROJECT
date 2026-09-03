@@ -7,9 +7,8 @@ pyroomacoustics is needed. Codec tests run the mu-law fallback path.
 
 from __future__ import annotations
 
-from dataclasses import replace
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -21,7 +20,6 @@ from coralsep.data.degradations import (
     SEVERE_SNR_DB,
     SNR_MAX_DB,
     SNR_MIN_DB,
-    WET_REFERENCE_OFFSET_SAMPLES,
     apply_noise,
     apply_reverb,
     assert_not_held_out,
@@ -46,9 +44,7 @@ def _clean_mixture(n: int = 2, length: int = LENGTH) -> CoralSepMixture:
     rng = np.random.default_rng(0)
     refs = rng.standard_normal((n, length)).astype(np.float32) * 0.1
     mix = refs.sum(axis=0).astype(np.float32)
-    sample = MixtureSample(
-        mixture=mix, references=refs, sample_rate=SR, utterance_id="test_utt"
-    )
+    sample = MixtureSample(mixture=mix, references=refs, sample_rate=SR, utterance_id="test_utt")
     recipe = MixtureRecipe(n_speakers=n)
     return CoralSepMixture(sample=sample, recipe=recipe)
 
@@ -166,7 +162,9 @@ def test_sample_snr_no_severe():
 
 def test_sample_snr_severe_fraction():
     rng = np.random.default_rng(5)
-    samples = [sample_snr(rng, allow_severe=True, severe_fraction=SEVERE_FRACTION) for _ in range(2000)]
+    samples = [
+        sample_snr(rng, allow_severe=True, severe_fraction=SEVERE_FRACTION) for _ in range(2000)
+    ]
     severe = sum(1 for s in samples if s < SEVERE_SNR_DB)
     assert abs(severe / len(samples) - SEVERE_FRACTION) < 0.05
 
@@ -246,9 +244,11 @@ def test_apply_noise_achieved_snr():
     target_snr = 3.0
     m2 = apply_noise(m, noise, rng, snr_db=target_snr)
     speech_power = float(np.mean(m.mixture**2))
-    noise_power = float(np.mean((m2.mixture - m.mixture)**2))
+    noise_power = float(np.mean((m2.mixture - m.mixture) ** 2))
     achieved_snr = 10.0 * np.log10(speech_power / noise_power + 1e-10)
-    assert abs(achieved_snr - target_snr) < 0.5, f"SNR {achieved_snr:.2f} far from target {target_snr}"
+    assert (
+        abs(achieved_snr - target_snr) < 0.5
+    ), f"SNR {achieved_snr:.2f} far from target {target_snr}"
 
 
 def test_apply_noise_recipe_snr_recorded():
@@ -299,7 +299,9 @@ def test_describe_condition_reverb_noise():
 
 
 def test_describe_condition_all_three():
-    r = MixtureRecipe(n_speakers=2, t60_s=0.4, snr_db=3.0, codec_name="aac", codec_bitrate_bps=16000)
+    r = MixtureRecipe(
+        n_speakers=2, t60_s=0.4, snr_db=3.0, codec_name="aac", codec_bitrate_bps=16000
+    )
     assert describe_condition(r) == "all-three"
 
 

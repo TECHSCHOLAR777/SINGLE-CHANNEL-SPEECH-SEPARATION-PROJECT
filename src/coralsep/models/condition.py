@@ -1,13 +1,13 @@
 """
 Two-level condition analyzer (Dev B, P2-B1 / P2-B2).
 
-Level 1 — raw STFT DSP features, deterministic, no training:
+Level 1, raw STFT DSP features, deterministic, no training:
   • SNR estimate via SileroVAD voiced-frame energy ratio
   • Codec bandwidth: fraction of energy in 3-4 kHz band (drops with codec damage)
   • Voiced-frame density: fraction of frames flagged as voiced by SileroVAD
     (fallback: voiced-energy fraction when SileroVAD is not installed)
 
-Level 2 — pooled E(0) heads, trained alongside the gate:
+Level 2, pooled E(0) heads, trained alongside the gate:
   • T60 reverb head: predict log-T60 from temporal mean of E(0) over voiced frames
   • Count prior MLP: predict N ∈ {2,3,4,5} from E(0) statistics
 

@@ -12,7 +12,7 @@ Note on the train split
 Libri3Mix train-360 requires LibriSpeech train-clean-360 (not train-clean-100).
 We skip it here so Phase 0 never touches that ~25 GB download.  The M0
 milestone only needs the test split.  The training data will be addressed in
-Phase 2 — set --include-train and ensure train-clean-360 is present.
+Phase 2, set --include-train and ensure train-clean-360 is present.
 
 Usage
 -----
@@ -161,7 +161,7 @@ def _find_generation_script(librimix_repo: Path) -> Path:
             return path
     raise FileNotFoundError(
         f"Cannot find create_librimix_from_metadata.py in {librimix_repo}. "
-        "The LibriMix repo structure may have changed — check the clone."
+        "The LibriMix repo structure may have changed, check the clone."
     )
 
 
@@ -358,7 +358,7 @@ def verify_layout(data_root: Path) -> None:
 
     if missing:
         raise RuntimeError(
-            "Layout verification failed — missing directories:\n"
+            "Layout verification failed, missing directories:\n"
             + "\n".join(missing)
             + "\n\nRe-run prepare_librimix.py or check the LibriMix generation output."
         )

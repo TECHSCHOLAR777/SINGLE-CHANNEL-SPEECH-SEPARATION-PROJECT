@@ -5,7 +5,7 @@ from __future__ import annotations
 import numpy as np
 
 from coralsep.models.preprocess import CORALSEP_SAMPLE_RATE, coralsep_preprocess
-from coralsep.pipeline.chunker import CHUNK_DURATION_S, STEP_DURATION_S, Chunker, CHUNK_SAMPLES_8K
+from coralsep.pipeline.chunker import CHUNK_SAMPLES_8K, Chunker
 from coralsep.pipeline.stitcher import ChunkStitcher
 
 

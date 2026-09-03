@@ -85,7 +85,12 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
     import numpy as np
 
     from coralsep.data.condition_mixer import CoralSepMixer
-    from coralsep.data.degradations import apply_codec, apply_noise, apply_reverb, assert_not_held_out
+    from coralsep.data.degradations import (
+        apply_codec,
+        apply_noise,
+        apply_reverb,
+        assert_not_held_out,
+    )
     from coralsep.data.rir_bank import RirBank
 
     libri_8k = Path(args.librispeech_8k)
@@ -120,7 +125,7 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
         else:
             log.warning("bank.json not found at %s; reverb condition will use clean audio", _rb_dir)
 
-    # Pre-compute noise files once — avoids re-globbing inside __getitem__.
+    # Pre-compute noise files once, avoids re-globbing inside __getitem__.
     noise_files: list[Path] = []
     noise_dir_arg = Path(getattr(args, "noise_dir", ""))
     if noise_dir_arg.exists():
@@ -287,7 +292,7 @@ def train_gate(args: argparse.Namespace) -> None:
 
             l1_feats = torch.stack(l1_feats_list)  # (B, 4)
 
-            # Level-2 features from E(0) — gate/analyzer forward in BF16.
+            # Level-2 features from E(0), gate/analyzer forward in BF16.
             with torch.autocast(
                 "cuda", dtype=_amp_dtype or torch.float32, enabled=_amp_dtype is not None
             ):
@@ -301,7 +306,7 @@ def train_gate(args: argparse.Namespace) -> None:
                     l2_feats = torch.zeros(B, 6, device=device)
 
                 condition = torch.cat([l1_feats.float(), l2_feats.float()], dim=-1)  # (B, 10)
-                _gates = gate_net(condition)  # (B, 3) — used via gate_loss below
+                _gates = gate_net(condition)  # (B, 3), used via gate_loss below
 
             # Apply gates to a second pass.
             max_k = max(e.shape[0] for e in estimates_list)

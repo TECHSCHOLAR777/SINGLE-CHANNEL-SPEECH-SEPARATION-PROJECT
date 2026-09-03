@@ -71,7 +71,9 @@ def test_clone_calls_git_clone(tmp_path: Path) -> None:
         repo = tools / "librimix_highn"
         (repo / "metadata").mkdir(parents=True, exist_ok=True)
 
-    with patch("coralsep.data.prepare_librimix_highn.subprocess.run", side_effect=fake_run) as mock_run:
+    with patch(
+        "coralsep.data.prepare_librimix_highn.subprocess.run", side_effect=fake_run
+    ) as mock_run:
         result = clone_librimix_highn(tools)
 
     args = mock_run.call_args.args[0]

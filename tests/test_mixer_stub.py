@@ -88,5 +88,3 @@ def test_max_samples_cap(tmp_path: Path) -> None:
 def test_discover_missing_root_raises(tmp_path: Path) -> None:
     with pytest.raises(FileNotFoundError):
         discover_librimix_samples(tmp_path / "nonexistent")
-
-

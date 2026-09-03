@@ -49,6 +49,7 @@ if str(_ROOT) not in sys.path:
 from coralsep.align.hungarian import xcorr_cost_matrix  # noqa: E402
 from coralsep.align.integration import run_and_align, run_and_align_long  # noqa: E402
 from coralsep.data.mixer_stub import MixtureSample, discover_librimix_samples  # noqa: E402
+
 # MossFormer2Expert and get_expensive_expert removed in CoRAL-Sep pivot.
 # main() below must be rewritten to use SRCorrNetWrapper before use.
 
@@ -234,6 +235,17 @@ def _dynamic_sample(
     )
 
 
+def _load_expert(args: argparse.Namespace, target_speakers: int | None):
+    """Construct the single frozen expert used by the identity-lock check."""
+    from coralsep.models.experts.srcorrnet import SRCorrNetExpert
+
+    return SRCorrNetExpert(
+        device=args.device,
+        repo_path=args.srcorrnet_repo,
+        checkpoint_path=args.srcorrnet_checkpoint,
+    )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--librimix-root", default=None)
@@ -294,9 +306,17 @@ def main() -> None:
     num_references = int(sample.references.shape[0])
     max_tracks = args.max_tracks if args.max_tracks is not None else num_references
     target_speakers = None if args.no_pad_expert else num_references
-    cheap = MossFormer2Expert(
-        device=args.device, compute_embeddings=True, target_speakers=target_speakers
-    )
+    # The paired check compared a cheap expert against an expensive one. That was
+    # the v1 cascade, retired in f160942, and MossFormer2Expert no longer exists.
+    # The identity-lock check below is the part that carried into v2 and it runs
+    # on a single expert, so --skip-pair is the supported mode. See I-040.
+    if not args.skip_pair:
+        raise SystemExit(
+            "paired cheap-versus-expensive validation belonged to the retired v1 "
+            "cascade and its experts no longer exist. Re-run with --skip-pair to "
+            "perform the identity-lock check, which is the part v2 still uses."
+        )
+    cheap = _load_expert(args, target_speakers)
     report_target_note = "unpadded" if args.no_pad_expert else f"padded_to_{num_references}"
 
     report: dict[str, Any] = {
@@ -307,14 +327,8 @@ def main() -> None:
         "expert_mode": report_target_note,
     }
 
-    if not args.skip_pair:
-        expensive = get_expensive_expert(
-            device=args.device,
-            srcorrnet_repo=args.srcorrnet_repo,
-            srcorrnet_checkpoint=args.srcorrnet_checkpoint,
-            tfgridnet_tag=args.tfgridnet_tag,
-            num_speakers=num_references,
-        )
+    if False:  # retired paired path, see the guard above
+        expensive = None
         pair_len = min(sample.mixture.shape[0], int(round(args.chunk_sec * sample.sample_rate)))
         paired = run_and_align(cheap, expensive, sample.mixture[:pair_len], sample.sample_rate)
         _write_streams(

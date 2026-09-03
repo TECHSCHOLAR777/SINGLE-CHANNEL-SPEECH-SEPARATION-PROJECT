@@ -1,5 +1,5 @@
 """
-Prepare the VCTK accent-diversity speaker pool for CoRAL-Sep — Phase 0 (P0-A4).
+Prepare the VCTK accent-diversity speaker pool for CoRAL-Sep, Phase 0 (P0-A4).
 
 VCTK adds accent variety on top of LibriSpeech.  Two things must be reconciled
 with ``DynamicMixer`` (data/mixer.py) before its files are usable:

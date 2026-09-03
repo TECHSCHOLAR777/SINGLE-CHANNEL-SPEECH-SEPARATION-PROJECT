@@ -7,8 +7,8 @@ so no ffmpeg binary is required to run the suite.
 
 from __future__ import annotations
 
-import subprocess
-from unittest.mock import MagicMock, call, patch
+from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
@@ -21,7 +21,6 @@ from coralsep.data.codec_augmentation import (
     is_ffmpeg_available,
 )
 from coralsep.data.mixer_stub import MixtureSample
-
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -179,7 +178,7 @@ def test_mulaw_output_length_matches_input() -> None:
 
 
 # ---------------------------------------------------------------------------
-# ffmpeg path — subprocess mocked
+# ffmpeg path, subprocess mocked
 # ---------------------------------------------------------------------------
 
 
@@ -200,6 +199,7 @@ def _make_ffmpeg_mock(tmp_path, audio: np.ndarray) -> MagicMock:
         if call_count[0] == 2:
             # Decode call: write decoded wav where ffmpeg would put it
             import shutil as _shutil
+
             dst = Path(cmd[-1])  # last arg is the output path
             _shutil.copy(str(decoded_wav), str(dst))
         return result
@@ -215,10 +215,11 @@ def test_ffmpeg_called_with_opus_args(tmp_path) -> None:
 
     with patch("coralsep.data.codec_augmentation.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
-        # We don't need a real decoded file here — just check args
-        with patch("coralsep.data.codec_augmentation.sf.read", return_value=(
-            np.zeros((LENGTH, 1), dtype=np.float32), SR
-        )):
+        # We don't need a real decoded file here, just check args
+        with patch(
+            "coralsep.data.codec_augmentation.sf.read",
+            return_value=(np.zeros((LENGTH, 1), dtype=np.float32), SR),
+        ):
             aug(sample)
 
     all_calls = mock_run.call_args_list
@@ -235,9 +236,10 @@ def test_ffmpeg_called_with_aac_args(tmp_path) -> None:
 
     with patch("coralsep.data.codec_augmentation.subprocess.run") as mock_run:
         mock_run.return_value = MagicMock(returncode=0)
-        with patch("coralsep.data.codec_augmentation.sf.read", return_value=(
-            np.zeros((LENGTH, 1), dtype=np.float32), SR
-        )):
+        with patch(
+            "coralsep.data.codec_augmentation.sf.read",
+            return_value=(np.zeros((LENGTH, 1), dtype=np.float32), SR),
+        ):
             aug(sample)
 
     encode_cmd = mock_run.call_args_list[0][0][0]
@@ -253,6 +255,7 @@ def test_ffmpeg_failure_falls_back_to_mulaw() -> None:
     failing = MagicMock(returncode=1)
     with patch("coralsep.data.codec_augmentation.subprocess.run", return_value=failing):
         import warnings as _warnings
+
         with _warnings.catch_warnings(record=True):
             out = aug(sample)
 
@@ -279,6 +282,7 @@ def test_ffmpeg_unavailable_uses_mulaw() -> None:
 
 def test_random_codec_resolves_to_supported_codec() -> None:
     from coralsep.data.codec_augmentation import _SUPPORTED_CODECS
+
     cfg = CodecConfig(codec="random", codec_prob=1.0, use_ffmpeg=False)
     aug = CodecAugmentor(cfg, rng=np.random.default_rng(0))
     seen = set()
@@ -294,13 +298,13 @@ def test_random_codec_resolves_to_supported_codec() -> None:
 
 
 def test_bitrate_sampled_within_range() -> None:
-    cfg = CodecConfig(codec="opus", codec_prob=1.0, use_ffmpeg=True, bitrate_min_kbps=8.0, bitrate_max_kbps=16.0)
+    cfg = CodecConfig(
+        codec="opus", codec_prob=1.0, use_ffmpeg=True, bitrate_min_kbps=8.0, bitrate_max_kbps=16.0
+    )
     aug = CodecAugmentor(cfg, rng=np.random.default_rng(5))
     aug._ffmpeg_ok = True
 
     captured = []
-
-    original = aug._ffmpeg_roundtrip
 
     def _capture(audio, sr, codec, bitrate_kbps):
         captured.append(bitrate_kbps)
@@ -308,6 +312,7 @@ def test_bitrate_sampled_within_range() -> None:
 
     with patch.object(aug, "_ffmpeg_roundtrip", side_effect=_capture):
         import warnings as _warnings
+
         for _ in range(20):
             with _warnings.catch_warnings(record=True):
                 aug(_make_sample())

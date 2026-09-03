@@ -5,9 +5,7 @@ import pytest
 
 from coralsep.pipeline.chunker import (
     CHUNK_SAMPLES_8K,
-    STEP_SAMPLES_8K,
     SR_8K,
-    AudioChunk,
     Chunker,
     _compute_stft_16k,
 )
@@ -69,7 +67,7 @@ class TestChunker:
         wav = _make_sine(4.0)
         chunker = Chunker(wav)
         all_chunks = list(chunker)
-        for i, chunk in enumerate(all_chunks):
+        for i, _chunk in enumerate(all_chunks):
             assert chunker.chunk_at(i).chunk_index == i
 
     def test_n_chunks_property(self):

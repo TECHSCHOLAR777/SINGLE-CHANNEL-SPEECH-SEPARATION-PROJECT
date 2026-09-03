@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CoRAL-Sep Phase 0 — Step 1: Download raw datasets.
+CoRAL-Sep Phase 0, Step 1: Download raw datasets.
 
 Downloads LibriSpeech (openslr.org) and WHAM! noise (S3) automatically,
 then extracts archives in-place.  DNS-4 requires a manual step (see below).
@@ -47,7 +47,7 @@ class Download:
     name: str
     url: str
     filename: str
-    size_bytes: int  # approximate — used for ETA only
+    size_bytes: int  # approximate, used for ETA only
     extract: bool = True
     extract_subdir: str = ""  # target subfolder inside output_dir
     md5: str = ""  # optional integrity check
@@ -128,7 +128,7 @@ def _bar(fraction: float, width: int = 30) -> str:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# aria2c fast-path (16 parallel connections — bypasses server throttling)
+# aria2c fast-path (16 parallel connections, bypasses server throttling)
 # ─────────────────────────────────────────────────────────────────────────────
 
 
@@ -265,7 +265,7 @@ def _extract(archive: Path, dest_dir: Path, label: str) -> None:
         with zipfile.ZipFile(archive) as zf:
             zf.extractall(dest_dir)
     else:
-        print(f"Unknown archive format: {suffix} — skipping extraction.")
+        print(f"Unknown archive format: {suffix}, skipping extraction.")
         return
 
     elapsed = time.monotonic() - t0
@@ -291,18 +291,18 @@ def _md5(path: Path) -> str:
 
 DNS4_INSTRUCTIONS = """
 ╔══════════════════════════════════════════════════════════════════════════════╗
-║  DNS-4 — Manual download required                                          ║
+║  DNS-4, Manual download required                                          ║
 ╚══════════════════════════════════════════════════════════════════════════════╝
 
 DNS-4 noise data is hosted on Microsoft Azure Blob Storage and requires
 azcopy (Microsoft's tool).
 
-  Step A — Install azcopy
+  Step A, Install azcopy
     macOS:   brew install azcopy
     Linux:   wget https://aka.ms/downloadazcopy-v10-linux -O azcopy.tar.gz
              tar -xf azcopy.tar.gz && sudo mv azcopy*/azcopy /usr/local/bin/
 
-  Step B — Download the noise clips (no account needed, public SAS URL)
+  Step B, Download the noise clips (no account needed, public SAS URL)
     azcopy copy \\
       "<DNS_CHALLENGE_NOISE_SAS_URL>" \\
       {output_dir}/dns4_raw/DNS-Challenge_Noise.zip \\
@@ -312,7 +312,7 @@ azcopy (Microsoft's tool).
     https://github.com/microsoft/DNS-Challenge/blob/master/download-dns-challenge-4.sh
     (it is the blob URL ending in DNS-Challenge_Noise.zip?<SAS_TOKEN>)
 
-  Step C — Once downloaded, run the stratification script:
+  Step C, Once downloaded, run the stratification script:
     python src/coralsep/data/prepare_dns4.py \\
       --out-dir {output_dir}/dns4-subset \\
       --target-gb 20 \\
@@ -332,7 +332,7 @@ azcopy (Microsoft's tool).
 def _upfront_summary(output_dir: Path) -> None:
     print()
     print("╔══════════════════════════════════════════════════════════════════╗")
-    print("║         CoRAL-Sep Phase 0 — Step 1: Dataset Download             ║")
+    print("║         CoRAL-Sep Phase 0, Step 1: Dataset Download             ║")
     print("╚══════════════════════════════════════════════════════════════════╝")
     print()
     print(f"  Output directory : {output_dir}")
@@ -467,7 +467,7 @@ def main() -> None:
                 print(f"  ✓  Download complete ({_fmt_size(actual)})")
             except Exception as exc:
                 print(f"\n  ✗  Download failed: {exc}")
-                print("     The partial file is kept — re-run to resume.")
+                print("     The partial file is kept, re-run to resume.")
                 sys.exit(1)
 
         # Extraction

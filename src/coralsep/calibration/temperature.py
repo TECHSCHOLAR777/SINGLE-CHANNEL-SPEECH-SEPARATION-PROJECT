@@ -17,7 +17,6 @@ from __future__ import annotations
 
 from pathlib import Path
 
-import numpy as np
 import torch
 import torch.nn as nn
 
@@ -65,7 +64,9 @@ class TemperatureScaler(nn.Module):
             Final NLL loss value.
         """
         self.train()
-        optimizer = torch.optim.LBFGS(self.parameters(), lr=lr, max_iter=max_iter, line_search_fn="strong_wolfe")
+        optimizer = torch.optim.LBFGS(
+            self.parameters(), lr=lr, max_iter=max_iter, line_search_fn="strong_wolfe"
+        )
         nll = nn.NLLLoss()
 
         def _closure():
@@ -84,7 +85,7 @@ class TemperatureScaler(nn.Module):
         torch.save({"temperature": self.temperature.item()}, str(path))
 
     @classmethod
-    def load(cls, path: str | Path) -> "TemperatureScaler":
+    def load(cls, path: str | Path) -> TemperatureScaler:
         state = torch.load(str(path), map_location="cpu")
         obj = cls(init_temperature=float(state["temperature"]))
         obj.eval()

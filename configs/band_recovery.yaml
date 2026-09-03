@@ -1,4 +1,4 @@
-# Band recovery head configuration (Dev C, Option B — fixed).
+# Band recovery head configuration (Dev C, Option B, fixed).
 # Produces 16 kHz output from 8 kHz separated streams + 16 kHz mixture.
 
 band_recovery:
@@ -10,12 +10,12 @@ band_recovery:
   out_channels: 129
 
 stft:
-  # 8 kHz STFT — matches SR-CorrNet (BLUEPRINT §15.8).
+  # 8 kHz STFT: matches SR-CorrNet (BLUEPRINT §15.8).
   sr_8k: 8000
   n_fft_8k: 128
   hop_8k: 64
   bins_8k: 65
-  # 16 kHz STFT — for band recovery and DNSMOS.
+  # 16 kHz STFT, for band recovery and DNSMOS.
   sr_16k: 16000
   n_fft_16k: 512
   hop_16k: 128
@@ -36,5 +36,5 @@ training:
   batch_size: 16
   epochs: 30
   gradient_clip: 5.0
-  # BAND_RECOVERY_SAMPLE_RATE — 16 kHz input to the head.
+  # BAND_RECOVERY_SAMPLE_RATE, 16 kHz input to the head.
   target_sample_rate: 16000

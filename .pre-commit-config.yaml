@@ -21,3 +21,25 @@ repos:
       - id: ruff
         args: [--fix]
         exclude: ^notebooks/
+
+  - repo: local
+    hooks:
+      - id: no-credentials
+        name: reject credential patterns
+        entry: >-
+          python -c "import re,sys;
+          pat=re.compile(rb'hf_[A-Za-z0-9]{34}|KGAT_[A-Za-z0-9]{20,}|ak-[A-Za-z0-9]{20,}|as-[A-Za-z0-9]{20,}');
+          bad=[f for f in sys.argv[1:] if pat.search(open(f,'rb').read())];
+          sys.exit(print('credential pattern in:', bad) or 1) if bad else 0"
+        language: system
+        pass_filenames: true
+
+      - id: no-em-dash
+        name: reject em dashes
+        entry: >-
+          python -c "import sys;
+          bad=[f for f in sys.argv[1:] if '—' in open(f,encoding='utf-8',errors='ignore').read()];
+          sys.exit(print('em dash in:', bad) or 1) if bad else 0"
+        language: system
+        types_or: [python, markdown, yaml]
+        exclude: ^(notebooks/|\.restoration/)

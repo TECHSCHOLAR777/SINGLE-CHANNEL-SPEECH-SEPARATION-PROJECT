@@ -6,7 +6,7 @@ are now updated by gradients flowing from the separation loss through the
 differentiable (tensor) gate weights:
 
     y = W0 x + g_r·Br(Ar x) + g_n·Bn(An x) + g_c·Bc(Ac x)
-    where (g_r, g_n, g_c) = gate_net(condition) — grad-enabled tensors.
+    where (g_r, g_n, g_c) = gate_net(condition), grad-enabled tensors.
 
 Critical differences from Stage 3:
   • No torch.no_grad() around the SR-CorrNet forward → sep_loss has grad
@@ -25,8 +25,8 @@ Optimiser: AdamW, two param groups
   gate + analyzer   lr = 2e-5   wd = 1e-5
 
 Saves per epoch (when loss improves):
-  best_joint.pt   — { gate, analyzer, adapter_state (flat A/B dict) }
-  final_joint.pt  — same, after last epoch
+  best_joint.pt, { gate, analyzer, adapter_state (flat A/B dict) }
+  final_joint.pt, same, after last epoch
 """
 
 from __future__ import annotations
@@ -123,7 +123,7 @@ def train_joint(args: argparse.Namespace) -> None:
             if _mod is not None and hasattr(_mod, "to"):
                 _mod.to(device)
 
-    # Gate + Analyzer — warm-start from Stage 3
+    # Gate + Analyzer, warm-start from Stage 3
     analyzer = Level2Analyzer().to(device)
     gate_net = GateNetwork().to(device)
     gate_ckpt_path = Path(getattr(args, "gate_checkpoint", ""))
@@ -196,7 +196,7 @@ def train_joint(args: argparse.Namespace) -> None:
 
             for b in range(B):
                 wav = mixture[b].unsqueeze(0)
-                # Clip audio — gradient tape for SR-CorrNet is large; 2 s fits 16 GB GPU
+                # Clip audio, gradient tape for SR-CorrNet is large; 2 s fits 16 GB GPU
                 _MAX_SAMPLES = getattr(args, "max_audio_samples", 8000)
                 if wav.shape[-1] > _MAX_SAMPLES:
                     wav = wav[..., :_MAX_SAMPLES]
@@ -248,7 +248,7 @@ def train_joint(args: argparse.Namespace) -> None:
 
                 # --- Per-sample losses (fp32 after explicit casts) ---
                 waves_b = waves_sep.unsqueeze(0)  # (1, K, T)
-                ref_b = references[b : b + 1]  # (1, K_ref, T) — coralsep_loss trims
+                ref_b = references[b : b + 1]  # (1, K_ref, T), coralsep_loss trims
                 lg_b = lg_sep.float().unsqueeze(0) if lg_sep is not None else None
                 sep_loss_b = coralsep_loss(waves_b, ref_b, lg_b, n_spks[b : b + 1])["total"]
 
@@ -278,7 +278,7 @@ def train_joint(args: argparse.Namespace) -> None:
             lib.set_gates({n: 0.0 for n in ADAPTER_NAMES})
             lib.inject_gates()
 
-            # O-LoRA penalty — model weights are fp32, computed once per batch
+            # O-LoRA penalty, model weights are fp32, computed once per batch
             olo = olora_penalty(inner, alpha=_OLORA_ALPHA)
             olo.backward()
             batch_loss += olo.item()

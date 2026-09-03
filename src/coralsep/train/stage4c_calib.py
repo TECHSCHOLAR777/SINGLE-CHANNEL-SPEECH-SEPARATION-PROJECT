@@ -7,7 +7,7 @@ Post-hoc calibration: find scalar T so that
 Steps:
   1. Load gate_net weights from best_joint.pt (Stage 4 output).
   2. Draw N calibration samples via the same gate dataset as Stage 3/4.
-     Level-2 init is zeros (first-sample approximation — fine for temp scaling).
+     Level-2 init is zeros (first-sample approximation, fine for temp scaling).
   3. Collect (gate_prob, oracle_label) pairs for all 3 adapters.
   4. Golden-section search over T ∈ (0.05, 10.0) minimising BCE.
   5. Save calibration.pt = {"temperature": T_tensor}.
@@ -106,7 +106,7 @@ def calibrate(args: argparse.Namespace) -> None:
     if ckpt_path.exists():
         _load_gate(ckpt_path, gate_net)
     else:
-        log.warning("Checkpoint not found at %s — using random gate (sanity only)", ckpt_path)
+        log.warning("Checkpoint not found at %s, using random gate (sanity only)", ckpt_path)
 
     # ── Build calibration loader (same as Stage 3 training) ───────────────
     # Reduce dataset size to n_calibration samples

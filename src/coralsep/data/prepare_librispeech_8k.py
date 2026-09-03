@@ -89,8 +89,7 @@ def process_split(
     src_split = input_dir / split
     if not src_split.is_dir():
         raise FileNotFoundError(
-            f"split directory not found: {src_split}\n"
-            "Check --input-dir and --splits."
+            f"split directory not found: {src_split}\n" "Check --input-dir and --splits."
         )
     dst_split = output_dir / split
 
@@ -147,10 +146,20 @@ def main() -> None:
         description="Resample LibriSpeech 16 kHz → 8 kHz for the CoRAL-Sep pipeline.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--input-dir", required=True, type=Path, metavar="DIR",
-                        help="Root of the 16 kHz LibriSpeech corpus.")
-    parser.add_argument("--output-dir", required=True, type=Path, metavar="DIR",
-                        help="Destination root. Mirror layout is written here.")
+    parser.add_argument(
+        "--input-dir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Root of the 16 kHz LibriSpeech corpus.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Destination root. Mirror layout is written here.",
+    )
     parser.add_argument(
         "--splits",
         nargs="+",

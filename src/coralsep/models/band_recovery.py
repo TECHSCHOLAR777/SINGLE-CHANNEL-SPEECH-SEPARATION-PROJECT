@@ -11,7 +11,7 @@ over the high-band (4-8 kHz, bins 129-256 at 16 kHz with n_fft=512).
 Dual-metric guard (P3-C2): band recovery is applied per-chunk only when BOTH
 SI-SDRi and DNSMOS improve. Worst case is 8 kHz zero-padded to 16 kHz.
 
-BLUEPRINT Option B: band recovery is fixed — this is the ONLY path to 16 kHz
+BLUEPRINT Option B: band recovery is fixed, this is the ONLY path to 16 kHz
 output. There is no wideband model alternative.
 """
 
@@ -57,7 +57,7 @@ class BandRecoveryHead(nn.Module):
     not model capacity).
     """
 
-    _LOW_BINS = _STFT_8K_BINS       # 65
+    _LOW_BINS = _STFT_8K_BINS  # 65
     _HIGH_BINS = _HIGH_BAND_END - _HIGH_BAND_START + 1  # 129
 
     def __init__(self, hidden: int = 64) -> None:
@@ -103,7 +103,7 @@ class BandRecoveryHead(nn.Module):
             stft_8k: (B, 65, T) complex STFT of the separated 8 kHz signal.
             stft_16k_mix: (B, 257, T) complex STFT of the 16 kHz mixture.
         Returns:
-            (B, 257, T) complex STFT — low-band from separated, high-band from mask.
+            (B, 257, T) complex STFT, low-band from separated, high-band from mask.
         """
         mag_8k = stft_8k.abs()
         mag_16k_high = stft_16k_mix[:, _HIGH_BAND_START:, :].abs()
@@ -121,13 +121,13 @@ class BandRecoveryHead(nn.Module):
 
         # High band (128-256): mask × original mixture high-band.
         t = min(mask.shape[-1], stft_16k_mix.shape[-1])
-        out[:, _HIGH_BAND_START:, :t] = (
-            mask[:, :, :t] * stft_16k_mix[:, _HIGH_BAND_START:, :t]
-        )
+        out[:, _HIGH_BAND_START:, :t] = mask[:, :, :t] * stft_16k_mix[:, _HIGH_BAND_START:, :t]
         return out
 
 
-def stft_to_waveform(stft: torch.Tensor, n_fft: int = _STFT_N_FFT, hop: int = _STFT_HOP) -> torch.Tensor:
+def stft_to_waveform(
+    stft: torch.Tensor, n_fft: int = _STFT_N_FFT, hop: int = _STFT_HOP
+) -> torch.Tensor:
     """
     Inverse STFT: (B, F, T) complex → (B, L) waveform.
     """
@@ -174,7 +174,7 @@ def apply_band_recovery_guarded(
         device: Compute device.
 
     Returns:
-        (K, T_16k) waveforms at 16 kHz — either band-recovered or zero-padded.
+        (K, T_16k) waveforms at 16 kHz, either band-recovered or zero-padded.
     """
     device = torch.device(device)
     head = head.to(device)
@@ -188,7 +188,7 @@ def apply_band_recovery_guarded(
     factor = T_16k // T_8k
     for k in range(K):
         t = min(T_8k * factor, T_16k)
-        baseline_16k[k, :t:factor] = separated_8k[k, :T_16k // factor]
+        baseline_16k[k, :t:factor] = separated_8k[k, : T_16k // factor]
 
     with torch.no_grad():
         sep_t = torch.from_numpy(separated_8k).float().to(device)  # (K, T_8k)
@@ -197,11 +197,25 @@ def apply_band_recovery_guarded(
         window_8k = torch.hann_window(128, device=device)
         window_16k = torch.hann_window(512, device=device)
 
-        stft_8k = torch.stft(sep_t, n_fft=128, hop_length=64, win_length=128,
-                              window=window_8k, return_complex=True, center=True)
+        stft_8k = torch.stft(
+            sep_t,
+            n_fft=128,
+            hop_length=64,
+            win_length=128,
+            window=window_8k,
+            return_complex=True,
+            center=True,
+        )
 
-        stft_16k_mix = torch.stft(mix_t, n_fft=512, hop_length=128, win_length=512,
-                                   window=window_16k, return_complex=True, center=True)
+        stft_16k_mix = torch.stft(
+            mix_t,
+            n_fft=512,
+            hop_length=128,
+            win_length=512,
+            window=window_16k,
+            return_complex=True,
+            center=True,
+        )
         stft_16k_mix = stft_16k_mix.unsqueeze(0).expand(K, -1, -1)  # (K, 257, T)
 
         # Predict band-recovered STFT.

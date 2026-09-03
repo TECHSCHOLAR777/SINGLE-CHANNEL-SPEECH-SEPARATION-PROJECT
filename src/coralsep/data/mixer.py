@@ -46,7 +46,7 @@ class DynamicMixer:
     Each call to mix() independently draws N speakers (without replacement),
     applies a random per-speaker dB gain, zero-pads all waveforms to equal
     length, and sums them to produce a MixtureSample.  A new, unique mixture
-    is returned on every call — there is no fixed dataset.
+    is returned on every call, there is no fixed dataset.
 
     Parameters
     ----------
@@ -165,8 +165,8 @@ class DynamicMixer:
         Returns
         -------
         MixtureSample
-            mixture    : float32 ndarray, shape [T] — sum of gain-scaled stems
-            references : float32 ndarray, shape [N, T] — gain-scaled stems
+            mixture    : float32 ndarray, shape [T], sum of gain-scaled stems
+            references : float32 ndarray, shape [N, T], gain-scaled stems
                          (zero-padded, or offset to the target overlap)
             sample_rate: always ``self._sample_rate``
             utterance_id: unique string for this mix

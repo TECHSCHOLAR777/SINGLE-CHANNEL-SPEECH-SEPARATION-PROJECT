@@ -1,17 +1,17 @@
 """
-Overlap curriculum scheduler + overlap-mixing helper for CoRAL-Sep — Phase 0 (P0-A6).
+Overlap curriculum scheduler + overlap-mixing helper for CoRAL-Sep, Phase 0 (P0-A6).
 
 The dynamic mixer (data/mixer.py) currently sums all stems from t=0, i.e. full
 (100%) temporal overlap.  The evaluation tiers and the training curriculum,
-however, call for *sparse* overlap — speakers that only partly talk over each
+however, call for *sparse* overlap, speakers that only partly talk over each
 other (L2 ~40-60%, L3 ~20-40%).  This module supplies the two pieces needed to
 get there, both standalone so the tested DynamicMixer stays untouched:
 
-  * ``OverlapScheduler`` — maps training progress in [0, 1] to a target overlap
+  * ``OverlapScheduler``, maps training progress in [0, 1] to a target overlap
     ratio following a phase schedule (default 100% -> 40% -> 20%).  The training
     loop (P2) calls ``ratio_at(progress)`` each step and feeds the result to...
 
-  * ``apply_overlap`` — re-places clean stems with temporal start offsets so
+  * ``apply_overlap``, re-places clean stems with temporal start offsets so
     their pairwise overlap matches a target ratio, returning (mixture, refs).
 
 Overlap-ratio definition (placeholder for P0)

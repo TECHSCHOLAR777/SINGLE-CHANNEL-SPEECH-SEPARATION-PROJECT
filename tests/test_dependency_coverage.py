@@ -12,10 +12,10 @@ from __future__ import annotations
 
 import ast
 import sys
-import tomllib
 from pathlib import Path
 
 import pytest
+import tomllib
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
@@ -115,7 +115,8 @@ def test_every_third_party_import_is_declared():
         undeclared[module] = files
 
     assert not undeclared, "undeclared third-party imports: " + "; ".join(
-        f"{mod} (imported by {', '.join(sorted(files)[:3])})" for mod, files in sorted(undeclared.items())
+        f"{mod} (imported by {', '.join(sorted(files)[:3])})"
+        for mod, files in sorted(undeclared.items())
     )
 
 
@@ -145,4 +146,6 @@ def test_optional_imports_are_guarded(module):
                 names = [node.module.split(".")[0]]
             if module in names:
                 offenders.append(str(path.relative_to(PROJECT_ROOT)))
-    assert not offenders, f"{module} is declared optional but imported at module scope in {offenders}"
+    assert (
+        not offenders
+    ), f"{module} is declared optional but imported at module scope in {offenders}"

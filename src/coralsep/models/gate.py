@@ -30,8 +30,8 @@ from coralsep.models.lora import ADAPTER_NAMES
 # ---------------------------------------------------------------------------
 
 _L1_LAMBDA: float = 1e-3
-_GATE_SCALE: float = 1.5   # sigmoid * scale, output range [0, 1.5]
-_EMA_ALPHA: float = 0.7    # EMA smoothing coefficient for streaming inference
+_GATE_SCALE: float = 1.5  # sigmoid * scale, output range [0, 1.5]
+_EMA_ALPHA: float = 0.7  # EMA smoothing coefficient for streaming inference
 
 
 # ---------------------------------------------------------------------------
@@ -101,7 +101,9 @@ class GateNetwork(nn.Module):
 # ---------------------------------------------------------------------------
 
 
-def oracle_gate(recipe_vectors: list[dict[str, float]], device: torch.device | str = "cpu") -> torch.Tensor:
+def oracle_gate(
+    recipe_vectors: list[dict[str, float]], device: torch.device | str = "cpu"
+) -> torch.Tensor:
     """
     Derive the oracle gate from ground-truth condition labels.
 

@@ -5,9 +5,9 @@ from __future__ import annotations
 import json
 import random
 
+import numpy as np
 import pytest
 import soundfile as sf
-import numpy as np
 
 from scripts.slice_for_kaggle import (
     parse_args,
@@ -35,7 +35,11 @@ def corpus(tmp_path):
     (root / "librispeech-8k" / "manifest_8k.json").write_text(
         json.dumps(
             [
-                {"split": "train-clean-100", "speaker_ids": ["1001", "1002", "1003"], "file_count": 12},
+                {
+                    "split": "train-clean-100",
+                    "speaker_ids": ["1001", "1002", "1003"],
+                    "file_count": 12,
+                },
                 {"split": "train-clean-360", "speaker_ids": ["2001"], "file_count": 99},
                 {"split": "dev-clean", "speaker_ids": ["3001"], "file_count": 5},
                 {"split": "test-clean", "speaker_ids": ["4001"], "file_count": 5},

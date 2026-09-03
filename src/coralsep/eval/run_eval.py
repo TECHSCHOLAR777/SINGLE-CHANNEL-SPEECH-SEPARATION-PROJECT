@@ -6,8 +6,8 @@ Band recovery is evaluated separately as SI-SDR would require 16 kHz references
 which the LibriMix test set does not include.
 
 Metrics:
-  SI-SDR  (dB) — scale-invariant SDR
-  SI-SDRi (dB) — improvement over the unprocessed mixture
+  SI-SDR  (dB), scale-invariant SDR
+  SI-SDRi (dB), improvement over the unprocessed mixture
 
 Output: console table + JSON at results/eval_outputs/calmsep_eval.json
 
@@ -170,7 +170,7 @@ def _load_calmsep(ckpt_dir: Path, device: torch.device, universal_ckpt: Path | N
                         loaded += 1
         log.info("Loaded best_joint.pt: %d adapter tensors", loaded)
     else:
-        log.warning("best_joint.pt not found at %s — using random gate", joint_ckpt)
+        log.warning("best_joint.pt not found at %s, using random gate", joint_ckpt)
 
     if universal_ckpt is not None and universal_ckpt.exists():
         univ = _load_universal_ckpt(universal_ckpt)

@@ -72,7 +72,7 @@ def test_srcorrnet_loads_hf_model_via_checkpoint_path_not_config(monkeypatch) ->
     *local* config name/path (it resolves to "SS/<value>.yaml" and raises
     FileNotFoundError for anything else). An HF Hub id like
     "shinuh/sr-corrnet-ss-1ch-wsj-var-2-3spk" must go through `checkpoint_path`
-    instead — passing it as `config` failed every single sample on Kaggle.
+    instead, passing it as `config` failed every single sample on Kaggle.
     """
     mock_inference = MagicMock()
     fake_module = types.ModuleType("sr_corrnet")

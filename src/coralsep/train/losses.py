@@ -88,7 +88,7 @@ def pit_si_snr(
         for j in range(K):
             cost[:, i, j] = -si_snr(estimates_padded[:, i], refs_padded[:, j])
 
-    # Hungarian via scipy (CPU only for now — small K).
+    # Hungarian via scipy (CPU only for now, small K).
     # IMPORTANT: use -cost values from the pre-computed PyTorch cost matrix
     # rather than calling si_snr() again, so gradient flows through cost → estimates.
     from scipy.optimize import linear_sum_assignment

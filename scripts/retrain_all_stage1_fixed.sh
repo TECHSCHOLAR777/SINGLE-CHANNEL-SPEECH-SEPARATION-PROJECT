@@ -4,9 +4,9 @@
 # Run from: /teamspace/studios/this_studio (the studio root, NOT coralsep/)
 #
 # Trains all three adapters in sequence:
-#   1. reverb  — retrain from scratch (previous run had RNG-collision bug)
-#   2. noise   — retrain from scratch (previous run aborted at epoch 2)
-#   3. codec   — first-time train (requires ffmpeg — installed below)
+#   1. reverb, retrain from scratch (previous run had RNG-collision bug)
+#   2. noise, retrain from scratch (previous run aborted at epoch 2)
+#   3. codec, first-time train (requires ffmpeg, installed below)
 #
 # Bugs fixed vs original continue_stage1.sh:
 #   BUG1: worker RNG collision  → worker_init_fn, each worker now gets unique seed
@@ -40,12 +40,12 @@ SPE=2000
 WORKERS=2
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1. REVERB ADAPTER — 60 epochs
+# 1. REVERB ADAPTER, 60 epochs
 #    Increased from 40 because the previous run had only 250 unique samples/epoch
 #    (BUG1 RNG collision halved effective training data). 60 epochs × 2000 samples
 #    = 4× more unique training signal than the original buggy run.
 # ─────────────────────────────────────────────────────────────────────────────
-log "=== [1/3] REVERB adapter — 60 epochs from scratch ==="
+log "=== [1/3] REVERB adapter, 60 epochs from scratch ==="
 
 PYTHONUNBUFFERED=1 $PYTHON -u -m train.stage1_single \
     --adapter reverb \
@@ -64,11 +64,11 @@ PYTHONUNBUFFERED=1 $PYTHON -u -m train.stage1_single \
 log "Reverb done → $CKPT/stage1_reverb/best_reverb.pt"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2. NOISE ADAPTER — 40 epochs from scratch
+# 2. NOISE ADAPTER, 40 epochs from scratch
 #    Previous run reached only epoch 2 before the GPU studio was paused.
 #    Fixed: noise_files are pre-computed once, not re-globbed per sample.
 # ─────────────────────────────────────────────────────────────────────────────
-log "=== [2/3] NOISE adapter — 40 epochs from scratch ==="
+log "=== [2/3] NOISE adapter, 40 epochs from scratch ==="
 
 PYTHONUNBUFFERED=1 $PYTHON -u -m train.stage1_single \
     --adapter noise \
@@ -88,7 +88,7 @@ PYTHONUNBUFFERED=1 $PYTHON -u -m train.stage1_single \
 log "Noise done → $CKPT/stage1_noise/best_noise.pt"
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. CODEC ADAPTER — install ffmpeg, then train 40 epochs
+# 3. CODEC ADAPTER, install ffmpeg, then train 40 epochs
 #    ffmpeg is required for real Opus/AAC/AMR-NB roundtrip.
 #    Without it, every sample falls back to mu-law (G.711) which is a different
 #    degradation and the adapter learns the wrong artifacts.
@@ -110,7 +110,7 @@ else
     exit 1
 fi
 
-log "=== [3/3] CODEC adapter — 40 epochs ==="
+log "=== [3/3] CODEC adapter, 40 epochs ==="
 
 PYTHONUNBUFFERED=1 $PYTHON -u -m train.stage1_single \
     --adapter codec \

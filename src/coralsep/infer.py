@@ -10,9 +10,9 @@ Usage (CLI):
     python infer.py --checkpoint-dir checkpoints/ --input mix.wav --output-dir out/
 
 Checkpoint directory layout expected:
-    stage4_joint/best_joint.pt   — gate + analyzer + LoRA adapter weights
-    stage4c/calibration.pt       — gate temperature scalar
-    stage4b_band/best_band.pt    — BandRecoveryHead (optional; falls back to 8→16 kHz zero-pad)
+    stage4_joint/best_joint.pt, gate + analyzer + LoRA adapter weights
+    stage4c/calibration.pt, gate temperature scalar
+    stage4b_band/best_band.pt, BandRecoveryHead (optional; falls back to 8→16 kHz zero-pad)
 """
 
 from __future__ import annotations
@@ -188,7 +188,7 @@ class CALMSepInference:
         if joint_ckpt.exists():
             _load_joint_ckpt(joint_ckpt, self._gate_net, self._analyzer, self._inner, self._lib)
         else:
-            log.warning("best_joint.pt not found at %s — using random gate", joint_ckpt)
+            log.warning("best_joint.pt not found at %s, using random gate", joint_ckpt)
 
         self._inner.to(dev).eval()
         self._gate_net.eval()
@@ -202,7 +202,7 @@ class CALMSepInference:
             self._temperature = float(c["temperature"].item())
             log.info("Gate temperature T=%.4f", self._temperature)
         else:
-            log.warning("calibration.pt not found — using T=1.0")
+            log.warning("calibration.pt not found, using T=1.0")
 
         # ── BandRecoveryHead from Stage 4b (optional) ─────────────────────
         from coralsep.models.band_recovery import BandRecoveryHead
@@ -217,7 +217,7 @@ class CALMSepInference:
             self._band_head.eval()
             log.info("BandRecoveryHead loaded from %s", band_path)
         else:
-            log.info("best_band.pt not found — 16 kHz output will be zero-padded")
+            log.info("best_band.pt not found, 16 kHz output will be zero-padded")
 
         # Store reference to level1_tensor for inference loop
         self._level1_tensor = level1_tensor

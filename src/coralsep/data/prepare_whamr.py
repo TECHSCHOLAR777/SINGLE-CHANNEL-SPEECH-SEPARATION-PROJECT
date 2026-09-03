@@ -1,5 +1,5 @@
 """
-Prepare real WHAMR! (reverberant-noisy) for CoRAL-Sep — Phase 1 (P1-A3, gated).
+Prepare real WHAMR! (reverberant-noisy) for CoRAL-Sep, Phase 1 (P1-A3, gated).
 
 WHAMR! reverberates WSJ0 speech and adds WHAM! noise.  WSJ0 is distributed by
 the LDC under licence and cannot be auto-downloaded, and the WHAMR! generation
@@ -9,7 +9,7 @@ the user supplies the paths to WSJ0 and the official WHAMR! scripts, and this
 runs them against our already-downloaded WHAM! noise (data/prepare_wham.py).
 
 If either WSJ0 or the WHAMR! scripts are absent, generation is skipped with a
-clear "deferred" message instead of failing — mirroring how prepare_librimix.py
+clear "deferred" message instead of failing, mirroring how prepare_librimix.py
 treats the train-360 split.  For a license-free reverberant-noisy eval set that
 needs none of this, use data/make_reverb_eval.py instead.
 
@@ -134,7 +134,7 @@ def verify_layout(whamr_root: Path, *, freq: int = DEFAULT_FREQ) -> None:
         )
 
     n = len(list((base / "mix_both").glob("*.wav")))
-    print(f"  Layout OK: {base}  [mix_both, s1, s2] — {n} mixtures")
+    print(f"  Layout OK: {base}  [mix_both, s1, s2], {n} mixtures")
 
 
 def main() -> None:

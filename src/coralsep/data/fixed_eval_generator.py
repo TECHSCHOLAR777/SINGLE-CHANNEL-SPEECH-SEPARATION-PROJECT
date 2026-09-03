@@ -12,28 +12,28 @@ is done by utils/hashing.py, not by this script.
 
 Condition cells
 ---------------
-  clean × N∈{2,3,4,5}        — baseline, no degradation
-  reverb × N∈{2,3,4,5}       — simulated RIR from rir-bank
-  noise × N∈{2,3,4,5}        — WHAM!/DNS-4 noise from noise-dir
-  codec × N∈{2,3,4,5}        — Opus/AAC codec roundtrip
+  clean × N∈{2,3,4,5}, baseline, no degradation
+  reverb × N∈{2,3,4,5}, simulated RIR from rir-bank
+  noise × N∈{2,3,4,5}, WHAM!/DNS-4 noise from noise-dir
+  codec × N∈{2,3,4,5}, Opus/AAC codec roundtrip
   reverb+noise × N∈{2,3,4,5}
   all-three × N∈{2,3,4,5}
-  reverb+codec × N∈{2,3,4,5}  (held-out combination — BLUEPRINT 7.5 holdout 2)
+  reverb+codec × N∈{2,3,4,5}  (held-out combination, BLUEPRINT 7.5 holdout 2)
   noise+codec × N∈{2,3,4,5}   (held-out combination)
-  but_reverb × N=2 only       — BUT ReverbDB real measured RIRs
+  but_reverb × N=2 only, BUT ReverbDB real measured RIRs
 
 Each .npz contains:
-  mixture           float32 [T]         — degraded observation at 8 kHz
-  references        float32 [N, T]      — clean (or wet) stems at 8 kHz
-  recipe            dict                — ground-truth labels (MixtureRecipe.to_dict())
-  condition_vector  dict                — dense targets (MixtureRecipe.condition_vector())
+  mixture           float32 [T], degraded observation at 8 kHz
+  references        float32 [N, T], clean (or wet) stems at 8 kHz
+  recipe            dict, ground-truth labels (MixtureRecipe.to_dict())
+  condition_vector  dict, dense targets (MixtureRecipe.condition_vector())
 
 A 16 kHz upsampled copy of mixture is saved alongside each .npz as
 mix_{i:04d}_16k.npy for DNSMOS evaluation, which operates at 16 kHz.
 
 Usage
 -----
-    python src/coralsep/src/coralsep/data/fixed_eval_generator.py \\
+    python src/coralsep/data/fixed_eval_generator.py \\
         --librispeech-8k-dir /data/LibriSpeech_8k \\
         --noise-dir /data/calmsep_noise \\
         --rir-bank datasets/rirs/bank.json \\
@@ -54,14 +54,14 @@ import soundfile as sf
 from scipy.signal import resample_poly
 from tqdm import tqdm
 
-# Ensure the project root is importable when run as `python src/coralsep/src/coralsep/data/fixed_eval_generator.py`
+# Ensure the project root is importable when this file is run as a script.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from coralsep.data.condition_mixer import CORALSEP_SAMPLE_RATE, BAND_RECOVERY_SAMPLE_RATE, CoralSepMixer
-from coralsep.data.degradations import apply_reverb, apply_noise, apply_codec
-from coralsep.data.rir_bank import RirBank, RirRecord, measure_t60, find_direct_path_peak
+from coralsep.data.condition_mixer import CORALSEP_SAMPLE_RATE, CoralSepMixer
+from coralsep.data.degradations import apply_codec, apply_noise, apply_reverb
+from coralsep.data.rir_bank import RirBank, RirRecord
 from coralsep.utils.hashing import write_manifest
 
 # Codec choices safe at 8 kHz. AMR-WB requires 16 kHz so it is excluded here.
@@ -90,6 +90,7 @@ _BUT_CONDITION = "but_reverb"
 
 
 # ── Lightweight BUT-bank loader ───────────────────────────────────────────────
+
 
 class _ButBank:
     """
@@ -122,8 +123,7 @@ def _load_but_bank(but_dir: Path, sample_rate: int) -> _ButBank:
     bank_json = but_dir / "but_bank.json"
     if not bank_json.exists():
         raise FileNotFoundError(
-            f"but_bank.json not found at {bank_json}. "
-            "Run data/prepare_but_reverbdb.py first."
+            f"but_bank.json not found at {bank_json}. " "Run data/prepare_but_reverbdb.py first."
         )
     index = json.loads(bank_json.read_text(encoding="utf-8"))
     records = [RirRecord(**r) for r in index["records"]]
@@ -133,8 +133,7 @@ def _load_but_bank(but_dir: Path, sample_rate: int) -> _ButBank:
     rirs_dir = but_dir / "rirs_8k"
     if not rirs_dir.is_dir():
         raise FileNotFoundError(
-            f"Expected staged RIR directory {rirs_dir}. "
-            "Re-run data/prepare_but_reverbdb.py."
+            f"Expected staged RIR directory {rirs_dir}. " "Re-run data/prepare_but_reverbdb.py."
         )
     return _ButBank(
         bank_dir=rirs_dir,
@@ -144,6 +143,7 @@ def _load_but_bank(but_dir: Path, sample_rate: int) -> _ButBank:
 
 
 # ── Noise catalogue ───────────────────────────────────────────────────────────
+
 
 def _load_noise_paths(noise_dir: Path) -> list[Path]:
     """
@@ -190,6 +190,7 @@ def _load_noise_clip(path: Path, target_length: int, rng: np.random.Generator) -
 
 # ── Codec parameter sampling ──────────────────────────────────────────────────
 
+
 def _sample_codec(rng: np.random.Generator) -> tuple[str, int]:
     """Draw a (codec_name, bitrate_bps) pair for the fixed eval."""
     codec = str(rng.choice(_EVAL_CODECS))
@@ -199,12 +200,14 @@ def _sample_codec(rng: np.random.Generator) -> tuple[str, int]:
 
 # ── 16 kHz upsampling for DNSMOS ─────────────────────────────────────────────
 
+
 def _upsample_to_16k(audio_8k: np.ndarray) -> np.ndarray:
     """Upsample 8 kHz audio to 16 kHz using polyphase filtering."""
     return resample_poly(audio_8k, 2, 1).astype(np.float32)
 
 
 # ── LibriSpeech speaker discovery ────────────────────────────────────────────
+
 
 def _collect_eval_files(librispeech_8k_dir: Path) -> list[Path]:
     """
@@ -253,6 +256,7 @@ def _collect_eval_files(librispeech_8k_dir: Path) -> list[Path]:
 
 
 # ── Per-cell generation ───────────────────────────────────────────────────────
+
 
 def _generate_one(
     condition: str,
@@ -349,7 +353,7 @@ def _generate_one(
         str(npz_path),
         mixture=mixture_8k,
         references=refs,
-        recipe=np.array([json.dumps(recipe_dict)]),     # stored as a length-1 string array
+        recipe=np.array([json.dumps(recipe_dict)]),  # stored as a length-1 string array
         condition_vector=np.array([json.dumps(cond_vec)]),
     )
 
@@ -363,6 +367,7 @@ def _generate_one(
 
 # ── Main ──────────────────────────────────────────────────────────────────────
 
+
 def main() -> None:
     import argparse
 
@@ -370,20 +375,55 @@ def main() -> None:
         description="Generate the seeded, hashed, fixed CoRAL-Sep evaluation matrix.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--librispeech-8k-dir", required=True, type=Path, metavar="DIR",
-                        help="Root of the 8 kHz LibriSpeech corpus (from prepare_librispeech_8k.py).")
-    parser.add_argument("--noise-dir", required=True, type=Path, metavar="DIR",
-                        help="Staged noise directory (from prepare_noise_staging.py).")
-    parser.add_argument("--rir-bank", required=True, type=Path, metavar="JSON",
-                        help="Path to the simulated RIR bank.json (from data.rir_bank).")
-    parser.add_argument("--but-reverbdb-dir", required=True, type=Path, metavar="DIR",
-                        help="Staged BUT ReverbDB directory (from prepare_but_reverbdb.py).")
-    parser.add_argument("--output-dir", required=True, type=Path, metavar="DIR",
-                        help="Destination for the eval matrix and eval_manifest.json.")
-    parser.add_argument("--seed", type=int, default=20240101, metavar="INT",
-                        help="RNG seed. Never change after the first generation.")
-    parser.add_argument("--n-per-cell", type=int, default=100, metavar="N",
-                        help="Samples per (condition × speaker-count) cell (default 100).")
+    parser.add_argument(
+        "--librispeech-8k-dir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Root of the 8 kHz LibriSpeech corpus (from prepare_librispeech_8k.py).",
+    )
+    parser.add_argument(
+        "--noise-dir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Staged noise directory (from prepare_noise_staging.py).",
+    )
+    parser.add_argument(
+        "--rir-bank",
+        required=True,
+        type=Path,
+        metavar="JSON",
+        help="Path to the simulated RIR bank.json (from data.rir_bank).",
+    )
+    parser.add_argument(
+        "--but-reverbdb-dir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Staged BUT ReverbDB directory (from prepare_but_reverbdb.py).",
+    )
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Destination for the eval matrix and eval_manifest.json.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=20240101,
+        metavar="INT",
+        help="RNG seed. Never change after the first generation.",
+    )
+    parser.add_argument(
+        "--n-per-cell",
+        type=int,
+        default=100,
+        metavar="N",
+        help="Samples per (condition × speaker-count) cell (default 100).",
+    )
     args = parser.parse_args()
 
     output_dir: Path = args.output_dir.resolve()
@@ -430,13 +470,13 @@ def main() -> None:
     # because that would leave the train pool empty and CoralSepMixer raises.
     # Instead, we pass them as the train pool (no holdout). The isolation
     # invariant that matters here is the opposite one: these speakers must not
-    # appear in the training data — which is enforced at training time, not here.
+    # appear in the training data, which is enforced at training time, not here.
     # mix(split="train") draws from the pool we pass, which is exactly the eval
     # speakers, so every generated example comes from the held-out domain.
     mixer = CoralSepMixer(
         source_files=eval_files,
         allowed_n=list(_N_VALUES),
-        held_out_speaker_ids=None,   # train pool = all eval files (see above)
+        held_out_speaker_ids=None,  # train pool = all eval files (see above)
         sample_rate=CORALSEP_SAMPLE_RATE,
         rng=np.random.default_rng(args.seed),
         seed=args.seed,
@@ -470,8 +510,10 @@ def main() -> None:
 
     total_cells = len(_CONDITIONS) * len(_N_VALUES) + 1  # +1 for BUT tier
     total_samples = len(_CONDITIONS) * len(_N_VALUES) * n_per_cell + n_per_cell
-    print(f"Generating {total_cells} cells × {n_per_cell} samples = "
-          f"{total_samples} total mixtures\n")
+    print(
+        f"Generating {total_cells} cells × {n_per_cell} samples = "
+        f"{total_samples} total mixtures\n"
+    )
 
     for condition in _CONDITIONS:
         for n in _N_VALUES:

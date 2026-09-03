@@ -21,8 +21,8 @@ def test_run_separation_payload_shape() -> None:
     assert "MOCK" in badge
     # 5 audio slots + gate_md + transcript_md + diagnostics json = 8
     assert len(rest) == 8
-    assert rest[0] is not None   # first audio slot occupied
-    assert rest[3] is None       # 4th slot empty (only 3 mock streams)
+    assert rest[0] is not None  # first audio slot occupied
+    assert rest[3] is None  # 4th slot empty (only 3 mock streams)
 
 
 def test_run_separation_handles_no_audio() -> None:

@@ -56,6 +56,7 @@ class DnsmosScorer:
             return False
         try:
             import onnxruntime  # noqa: F401
+
             return True
         except ImportError:
             return False
@@ -75,6 +76,7 @@ class DnsmosScorer:
     def _compute_features(self, segment: np.ndarray) -> np.ndarray:
         """Log-magnitude STFT features expected by the DNSMOS P.835 model."""
         import torch
+
         wav = torch.from_numpy(segment.astype(np.float32))
         spec = torch.stft(
             wav,

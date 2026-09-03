@@ -25,12 +25,12 @@ OVERLAP_S: float = CHUNK_DURATION_S - STEP_DURATION_S  # 1.6 s
 # 8 kHz (SR-CorrNet branch)
 SR_8K: int = 8_000
 CHUNK_SAMPLES_8K: int = int(CHUNK_DURATION_S * SR_8K)  # 19 200
-STEP_SAMPLES_8K: int = int(STEP_DURATION_S * SR_8K)    # 6 400
+STEP_SAMPLES_8K: int = int(STEP_DURATION_S * SR_8K)  # 6 400
 
 # 16 kHz (band recovery branch)
 SR_16K: int = 16_000
 CHUNK_SAMPLES_16K: int = int(CHUNK_DURATION_S * SR_16K)  # 38 400
-STEP_SAMPLES_16K: int = int(STEP_DURATION_S * SR_16K)    # 12 800
+STEP_SAMPLES_16K: int = int(STEP_DURATION_S * SR_16K)  # 12 800
 
 # STFT parameters for the 16 kHz branch
 _STFT_N_FFT_16K: int = 512
@@ -85,7 +85,11 @@ class Chunker:
         if self.wav8k.ndim != 1:
             raise ValueError(f"waveform_8k must be 1-D, got {self.wav8k.shape}")
 
-        self.wav16k = np.asarray(waveform_16k, dtype=np.float32).squeeze() if waveform_16k is not None else None
+        self.wav16k = (
+            np.asarray(waveform_16k, dtype=np.float32).squeeze()
+            if waveform_16k is not None
+            else None
+        )
         self.pad_last = pad_last
         self._chunks: list[AudioChunk] | None = None
 
@@ -113,7 +117,7 @@ class Chunker:
         for idx, start in enumerate(starts):
             end = start + CHUNK_SAMPLES_8K
             seg8 = self.wav8k[start:end]
-            is_last = (idx == len(starts) - 1)
+            is_last = idx == len(starts) - 1
 
             if len(seg8) < CHUNK_SAMPLES_8K:
                 if self.pad_last:
@@ -130,13 +134,15 @@ class Chunker:
                     seg16 = np.pad(seg16, (0, CHUNK_SAMPLES_16K - len(seg16)))
                 stft16 = _compute_stft_16k(seg16)
 
-            chunks.append(AudioChunk(
-                waveform_8k=seg8,
-                stft_16k=stft16,
-                chunk_index=idx,
-                start_sample_8k=start,
-                is_last=is_last,
-            ))
+            chunks.append(
+                AudioChunk(
+                    waveform_8k=seg8,
+                    stft_16k=stft16,
+                    chunk_index=idx,
+                    start_sample_8k=start,
+                    is_last=is_last,
+                )
+            )
 
         self._chunks = chunks
         return chunks

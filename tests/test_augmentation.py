@@ -19,7 +19,6 @@ import soundfile as sf
 from coralsep.data.augmentation import AugmentationConfig, AugmentationPipeline, _fit_to_length
 from coralsep.data.mixer_stub import MixtureSample
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
@@ -100,7 +99,7 @@ def test_sample_rate_preserved() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 — prob=0 skips, prob=1 fires
+# Stage 1, prob=0 skips, prob=1 fires
 # ---------------------------------------------------------------------------
 
 
@@ -146,7 +145,7 @@ def test_rir_changes_mixture_via_full_pipeline(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 — references unchanged
+# Stage 1, references unchanged
 # ---------------------------------------------------------------------------
 
 
@@ -164,7 +163,7 @@ def test_rir_does_not_change_references() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stage 1 — output length preserved
+# Stage 1, output length preserved
 # ---------------------------------------------------------------------------
 
 
@@ -181,7 +180,7 @@ def test_output_length_preserved_after_rir() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 — noise prob=0 skips
+# Stage 2, noise prob=0 skips
 # ---------------------------------------------------------------------------
 
 
@@ -202,7 +201,7 @@ def test_wham_dir_none_skips_noise_regardless_of_prob() -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 — noise changes mixture
+# Stage 2, noise changes mixture
 # ---------------------------------------------------------------------------
 
 
@@ -235,7 +234,7 @@ def test_output_length_preserved_after_noise(tmp_path: Path) -> None:
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 — SNR is within configured range
+# Stage 2, SNR is within configured range
 # ---------------------------------------------------------------------------
 
 
@@ -257,18 +256,18 @@ def test_snr_within_configured_range(tmp_path: Path) -> None:
     for _ in range(10):
         out = AugmentationPipeline(cfg, rng=rng)(sample)
         noise_component = out.mixture - sample.mixture
-        sig_rms = float(np.sqrt(np.mean(sample.mixture ** 2)))
-        noise_rms = float(np.sqrt(np.mean(noise_component ** 2)))
+        sig_rms = float(np.sqrt(np.mean(sample.mixture**2)))
+        noise_rms = float(np.sqrt(np.mean(noise_component**2)))
         if noise_rms < 1e-8:
             continue
         measured_snr = 20.0 * np.log10(sig_rms / noise_rms)
-        assert snr_min - 0.5 <= measured_snr <= snr_max + 0.5, (
-            f"SNR {measured_snr:.2f} dB outside [{snr_min}, {snr_max}] dB"
-        )
+        assert (
+            snr_min - 0.5 <= measured_snr <= snr_max + 0.5
+        ), f"SNR {measured_snr:.2f} dB outside [{snr_min}, {snr_max}] dB"
 
 
 # ---------------------------------------------------------------------------
-# Stage 2 — short noise is tiled to match mixture length
+# Stage 2, short noise is tiled to match mixture length
 # ---------------------------------------------------------------------------
 
 
@@ -297,7 +296,6 @@ def test_both_stages_apply_together(tmp_path: Path) -> None:
     rir_calls = []
     noise_calls = []
 
-    original_rir = pipeline._apply_rir
     original_noise = pipeline._apply_noise
 
     def _track_rir(audio, sr):

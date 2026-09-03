@@ -1,0 +1,20 @@
+# Normalise line endings so the same file hashes identically on every platform.
+# Without this, a Windows checkout stores CRLF in the working tree and every
+# cross-platform diff reports the whole file as changed. That produced a 100
+# percent false-positive rate when the supplied archive was first compared
+# against this repository; see docs/restoration/DECISIONS.md DEC-003.
+* text=auto eol=lf
+
+# Notebooks are JSON. Keep them text so diffs work, but never merge them.
+*.ipynb text eol=lf merge=binary
+
+# Binary assets: never touched, never diffed as text.
+*.png binary
+*.jpg binary
+*.wav binary
+*.flac binary
+*.pt binary
+*.pth binary
+*.ckpt binary
+*.npy binary
+*.zip binary

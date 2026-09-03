@@ -9,7 +9,7 @@ Pipeline per sample:
   3. Compute 8kHz STFT of each separated stream  → low-band input  (K, 65, T_f).
   4. Compute 16kHz STFT of mixture high-band (4-8 kHz, bins 128-256) → (K, 129, T_f).
   5. Target: 16kHz STFT high-band magnitude of each PIT-matched clean reference.
-  6. Loss: MSE(mask * mixture_highband, target_highband) — permutation-invariant.
+  6. Loss: MSE(mask * mixture_highband, target_highband), permutation-invariant.
 
 No gradients flow through SR-CorrNet. Head trains in ~30 epochs on T4/P100/RTX6000.
 Saves: best_band.pt, final_band.pt  (BandRecoveryHead.state_dict()).

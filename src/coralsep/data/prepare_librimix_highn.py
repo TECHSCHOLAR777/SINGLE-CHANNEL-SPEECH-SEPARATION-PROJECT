@@ -1,5 +1,5 @@
 """
-Prepare Libri4Mix / Libri5Mix for CoRAL-Sep — Phase 1 (P1-A5).
+Prepare Libri4Mix / Libri5Mix for CoRAL-Sep, Phase 1 (P1-A5).
 
 The standard JorisCos/LibriMix repo only ships Libri2Mix and Libri3Mix.  This
 script uses the shakeddovrat/librimix fork, which adds Libri4Mix/Libri5Mix
@@ -20,7 +20,7 @@ Note on the loader
 ------------------
 ``discover_librimix_samples`` (data/mixer_stub.py) currently loads three
 speakers only.  Discovering these Libri4/5Mix sets from disk needs an N-aware
-loader — that is the P3-A1 follow-up; this script only produces the data.
+loader, that is the P3-A1 follow-up; this script only produces the data.
 
 Usage
 -----
@@ -92,7 +92,7 @@ def _find_generation_script(repo: Path) -> Path:
             return path
     raise FileNotFoundError(
         f"Cannot find create_librimix_from_metadata.py in {repo}. "
-        "The librimix fork structure may have changed — check the clone."
+        "The librimix fork structure may have changed, check the clone."
     )
 
 
@@ -119,7 +119,7 @@ def _make_filtered_metadata(repo: Path, work_dir: Path, n_src: int, include_trai
             if not src.exists():
                 raise FileNotFoundError(
                     f"Expected metadata CSV not found: {src}\n"
-                    f"The fork may not provide Libri{n_src}Mix metadata — check the clone."
+                    f"The fork may not provide Libri{n_src}Mix metadata, check the clone."
                 )
             shutil.copy2(str(src), str(dst))
 
@@ -217,7 +217,7 @@ def verify_layout(data_root: Path, n_src: int) -> None:
 
     if missing:
         raise RuntimeError(
-            "Layout verification failed — missing directories:\n"
+            "Layout verification failed, missing directories:\n"
             + "\n".join(missing)
             + "\n\nRe-run prepare_librimix_highn.py or check the generation output."
         )

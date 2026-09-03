@@ -49,7 +49,6 @@ def sha256_file(path: Path) -> str:
 
 def find_checkpoint_file(model) -> Path | None:
     """Walk common HF Hub cache locations for the checkpoint file."""
-    import torch
     try:
         # SSInference stores the local path after from_pretrained
         local = getattr(model.engine, "checkpoint_path", None)
@@ -61,6 +60,7 @@ def find_checkpoint_file(model) -> Path | None:
     # Fallback: search HF Hub cache
     try:
         from huggingface_hub import hf_hub_download
+
         path = hf_hub_download(repo_id=HF_MODEL, filename="model.pt")
         return Path(path)
     except Exception:
@@ -86,17 +86,19 @@ def verify_constants(model) -> None:
 
     # Check spk_query shape: (1, 7, 128) = (1, max_n_spks+2, d_model)
     spk_query = base_nn.spk_split.spk_query
-    assert spk_query.shape == (1, 7, 128), (
-        f"spk_query shape={spk_query.shape}, expected (1, 7, 128)"
-    )
+    assert spk_query.shape == (
+        1,
+        7,
+        128,
+    ), f"spk_query shape={spk_query.shape}, expected (1, 7, 128)"
 
     # Check enc_block and dec_block lengths
-    assert len(base_nn.enc_block) == EXPECTED["n_enc"], (
-        f"n_enc={len(base_nn.enc_block)}, expected {EXPECTED['n_enc']}"
-    )
-    assert len(base_nn.dec_block) == EXPECTED["n_dec"], (
-        f"n_dec={len(base_nn.dec_block)}, expected {EXPECTED['n_dec']}"
-    )
+    assert (
+        len(base_nn.enc_block) == EXPECTED["n_enc"]
+    ), f"n_enc={len(base_nn.enc_block)}, expected {EXPECTED['n_enc']}"
+    assert (
+        len(base_nn.dec_block) == EXPECTED["n_dec"]
+    ), f"n_dec={len(base_nn.dec_block)}, expected {EXPECTED['n_dec']}"
 
     print("Architecture constants verified.")
 

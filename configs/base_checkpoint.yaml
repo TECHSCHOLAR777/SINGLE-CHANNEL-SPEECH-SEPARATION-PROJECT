@@ -5,7 +5,7 @@ checkpoint_id: shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk
 local_path: sr_corrnet/checkpoints/SS/1ch_WSJ_var_2_5spk/model.pt
 sha256: ""  # fill after: python scripts/download_checkpoint.py
 
-# Architecture constants — locked by checkpoint weights, never change
+# Architecture constants, locked by checkpoint weights, never change
 sample_rate: 8000
 max_n_spks: 5
 n_enc: 2

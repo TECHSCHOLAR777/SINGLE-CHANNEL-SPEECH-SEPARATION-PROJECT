@@ -3,12 +3,12 @@ SR-CorrNet expert wrapper with CoRAL-Sep patches (Dev B, P0-B2/B3/B4).
 
 Patches applied on top of the frozen checkpoint:
   Patch A (P0-B2): expose pres["probs"] (shape 1,7) through process_waveform;
-      _single_pass_session drops "pres" in the original — we retrieve it via
+      _single_pass_session drops "pres" in the original, we retrieve it via
       the engine's last-call state or by wrapping process_stft.
   Patch B (P0-B3): forward hook on model.encoder to capture E(0) (1,T,65,128).
   Patch C (P0-B4): hooks on each dec_block[i] to capture decoder stage features.
 
-The checkpoint is FROZEN — zero parameters modified, all changes are hooks and
+The checkpoint is FROZEN, zero parameters modified, all changes are hooks and
 wrapper code only. BLUEPRINT fixed constraint §1.
 
 Model constants (frozen checkpoint var-2-5spk, BLUEPRINT §15.8):
@@ -35,7 +35,7 @@ from coralsep.schemas.separation_result import SeparationResult, StreamMetadata
 DEFAULT_HF_MODEL = "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"
 """Frozen checkpoint. NEVER change. BLUEPRINT fixed constraint."""
 
-# Model constants — do NOT relax these.
+# Model constants, do NOT relax these.
 MODEL_SR = 8_000
 STFT_WIN = 128
 STFT_HOP = 64
@@ -78,9 +78,9 @@ class SRCorrNetExpert:
         self._model: object | None = None
 
         # Storage for patched outputs (populated by hooks on each call).
-        self._e0: torch.Tensor | None = None  # (1, T, 65, 128) — Patch B
-        self._dec_features: list[torch.Tensor] = []  # N_Dec tensors — Patch C
-        self._pres: dict[str, Any] | None = None  # attractor dict — Patch A
+        self._e0: torch.Tensor | None = None  # (1, T, 65, 128), Patch B
+        self._dec_features: list[torch.Tensor] = []  # N_Dec tensors, Patch C
+        self._pres: dict[str, Any] | None = None  # attractor dict, Patch A
         self._hooks: list[Any] = []
 
     @property
@@ -133,19 +133,24 @@ class SRCorrNetExpert:
 
         # Patch B: E(0) from model.encoder
         if hasattr(model, "encoder"):
+
             def _e0_hook(module: torch.nn.Module, input: Any, output: Any) -> None:
                 # output shape: (1, T, F, D) or (B, T, F, D)
                 if isinstance(output, torch.Tensor):
                     self._e0 = output.detach()
                 elif isinstance(output, (list, tuple)):
                     self._e0 = output[0].detach()
+
             h = model.encoder.register_forward_hook(_e0_hook)
             self._hooks.append(h)
 
         # Patch C: decoder stage features from dec_block[i]
         if hasattr(model, "dec_block"):
             for i, block in enumerate(model.dec_block):
-                def _dec_hook(module: torch.nn.Module, input: Any, output: Any, idx: int = i) -> None:
+
+                def _dec_hook(
+                    module: torch.nn.Module, input: Any, output: Any, idx: int = i
+                ) -> None:
                     # output: (B*K, T, F, D) → reshape to (B, K, T, F, D)
                     if isinstance(output, torch.Tensor):
                         feat = output.detach()
@@ -156,6 +161,7 @@ class SRCorrNetExpert:
                         k = K0
                         b = bk // k
                         self._dec_features[idx] = feat.view(b, k, T, F, D)
+
                 h = block.register_forward_hook(_dec_hook)
                 self._hooks.append(h)
 
@@ -327,7 +333,9 @@ def _extract_waveforms(out: object) -> np.ndarray:
     """Normalise SSInference output to [K, L] float32."""
     waves: object = out
     if isinstance(out, dict):
-        waves = out.get("waveforms") or out.get("est_sources") or out.get("sources") or out.get("wav")
+        waves = (
+            out.get("waveforms") or out.get("est_sources") or out.get("sources") or out.get("wav")
+        )
 
     if isinstance(waves, (list, tuple)):
         rows = [_to_numpy(w).reshape(-1) for w in waves]

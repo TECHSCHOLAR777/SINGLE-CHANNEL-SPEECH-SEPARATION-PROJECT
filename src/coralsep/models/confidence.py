@@ -223,6 +223,7 @@ def completeness_features(
         voiced_resid = float(voiced_residual_fn(residual))
     else:
         from coralsep.models.condition import voiced_density_energy
+
         voiced_resid = voiced_density_energy(residual)
 
     unassigned = attractor_mass_unassigned(probs, n_est)
@@ -286,7 +287,7 @@ class MahalanobisOOD:
         np.savez(path, mean=self.mean, cov_inv=self.cov_inv, threshold=self.threshold)
 
     @classmethod
-    def load(cls, path: str) -> "MahalanobisOOD":
+    def load(cls, path: str) -> MahalanobisOOD:
         data = np.load(path)
         return cls(
             mean=data["mean"],

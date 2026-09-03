@@ -1,4 +1,4 @@
-"""Tests for data/vad_features.py — STFT fallback without Silero."""
+"""Tests for data/vad_features.py, STFT fallback without Silero."""
 
 from __future__ import annotations
 

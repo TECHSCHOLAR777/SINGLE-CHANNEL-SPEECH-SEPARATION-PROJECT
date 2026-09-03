@@ -160,7 +160,7 @@ class _DynDataset(torch.utils.data.Dataset):  # type: ignore[type-arg]
         self.adapter = adapter
         self.mixer = mixer
         self.rir_bank = rir_bank
-        self._noise_files = noise_files  # list[Path] — picklable
+        self._noise_files = noise_files  # list[Path], picklable
         self.seed = seed
         self.max_clip = max_clip
         # BUG FIX: re-seeded per worker via worker_init_fn
@@ -177,7 +177,7 @@ class _DynDataset(torch.utils.data.Dataset):  # type: ignore[type-arg]
 
         m = self.mixer.mix(split="train")
 
-        # Clip raw audio BEFORE applying degradations — reverb/noise on the full
+        # Clip raw audio BEFORE applying degradations, reverb/noise on the full
         # LibriSpeech utterance (up to 30s) is ~15× slower than on a 2s clip.
         if m.mixture.shape[0] > self.max_clip:
             import dataclasses
@@ -260,7 +260,7 @@ def _build_dataset(adapter: str, args: argparse.Namespace) -> object:
         )
 
     # BUG FIX: pre-compute noise files once (was: glob called inside every __getitem__,
-    # causing 28 000 filesystem stat calls per training sample — ~40x slower than needed).
+    # causing 28 000 filesystem stat calls per training sample, ~40x slower than needed).
     noise_files: list[Path] = []
     if adapter == "noise":
         noise_dir = Path(args.noise_dir)
@@ -280,7 +280,7 @@ def _build_dataset(adapter: str, args: argparse.Namespace) -> object:
 
     # BUG FIX: fail fast for codec adapter when ffmpeg is absent (Lightning AI).
     # Without ffmpeg every sample silently falls back to mu-law (G.711), which
-    # is a qualitatively different degradation — the adapter learns mu-law, not
+    # is a qualitatively different degradation: the adapter learns mu-law, not
     # real codec artifacts. Error out so the user installs ffmpeg first.
     if adapter == "codec":
         from coralsep.data.codec_augmentation import is_ffmpeg_available
@@ -328,7 +328,7 @@ def train_single_adapter(args: argparse.Namespace) -> None:
     _seed_everything(getattr(args, "seed", 42))
     device = torch.device(getattr(args, "device", "cpu"))
     # BF16 only on CUDA; MPS supports FP16 autocast; CPU stays FP32
-    # M5 Pro MPS (PyTorch 2.13+) supports BF16 — prefer it over FP16.
+    # M5 Pro MPS (PyTorch 2.13+) supports BF16, prefer it over FP16.
     use_bf16 = getattr(args, "bf16", True) and device.type in ("cuda", "mps")
     use_fp16 = getattr(args, "fp16", False) and device.type == "mps" and not use_bf16
     _prec = "BF16" if use_bf16 else ("FP16" if use_fp16 else "FP32")
@@ -349,7 +349,7 @@ def train_single_adapter(args: argparse.Namespace) -> None:
     lib.freeze_base()
     inner.to(device)  # move after LoRA attachment so branches land on device too
 
-    # Also move engine.stft to device — it has learnable/fixed conv weights that
+    # Also move engine.stft to device, it has learnable/fixed conv weights that
     # must match the device of model_input when _forward_with_grad runs.
     engine = getattr(ss_model, "engine", None)
     if engine is not None:
@@ -425,7 +425,7 @@ def train_single_adapter(args: argparse.Namespace) -> None:
             # Per-sample backward accumulation: process each sample, call
             # backward immediately, then free the activation graph. A grouped
             # batched forward (_forward_batch) was tried on 2026-07-18 and OOMs
-            # on 24 GB unified memory — holding 4 activation graphs at once
+            # on 24 GB unified memory, holding 4 activation graphs at once
             # exceeds the ~30 GiB MPS ceiling. Per-sample is the memory-safe path.
             optimizer.zero_grad(set_to_none=True)
             batch_loss = 0.0
@@ -536,7 +536,7 @@ def _forward_with_grad(
 
     # Real/imag concat → (2M, F, T)  float32
     model_input = torch.cat([stft.real, stft.imag], dim=0)
-    # Model forward — no inference_mode so gradients flow through LoRA branches.
+    # Model forward: no inference_mode so gradients flow through LoRA branches.
     # Autocast (if any) from the outer training loop context applies here.
     out_list, _aux, pres = engine.model(model_input, n_spks=n_spks)
     if not out_list:
@@ -613,7 +613,7 @@ def _forward_batch(
     with torch.autocast(ac_device, enabled=False):
         stft = engine.stft(wav_norm.float().to(target_device), cplx=True)  # [B, F, T_stft]
 
-    # [B, 2*M=2, F, T_stft] — model expects (B, 2M, F, T), unsqueezes if 3D
+    # [B, 2*M=2, F, T_stft], model expects (B, 2M, F, T), unsqueezes if 3D
     model_input = torch.stack([stft.real, stft.imag], dim=1)
 
     # Pass 1-d tensor so AttractorSplit.forward takes the vector path (B>1)
@@ -633,7 +633,7 @@ def _forward_batch(
         # Select ref channel → [K, B, F, T], then transpose to [B, K, F, T]
         stft_out = stft_spk[:, :, engine.ref_ch, :, :].permute(1, 0, 2, 3)  # [B, K, F, T]
 
-        # iSTFT — flatten to [B*K, F, T], istft each, reshape back
+        # iSTFT, flatten to [B*K, F, T], istft each, reshape back
         BK = B * stft_out.shape[1]
         stft_flat = stft_out.reshape(BK, *stft_out.shape[2:])
         waveforms = [engine.istft(stft_flat[i], cplx=True, squeeze=True) for i in range(BK)]

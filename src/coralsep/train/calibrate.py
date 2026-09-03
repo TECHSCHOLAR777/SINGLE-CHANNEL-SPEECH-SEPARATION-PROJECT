@@ -2,7 +2,9 @@
 
 Run after the joint stage, on held-out predictions:
 
-    python -m coralsep.train.calibrate --held-out runs/stage4/heldout.npz --out-dir calibration/artifacts
+    python -m coralsep.train.calibrate \
+        --held-out runs/stage4/heldout.npz \
+        --out-dir calibration/artifacts
 
 Every artifact this writes is recorded in a manifest with its SHA-256, so a
 later run can be proven identical to the one behind a published number or

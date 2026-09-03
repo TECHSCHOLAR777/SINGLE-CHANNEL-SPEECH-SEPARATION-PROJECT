@@ -1,15 +1,14 @@
 """Tests for pipeline/stitcher.py (Dev C)."""
 
 import numpy as np
-import pytest
 
+from coralsep.pipeline.chunker import CHUNK_SAMPLES_8K, STEP_SAMPLES_8K
 from coralsep.pipeline.stitcher import (
     ChunkStitcher,
     _hungarian_correlation,
     _hungarian_cosine,
     _pad_or_trim_k,
 )
-from coralsep.pipeline.chunker import CHUNK_SAMPLES_8K, STEP_SAMPLES_8K, SR_8K
 
 
 def _rand_chunk(K: int, T: int = CHUNK_SAMPLES_8K, seed: int = 0) -> np.ndarray:
@@ -96,7 +95,6 @@ class TestHungarian:
         assert perm == [0, 1, 2]
 
     def test_cosine_reverse_perm(self):
-        K, D = 2, 4
         ref = np.array([[1, 0, 0, 0], [0, 1, 0, 0]], dtype=np.float32)
         new = np.array([[0, 1, 0, 0], [1, 0, 0, 0]], dtype=np.float32)
         perm = _hungarian_cosine(ref, new)

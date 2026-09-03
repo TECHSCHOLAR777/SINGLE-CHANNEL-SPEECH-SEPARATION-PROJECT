@@ -112,7 +112,7 @@ class LoRALinear(nn.Module):
 
 
 # ---------------------------------------------------------------------------
-# LoRA library — manages attachment and gate injection
+# LoRA library, manages attachment and gate injection
 # ---------------------------------------------------------------------------
 
 ADAPTER_NAMES: tuple[str, ...] = ("reverb", "noise", "codec")
@@ -280,8 +280,8 @@ class LoRALibrary:
                     for p in branch.parameters():
                         p.requires_grad_(True)
             elif isinstance(mod, LoRALayer):
-                # depth-first: LoRALayer is a child of LoRALinear.branches —
-                # its params were just set trainable above; don't touch them.
+                # Depth-first: LoRALayer is a child of LoRALinear.branches and
+                # its params were just set trainable above, so leave them alone.
                 pass
             else:
                 for p in mod.parameters(recurse=False):
@@ -354,10 +354,14 @@ class LoRALibrary:
             KeyError: if `gates` names an adapter this library does not manage.
         """
         if not isinstance(gates, Mapping):
-            raise TypeError(f"set_gates expects a mapping of adapter name to gate, got {type(gates).__name__}")
+            raise TypeError(
+                f"set_gates expects a mapping of adapter name to gate, got {type(gates).__name__}"
+            )
         unknown = set(gates) - set(self.adapter_names)
         if unknown:
-            raise KeyError(f"unknown adapters {sorted(unknown)}; known adapters: {list(self.adapter_names)}")
+            raise KeyError(
+                f"unknown adapters {sorted(unknown)}; known adapters: {list(self.adapter_names)}"
+            )
         self._gates = dict(gates)
         self._active_adapter = None
 

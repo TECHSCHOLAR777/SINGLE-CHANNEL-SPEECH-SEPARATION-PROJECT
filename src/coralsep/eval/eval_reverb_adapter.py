@@ -2,11 +2,11 @@
 Comprehensive evaluation and diagnosis of the reverb LoRA adapter.
 
 Runs 5 diagnostic passes:
-  1. SANITY  — does _forward_with_grad == process_waveform? (pipeline bug check)
-  2. GATE    — are LoRA B-matrices non-zero? Does gate=1 change the output?
-  3. SI-SNR  — base vs adapted on clean / reverb-0.4s / reverb-0.8s mixtures
-  4. TARGET  — SI-SNR vs wet reference vs anechoic reference (explains loss numbers)
-  5. SUMMARY — verdict and root-cause
+  1. SANITY, does _forward_with_grad == process_waveform? (pipeline bug check)
+  2. GATE, are LoRA B-matrices non-zero? Does gate=1 change the output?
+  3. SI-SNR, base vs adapted on clean / reverb-0.4s / reverb-0.8s mixtures
+  4. TARGET, SI-SNR vs wet reference vs anechoic reference (explains loss numbers)
+  5. SUMMARY, verdict and root-cause
 
 Usage (Lightning AI):
   cd /teamspace/studios/this_studio/coralsep
@@ -37,7 +37,7 @@ import soundfile as sf
 import torch
 
 # ---------------------------------------------------------------------------
-# Path setup — works both on Lightning AI and local Mac
+# Path setup, works both on Lightning AI and local Mac
 # ---------------------------------------------------------------------------
 
 
@@ -215,13 +215,13 @@ def diag_sanity(
     """
     PASS 1: Does process_waveform == _forward_with_grad with gate=0?
     If they differ, our training forward pass computes something different
-    from the model we actually care about — that's a pipeline bug.
+    from the model we actually care about, that's a pipeline bug.
     """
     print("\n[PASS 1] Sanity: process_waveform vs _forward_with_grad (gate=0)")
 
     base_out = run_base_model(ss_base, mixture, n_spks)
 
-    # Gate=0 adapted model via process_waveform — should equal base
+    # Gate=0 adapted model via process_waveform, should equal base
     lib.set_gates({"reverb": 0.0, "noise": 0.0, "codec": 0.0})
     lib.inject_gates()
     wav = torch.from_numpy(mixture).float().unsqueeze(0)
@@ -256,9 +256,9 @@ def diag_sanity(
 
     pw_ok = mean_diff_pw < 1e-3
     fwg_ok = mean_diff_fwg < 1e-3
-    print(f"  process_waveform match: {'✅ OK' if pw_ok else '❌ MISMATCH — LoRA init non-zero?'}")
+    print(f"  process_waveform match: {'✅ OK' if pw_ok else '❌ MISMATCH, LoRA init non-zero?'}")
     print(
-        f"  _forward_with_grad match: {'✅ OK' if fwg_ok else '❌ MISMATCH — training forward has a bug!'}"
+        f"  _forward_with_grad match: {'✅ OK' if fwg_ok else '❌ MISMATCH, training forward has a bug!'}"
     )
     return {
         "pw_match": pw_ok,
@@ -312,14 +312,12 @@ def diag_gate_effect(
     )
 
     if not b_learned:
-        print(
-            "  ❌ B matrices are near-zero — LoRA did not learn. Training had a gradient problem."
-        )
+        print("  ❌ B matrices are near-zero, LoRA did not learn. Training had a gradient problem.")
     elif mean_output_diff < 1e-5:
-        print("  ❌ B non-zero but output unchanged — gate injection not working during inference.")
+        print("  ❌ B non-zero but output unchanged, gate injection not working during inference.")
     elif abs(delta) < 0.1:
         print(
-            "  ⚠️  Adapter changes output but SI-SNR unchanged — learning did not improve separation."
+            "  ⚠️  Adapter changes output but SI-SNR unchanged, learning did not improve separation."
         )
     else:
         print(f"  ✅ Adapter active and changes SI-SNR by {delta:+.2f} dB vs gate=0.")
@@ -468,11 +466,11 @@ def diag_target(
     gap_base = snr_base_anec - snr_base_wet
     print(f"\n  anechoic vs wet reference gap: {gap_base:+.2f} dB")
     if gap_base > 2:
-        print("  → The wet reference target IS harder than anechoic — explains high loss values.")
+        print("  → The wet reference target IS harder than anechoic, explains high loss values.")
         print("    Training loss of ~8.6 ≠ SI-SNRi of -8.6 dB vs anechoic.")
     else:
         print(
-            "  → Small gap — the loss values reflect real separation quality, not just target choice."
+            "  → Small gap: the loss values reflect real separation quality, not just target choice."
         )
 
     return {
@@ -582,20 +580,20 @@ def main() -> None:
 
     if not fwg_ok:
         issues.append(
-            "_forward_with_grad differs from process_waveform — training loss computed on wrong output"
+            "_forward_with_grad differs from process_waveform, training loss computed on wrong output"
         )
     else:
         positives.append("Training forward pass matches inference forward pass ✅")
 
     if not b_learned:
-        issues.append("LoRA B matrices are near-zero — gradients did not reach LoRA branches")
+        issues.append("LoRA B matrices are near-zero, gradients did not reach LoRA branches")
     else:
         positives.append(f"LoRA learned (B norm = {r2['mean_b_norm']:.4f}) ✅")
 
     if reverb_delta > 0.5:
         positives.append(f"Adapter improves reverb SI-SNR by {reverb_delta:+.2f} dB ✅")
     elif reverb_delta > 0:
-        issues.append(f"Adapter improves by only {reverb_delta:+.2f} dB — marginal gain")
+        issues.append(f"Adapter improves by only {reverb_delta:+.2f} dB, marginal gain")
     else:
         issues.append(f"Adapter makes reverb SI-SNR worse by {reverb_delta:.2f} dB")
 
@@ -616,48 +614,32 @@ def main() -> None:
 
     print("\n  Root-cause summary:")
     if not b_learned:
-        print(
-            textwrap.dedent(
-                """
+        print(textwrap.dedent("""
             CRITICAL: LoRA B matrices never left zero. Despite the loss decreasing
             slightly, the adapter weights are not learning. Most likely cause:
             the freeze_base() bug (now fixed) prevented grads from reaching B.
             The checkpoint predates the fix. Retrain from scratch with current code.
-        """
-            )
-        )
+        """))
     elif not fwg_ok:
-        print(
-            textwrap.dedent(
-                """
+        print(textwrap.dedent("""
             CRITICAL: _forward_with_grad computes something different from
             process_waveform. The training loss was measuring the wrong output.
             Fix _forward_with_grad and retrain.
-        """
-            )
-        )
+        """))
     elif reverb_delta < 0.1:
-        print(
-            textwrap.dedent(
-                """
+        print(textwrap.dedent("""
             LoRA weights exist but don't improve SI-SNR. Possible causes:
             1. LoRA rank (8) too small for this task
-            2. Only 500 samples/epoch — try 2000
+            2. Only 500 samples/epoch, try 2000
             3. Wet-reference target confuses the adapter (switch to anechoic)
-        """
-            )
-        )
+        """))
     else:
-        print(
-            textwrap.dedent(
-                f"""
+        print(textwrap.dedent(f"""
             Training is working. Adapter improves reverb SI-SNR by {reverb_delta:+.2f} dB.
             High training loss values were partly explained by the wet-reference
             target (anec/wet gap = {gap:.1f} dB). The real quality (vs anechoic)
             is better than the loss numbers suggested.
-        """
-            )
-        )
+        """))
 
     print("=" * 60)
 

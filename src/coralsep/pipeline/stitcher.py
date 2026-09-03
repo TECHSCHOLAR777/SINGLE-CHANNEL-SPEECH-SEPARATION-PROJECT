@@ -21,9 +21,9 @@ import numpy as np
 
 from coralsep.pipeline.chunker import (
     CHUNK_SAMPLES_8K,
-    STEP_SAMPLES_8K,
     OVERLAP_S,
     SR_8K,
+    STEP_SAMPLES_8K,
 )
 
 _EPS = 1e-10
@@ -73,9 +73,7 @@ class ChunkStitcher:
         self.sample_rate = sample_rate
         self.use_ecapa = use_ecapa
         self.overlap_samples = (
-            overlap_samples
-            if overlap_samples is not None
-            else int(OVERLAP_S * sample_rate)
+            overlap_samples if overlap_samples is not None else int(OVERLAP_S * sample_rate)
         )
 
         self._chunks: list[np.ndarray] = []
@@ -205,14 +203,9 @@ class ChunkStitcher:
         Uses ECAPA cosine similarity when available; otherwise falls back
         to time-domain overlap cross-correlation.
         """
-        K = self.n_speakers or new_streams.shape[0]
         prev_emb = self._embeddings[-1]
 
-        if (
-            self.use_ecapa
-            and new_embeddings is not None
-            and prev_emb is not None
-        ):
+        if self.use_ecapa and new_embeddings is not None and prev_emb is not None:
             return _hungarian_cosine(prev_emb, new_embeddings)
 
         return _hungarian_correlation(self._chunks[-1], new_streams, self.overlap_samples)
@@ -274,8 +267,8 @@ def _hungarian_correlation(
     prev_chunk tail × new_chunk head correlation → closest match.
     """
     K = prev_chunk.shape[0]
-    tail = prev_chunk[:, -overlap_samples:]   # (K, overlap)
-    head = new_chunk[:, :overlap_samples]     # (K, overlap)
+    tail = prev_chunk[:, -overlap_samples:]  # (K, overlap)
+    head = new_chunk[:, :overlap_samples]  # (K, overlap)
 
     # Normalise rows.
     t_norm = tail / (np.linalg.norm(tail, axis=1, keepdims=True) + _EPS)

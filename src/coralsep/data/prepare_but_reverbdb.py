@@ -8,7 +8,7 @@ simulated ones. BUT ReverbDB (Brno University of Technology, OpenSLR resource
 
 The SLR17 archive contains WAV files of measured RIRs, which are resampled to
 8 kHz and indexed in but_bank.json so that RirBank can load them directly with
-no code change — the schema matches bank.json written by rir_bank.py, except
+no code change: the schema matches bank.json written by rir_bank.py, except
 that t60_requested_s == t60_achieved_s (measured RIRs have no "requested" T60).
 
 The n_peak field is found by find_direct_path_peak, which locates the largest-
@@ -150,7 +150,7 @@ def download_slr17(output_dir: Path) -> list[Path]:
             "Could not download any SLR17 archive from openslr.org. "
             "Check your internet connection or manually place RIR WAV files under:\n"
             f"  {extracted_dir}\n"
-            "Then re-run this script — it will skip the download and stage whatever is there."
+            "Then re-run this script, it will skip the download and stage whatever is there."
         )
 
     wavs = _find_rir_wavs(extracted_dir)
@@ -202,20 +202,20 @@ def stage_rir(
     n_peak = find_direct_path_peak(rir)
 
     if t60 <= 0.0:
-        # Degenerate (silent or no decay) — still include it but with t60=0
+        # Degenerate (silent or no decay), still include it but with t60=0
         # so the evaluator can filter it rather than causing an indexing gap.
         pass
 
     return RirRecord(
         rir_id=rir_id,
         path=f"{rir_id}.wav",  # relative to staged_dir, same as bank.json convention
-        t60_requested_s=t60,   # measured RIRs: requested == achieved
+        t60_requested_s=t60,  # measured RIRs: requested == achieved
         t60_achieved_s=t60,
-        room_dim_m=[],         # unknown for measured RIRs
+        room_dim_m=[],  # unknown for measured RIRs
         source_pos_m=[],
         mic_pos_m=[],
         absorption=float("nan"),
-        max_order=-1,          # image-source model was not used
+        max_order=-1,  # image-source model was not used
         n_peak=n_peak,
         sample_rate=target_sr,
     )
@@ -277,10 +277,20 @@ def main() -> None:
         description="Download and stage BUT ReverbDB (OpenSLR SLR17) for CoRAL-Sep evaluation.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
-    parser.add_argument("--output-dir", required=True, type=Path, metavar="DIR",
-                        help="Destination directory for staged RIRs and but_bank.json.")
-    parser.add_argument("--sample-rate", type=int, default=8000, metavar="HZ",
-                        help="Target sample rate in Hz (default: 8000).")
+    parser.add_argument(
+        "--output-dir",
+        required=True,
+        type=Path,
+        metavar="DIR",
+        help="Destination directory for staged RIRs and but_bank.json.",
+    )
+    parser.add_argument(
+        "--sample-rate",
+        type=int,
+        default=8000,
+        metavar="HZ",
+        help="Target sample rate in Hz (default: 8000).",
+    )
     args = parser.parse_args()
 
     output_dir: Path = args.output_dir.resolve()

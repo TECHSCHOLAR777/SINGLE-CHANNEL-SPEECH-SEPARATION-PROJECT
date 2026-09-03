@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# train_local_mps.sh — Stage 1 adapter training on Apple M5 Pro MPS
+# train_local_mps.sh, Stage 1 adapter training on Apple M5 Pro MPS
 #
 # Estimated time (M5 Pro, 2s clips, 1000 samp/epoch @ ~4300 samp/hr):
 #   reverb  40 epochs × ~14 min/epoch ≈  9.3 h
@@ -44,14 +44,14 @@ WORKERS=0          # 0 = single-process DataLoader; data loading is 8ms vs 1-4s 
 SPE=500            # samples/epoch
 EPOCHS=40
 LR=1e-4
-CLIP=16000         # 2 s @ 8kHz — 2× faster than 4 s, no quality loss on this model
+CLIP=16000         # 2 s @ 8kHz, 2× faster than 4 s, no quality loss on this model
 
 ADAPTER_FILTER="${1:-all}"
 log() { echo "[$(date '+%H:%M:%S')] $*"; }
 
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$ADAPTER_FILTER" == "all" || "$ADAPTER_FILTER" == "reverb" ]]; then
-    log "=== [1/3] REVERB adapter — $EPOCHS epochs (~9h) ==="
+    log "=== [1/3] REVERB adapter, $EPOCHS epochs (~9h) ==="
     PYTHONUNBUFFERED=1 "$PYTHON" -u -m train.stage1_single \
         --adapter reverb \
         --librispeech-8k "$LIBRI" \
@@ -72,7 +72,7 @@ fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$ADAPTER_FILTER" == "all" || "$ADAPTER_FILTER" == "noise" ]]; then
-    log "=== [2/3] NOISE adapter — $EPOCHS epochs (~9h) ==="
+    log "=== [2/3] NOISE adapter, $EPOCHS epochs (~9h) ==="
     PYTHONUNBUFFERED=1 "$PYTHON" -u -m train.stage1_single \
         --adapter noise \
         --librispeech-8k "$LIBRI" \
@@ -94,7 +94,7 @@ fi
 
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$ADAPTER_FILTER" == "all" || "$ADAPTER_FILTER" == "codec" ]]; then
-    log "=== [3/3] CODEC adapter — $EPOCHS epochs (~9h) ==="
+    log "=== [3/3] CODEC adapter, $EPOCHS epochs (~9h) ==="
     which ffmpeg && log "ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
     PYTHONUNBUFFERED=1 "$PYTHON" -u -m train.stage1_single \
         --adapter codec \

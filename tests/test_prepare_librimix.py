@@ -8,17 +8,15 @@ operations use pytest's tmp_path fixture with real directories.
 
 from __future__ import annotations
 
-import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from coralsep.data.prepare_librimix import (
     REQUIRED_SUBSETS,
     STREAM_DIRS,
-    _create_directory_alias,
     _ensure_train_alias,
     _find_generation_script,
     _make_filtered_metadata,
@@ -119,9 +117,7 @@ def test_filtered_metadata_can_opt_into_train_360(tmp_path: Path) -> None:
     repo = _make_librimix_repo(tmp_path)
     work_dir = tmp_path / "work"
 
-    meta_root = _make_filtered_metadata(
-        repo, work_dir, include_train=True, train_split="train-360"
-    )
+    meta_root = _make_filtered_metadata(repo, work_dir, include_train=True, train_split="train-360")
 
     libri3_dir = meta_root / "Libri3Mix"
     assert (libri3_dir / "mixture_train-360_mix_both.csv").exists()
@@ -185,7 +181,10 @@ def test_download_calls_urlretrieve_for_missing_split(tmp_path: Path) -> None:
         return cm
 
     with (
-        patch("coralsep.data.prepare_librimix.urllib.request.urlretrieve", side_effect=fake_urlretrieve),
+        patch(
+            "coralsep.data.prepare_librimix.urllib.request.urlretrieve",
+            side_effect=fake_urlretrieve,
+        ),
         patch("coralsep.data.prepare_librimix.tarfile.open", side_effect=fake_tarfile_open),
     ):
         download_librispeech(ls_dir)
@@ -220,7 +219,8 @@ def test_download_skips_tarball_download_if_tarball_exists(tmp_path: Path) -> No
 
     with (
         patch(
-            "coralsep.data.prepare_librimix.urllib.request.urlretrieve", side_effect=fake_urlretrieve
+            "coralsep.data.prepare_librimix.urllib.request.urlretrieve",
+            side_effect=fake_urlretrieve,
         ) as mock_dl,
         patch("coralsep.data.prepare_librimix.tarfile.open", side_effect=fake_tarfile_open),
     ):

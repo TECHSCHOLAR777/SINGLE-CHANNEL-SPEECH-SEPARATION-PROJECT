@@ -1,5 +1,5 @@
 """
-PyTorch Dataset wrapper for DynamicMixer — P0-INT3.
+PyTorch Dataset wrapper for DynamicMixer, P0-INT3.
 
 Bridges the on-the-fly DynamicMixer with any PyTorch training or evaluation
 loop that expects a torch.utils.data.Dataset yielding MixtureSample objects.
@@ -33,7 +33,7 @@ class DynamicMixDataset(Dataset):
     source_files:
         Paths to clean single-speaker WAV/FLAC files (LibriSpeech-style names).
     n_samples:
-        Virtual dataset length — how many mixes to draw per epoch.  Each
+        Virtual dataset length, how many mixes to draw per epoch.  Each
         ``__getitem__`` call draws a new random mix regardless of index, so
         this is a budget, not a fixed pool.
     allowed_n:
@@ -99,14 +99,14 @@ def collate_mixture_samples(batch: list[MixtureSample]) -> dict[str, torch.Tenso
     Mixtures and references are zero-padded to the longest item in the batch
     along the time axis so all samples can be stacked into a single tensor.
     References are padded along N (speaker count) too, so batches with varying
-    speaker counts are handled — the max N in the batch is used.
+    speaker counts are handled: the max N in the batch is used.
 
     Returns
     -------
     dict with keys:
       "mixture"     : float32 Tensor [B, T]
       "references"  : float32 Tensor [B, N, T]
-      "n_speakers"  : int64 Tensor [B] — actual speaker count per item
+      "n_speakers"  : int64 Tensor [B], actual speaker count per item
       "sample_rate" : int64 Tensor [B]
     """
     max_t = max(s.mixture.shape[0] for s in batch)

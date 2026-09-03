@@ -1,7 +1,7 @@
 """Frozen SR-CorrNet var-2-5 backbone wrapper for CoRAL-Sep (BLUEPRINT §3, §15.1).
 
 Applies the three patches on load:
-  A: model.forward wrapped to cache pres after every pass — exposes p_k
+  A: model.forward wrapped to cache pres after every pass, exposes p_k
   B: forward hook on model.encoder captures E(0), shape (1, T, 65, 128)
   C: forward hooks on each dec_block[i] capture decoder-stage inputs
 
@@ -9,13 +9,13 @@ Hard constraints (never change):
   - Batch size for unknown-speaker inference: 1  (assert in AttractorSplit.forward)
   - Sample rate: 8000 Hz (locked by checkpoint STFT params)
   - STFT window/hop/bins: 128 / 64 / 65
-  - spk_query shape: (1, 7, 128) — slots 1-5 are speaker existence slots
+  - spk_query shape: (1, 7, 128), slots 1-5 are speaker existence slots
 
 Usage::
 
     wrapper = SRCorrNetWrapper(device="cpu")
     result = wrapper.forward(wav_8k)   # wav_8k: (1, L) at 8 kHz
-    p_k     = result["p_k"]            # (1, 7) — attractor probs
+    p_k     = result["p_k"]            # (1, 7), attractor probs
     e0      = result["e0"]             # (1, T, 65, 128)
     stages  = result["dec_stages"]     # {0..3: (K, T, 65, 128)}
     n_hat   = result["n_active"]       # int in {2..5}
@@ -143,9 +143,11 @@ class SRCorrNetWrapper:
         cache = self._dec_cache
 
         for i, blk in enumerate(base_nn.dec_block):
+
             def _make_hook(idx: int):
                 def _hook(module: Any, inp: Any, out: Any) -> None:
                     cache[idx] = inp[0]  # (B*K, T, F, 128); B=1 for unknown-spk inference
+
                 return _hook
 
             blk.register_forward_hook(_make_hook(i))
@@ -175,9 +177,9 @@ class SRCorrNetWrapper:
 
         Returns dict with:
             waveforms: list of K (L,) float32 tensors at 8 kHz
-            p_k: (1, 7) float tensor — attractor probs; active speaker slots 1-5
-            n_active: int — number of slots above prob_thres (= N_hat when n_spks=None)
-            e0: (1, T, 65, 128) float tensor — encoder output before enc_block
+            p_k: (1, 7) float tensor, attractor probs; active speaker slots 1-5
+            n_active: int, number of slots above prob_thres (= N_hat when n_spks=None)
+            e0: (1, T, 65, 128) float tensor, encoder output before enc_block
             dec_stages: dict mapping stage index to (K, T, 65, 128) float tensor
         """
         self.load()

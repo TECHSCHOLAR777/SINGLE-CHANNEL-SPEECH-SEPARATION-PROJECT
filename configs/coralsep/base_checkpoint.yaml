@@ -1,16 +1,16 @@
 # CoRAL-Sep base checkpoint configuration.
-# Points to the frozen SR-CorrNet checkpoint — NEVER modify the checkpoint itself.
+# Points to the frozen SR-CorrNet checkpoint, NEVER modify the checkpoint itself.
 
 checkpoint:
   hf_model_id: "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"
   # Pin the exact revision to guard against upstream changes.
   revision: "main"
-  # Frozen — no base training permitted (BLUEPRINT §4.1).
+  # Frozen: no base training permitted (BLUEPRINT §4.1).
   frozen: true
 
 model:
   # Architecture constants derived from the checkpoint (BLUEPRINT §15.8).
-  sample_rate: 8000           # CORALSEP_SAMPLE_RATE — never change
+  sample_rate: 8000           # CORALSEP_SAMPLE_RATE, never change
   k0: 5                       # max speakers (attractor count)
   n_enc: 2                    # encoder blocks
   n_dec: 4                    # decoder blocks

@@ -3,9 +3,9 @@
 Gate M0 requires this file to pass before any Phase P1 work starts.
 
 Two test classes:
-  TestPkShape — always runs; uses a mock to confirm the wrapper API contract
+  TestPkShape, always runs; uses a mock to confirm the wrapper API contract
                 without needing the checkpoint.
-  TestPkCountAccuracy — requires sr_corrnet installed AND checkpoint downloaded;
+  TestPkCountAccuracy: requires sr_corrnet installed AND checkpoint downloaded;
                         skipped otherwise. Confirms wrapper loads and returns
                         p_k with the correct shape on real audio fixtures.
 
@@ -16,19 +16,17 @@ To run the full gate test after downloading the checkpoint:
 from __future__ import annotations
 
 import importlib.util
-import sys
-import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from coralsep.models.srcorrnet import SRCorrNetWrapper
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _random_wav(duration_s: float = 4.0, sr: int = 8000) -> torch.Tensor:
     """Random noise at 8 kHz, shape (1, L), std-normalized."""
@@ -77,8 +75,9 @@ def _build_wrapper_with_mock(n_active: int) -> SRCorrNetWrapper:
 
 
 # ---------------------------------------------------------------------------
-# Shape tests — always run, no checkpoint needed
+# Shape tests, always run, no checkpoint needed
 # ---------------------------------------------------------------------------
+
 
 class TestPkShape:
     """Confirm wrapper API contract using mocks."""
@@ -92,16 +91,14 @@ class TestPkShape:
         wrapper = _build_wrapper_with_mock(n_active=3)
         result = wrapper.forward(_random_wav())
         p_k = result["p_k"]
-        assert p_k is not None, "p_k is None — Patch A not applied"
+        assert p_k is not None, "p_k is None, Patch A not applied"
         assert p_k.shape == (1, 7), f"p_k shape {p_k.shape} != (1, 7)"
 
     def test_n_active_matches_fake_pres(self) -> None:
         for n_true in [2, 3, 4, 5]:
             wrapper = _build_wrapper_with_mock(n_active=n_true)
             result = wrapper.forward(_random_wav())
-            assert result["n_active"] == n_true, (
-                f"n_active={result['n_active']} != {n_true}"
-            )
+            assert result["n_active"] == n_true, f"n_active={result['n_active']} != {n_true}"
 
     def test_result_has_e0_and_dec_stages_keys(self) -> None:
         wrapper = _build_wrapper_with_mock(n_active=2)
@@ -124,7 +121,7 @@ class TestPkShape:
 
 
 # ---------------------------------------------------------------------------
-# Count accuracy test — requires checkpoint
+# Count accuracy test: requires checkpoint
 # ---------------------------------------------------------------------------
 
 _SR_CORRNET_AVAILABLE = importlib.util.find_spec("sr_corrnet") is not None
@@ -132,7 +129,7 @@ _SR_CORRNET_AVAILABLE = importlib.util.find_spec("sr_corrnet") is not None
 
 @pytest.mark.skipif(
     not _SR_CORRNET_AVAILABLE,
-    reason="sr_corrnet not installed — skipping live attractor count test",
+    reason="sr_corrnet not installed, skipping live attractor count test",
 )
 class TestPkCountAccuracy:
     """Gate M0 accuracy test. Requires checkpoint download (P0-B1).
@@ -150,7 +147,7 @@ class TestPkCountAccuracy:
 
     def test_pk_not_none_after_forward(self, wrapper: SRCorrNetWrapper) -> None:
         result = wrapper.forward(_random_wav())
-        assert result["p_k"] is not None, "Patch A failed — pres not cached"
+        assert result["p_k"] is not None, "Patch A failed, pres not cached"
 
     def test_pk_shape(self, wrapper: SRCorrNetWrapper) -> None:
         result = wrapper.forward(_random_wav())

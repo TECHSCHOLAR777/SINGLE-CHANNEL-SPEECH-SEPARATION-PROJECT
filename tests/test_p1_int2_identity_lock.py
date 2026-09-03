@@ -2,8 +2,8 @@
 P1-INT2: cross-chunk identity lock, proven in CI without a neural separator.
 
 The historical P1-INT2 failure conflated two things: the ChunkStitcher's
-identity-lock logic (Dev C's actual deliverable) and whether MossFormer2 — a
-2-speaker model — can even emit one stable stream per speaker on a 3-speaker
+identity-lock logic (Dev C's actual deliverable) and whether MossFormer2: a
+2-speaker model, can even emit one stable stream per speaker on a 3-speaker
 mixture (it cannot; that is an escalation concern, handled by the cascade, not
 an alignment bug). Validating the lock through MossFormer2 on 3 speakers is an
 invalid experiment: it tests the lock with a separator that structurally cannot
@@ -37,7 +37,7 @@ OVERLAP_SEC = 1.0
 
 def _make_reference_speakers(n: int, length: int, seed: int = 0) -> np.ndarray:
     """n distinct, full-length, stationary speaker signals (seeded noise, mildly
-    low-passed so consecutive samples correlate — makes xcorr identity crisp)."""
+    low-passed so consecutive samples correlate, makes xcorr identity crisp)."""
     rng = np.random.default_rng(seed)
     refs = rng.standard_normal((n, length)).astype(np.float32)
     kernel = np.ones(32, dtype=np.float32) / 32.0
@@ -59,7 +59,7 @@ class _OracleSeparator:
     """
     Perfect separation with adversarial slot order.
 
-    Returns, for each chunk, exactly the per-speaker reference slices — but
+    Returns, for each chunk, exactly the per-speaker reference slices, but
     permuted by a per-chunk seed so the stream order is unstable across chunks,
     which is precisely what the stitcher's embedding lock has to undo. Embeddings
     travel with their speaker, so a correct stitcher re-locks perfectly.
@@ -146,7 +146,7 @@ def test_identity_lock_holds_on_two_speakers() -> None:
 
 
 def test_identity_lock_holds_on_three_speakers() -> None:
-    # The regime the RunPod run failed on — here with a separator that actually
+    # The regime the RunPod run failed on, here with a separator that actually
     # emits 3 stable streams, the lock holds. That failure was the separator,
     # not the stitcher.
     r = _run_lock(3)

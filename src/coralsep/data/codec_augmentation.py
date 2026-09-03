@@ -1,5 +1,5 @@
 """
-Codec augmentation prototype for CoRAL-Sep — Phase 1 research deliverable.
+Codec augmentation prototype for CoRAL-Sep, Phase 1 research deliverable.
 
 Stage 3 of the augmentation pipeline: phone-channel codec distortion.
 Simulates WhatsApp and voice-note recordings by encoding audio through
@@ -7,7 +7,7 @@ Opus or AAC at low bitrate (6–32 kbps) then decoding back to PCM.
 
 Named project contribution: no other team in CoRAL-Sep prepares for this
 degradation. Codec distortion at 6–16 kbps breaks harmonic structure,
-attenuates high frequencies, and introduces block artifacts — a different
+attenuates high frequencies, and introduces block artifacts: a different
 degradation profile from RIR reverb or WHAM! noise, requiring its own
 training signal.
 
@@ -16,8 +16,8 @@ to AugmentationPipeline in Phase 4 with one line:
     mixture → AugmentationPipeline (Stage 1+2) → CodecAugmentor (Stage 3)
 
 Execution paths:
-  Primary  — ffmpeg subprocess (real Opus/AAC); requires ffmpeg on PATH.
-  Fallback — mu-law companding + 8-bit quantisation (scipy only); always
+  Primary, ffmpeg subprocess (real Opus/AAC); requires ffmpeg on PATH.
+  Fallback, mu-law companding + 8-bit quantisation (scipy only); always
              available, mimics G.711 telephone-codec artifacts.
 
 Realistic bitrate targets (WhatsApp/Telegram voice notes):
@@ -61,7 +61,7 @@ _CODEC_CONTAINER = {
 }
 # AMR-NB requires 8 kHz; AMR-WB requires 16 kHz.
 _CODEC_REQUIRED_SR: dict[str, int | None] = {
-    "opus": None,   # accepts any sr
+    "opus": None,  # accepts any sr
     "aac": None,
     "amr-nb": 8_000,
     "amr-wb": 16_000,
@@ -90,7 +90,7 @@ def apply_codec_roundtrip(
 
     Public wrapper used by ``data.degradations.apply_codec``. Supports "opus",
     "aac", "amr-nb", and "amr-wb". AMR-NB requires 8 kHz input; AMR-WB
-    requires 16 kHz input — ffmpeg will resample internally when the input
+    requires 16 kHz input, ffmpeg will resample internally when the input
     sample rate differs, but callers should note the resampling.
 
     Falls back to mu-law companding (G.711 approximation) when ffmpeg is
@@ -159,8 +159,16 @@ def _ffmpeg_roundtrip_standalone(
         encoded = work / f"encoded{container}"
         decoded = work / "decoded.wav"
 
-        enc_cmd = ["ffmpeg", "-y", "-i", str(src), "-codec:a", ffmpeg_name,
-                   "-b:a", f"{bitrate_kbps:.2f}k"]
+        enc_cmd = [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(src),
+            "-codec:a",
+            ffmpeg_name,
+            "-b:a",
+            f"{bitrate_kbps:.2f}k",
+        ]
         if required_sr is not None:
             enc_cmd += ["-ar", str(required_sr)]
         enc_cmd.append(str(encoded))
@@ -235,9 +243,7 @@ class CodecConfig:
     def __post_init__(self) -> None:
         valid = (*_SUPPORTED_CODECS, "random")
         if self.codec not in valid:
-            raise ValueError(
-                f"codec must be one of {valid!r}, got {self.codec!r}"
-            )
+            raise ValueError(f"codec must be one of {valid!r}, got {self.codec!r}")
         if self.bitrate_min_kbps <= 0 or self.bitrate_max_kbps <= 0:
             raise ValueError("bitrate values must be positive")
         if self.bitrate_min_kbps > self.bitrate_max_kbps:

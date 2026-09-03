@@ -1,7 +1,7 @@
 """
 Unit tests for data/overlap_scheduler.py (P0-A6).
 
-Pure numpy logic — no I/O, no external deps.
+Pure numpy logic: no I/O, no external deps.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ import pytest
 from coralsep.data.overlap_scheduler import OverlapScheduler, apply_overlap
 
 # ---------------------------------------------------------------------------
-# OverlapScheduler — validation
+# OverlapScheduler, validation
 # ---------------------------------------------------------------------------
 
 
@@ -37,7 +37,7 @@ def test_ratio_out_of_range_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# OverlapScheduler — step schedule (default)
+# OverlapScheduler, step schedule (default)
 # ---------------------------------------------------------------------------
 
 
@@ -70,7 +70,7 @@ def test_ratio_at_step_bad_total_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# OverlapScheduler — interpolation
+# OverlapScheduler, interpolation
 # ---------------------------------------------------------------------------
 
 
@@ -88,7 +88,7 @@ def test_interpolation_past_last_breakpoint_holds() -> None:
 
 
 # ---------------------------------------------------------------------------
-# apply_overlap — validation
+# apply_overlap, validation
 # ---------------------------------------------------------------------------
 
 
@@ -103,7 +103,7 @@ def test_apply_overlap_bad_ratio_raises() -> None:
 
 
 # ---------------------------------------------------------------------------
-# apply_overlap — behaviour
+# apply_overlap, behaviour
 # ---------------------------------------------------------------------------
 
 

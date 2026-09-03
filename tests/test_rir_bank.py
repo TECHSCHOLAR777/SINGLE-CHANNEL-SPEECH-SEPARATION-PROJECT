@@ -1,7 +1,7 @@
 """
 Unit tests for data/rir_bank.py (Dev A, P0-A3).
 
-No pyroomacoustics required for most tests — we synthesize minimal RirRecord
+No pyroomacoustics required for most tests, we synthesize minimal RirRecord
 fixtures directly. Tests that call generate_rir / build_rir_bank are skipped
 when pyroomacoustics is not installed.
 """
@@ -19,7 +19,6 @@ from coralsep.data.rir_bank import (
     SEVERE_T60_S,
     T60_MAX_S,
     T60_MIN_S,
-    T60_STEP_S,
     RirBank,
     RirRecord,
     find_direct_path_peak,
@@ -34,10 +33,10 @@ from coralsep.data.rir_bank import (
 
 def _synthetic_rir(t60_s: float, sr: int = 8_000, duration_s: float = 1.0) -> np.ndarray:
     """Exponentially decaying noise RIR with known T60."""
+    rng = np.random.default_rng(0)
     n = int(duration_s * sr)
     t = np.arange(n) / sr
     decay = np.exp(-6.908 * t / t60_s)  # -60 dB at t60_s
-    rng = np.random.default_rng(0)
     return (rng.standard_normal(n) * decay).astype(np.float32)
 
 
@@ -91,13 +90,15 @@ def test_sample_t60_no_severe():
 
 def test_sample_t60_severe_fraction():
     rng = np.random.default_rng(7)
-    samples = [sample_t60(rng, allow_severe=True, severe_fraction=SEVERE_FRACTION) for _ in range(2000)]
+    samples = [
+        sample_t60(rng, allow_severe=True, severe_fraction=SEVERE_FRACTION) for _ in range(2000)
+    ]
     severe_count = sum(1 for t in samples if t >= SEVERE_T60_S)
     severe_frac = severe_count / len(samples)
     # Allow generous tolerance: binomial std for 2000 trials ≈ 0.006
-    assert abs(severe_frac - SEVERE_FRACTION) < 0.05, (
-        f"severe fraction {severe_frac:.3f} differs from {SEVERE_FRACTION}"
-    )
+    assert (
+        abs(severe_frac - SEVERE_FRACTION) < 0.05
+    ), f"severe fraction {severe_frac:.3f} differs from {SEVERE_FRACTION}"
 
 
 # ---------------------------------------------------------------------------
@@ -132,7 +133,6 @@ def test_rir_record_to_dict_round_trip():
 
 def _write_bank(tmp_path: Path, n: int = 4) -> Path:
     """Write a minimal bank.json with synthetic .npy RIRs."""
-    rng = np.random.default_rng(0)
     records = []
     for i in range(n):
         rir = _synthetic_rir(t60_s=0.3 + 0.1 * i)
@@ -184,7 +184,7 @@ def test_rir_bank_sample_out_of_range_raises(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# generate_rir (optional — skipped when pyroomacoustics unavailable)
+# generate_rir (optional, skipped when pyroomacoustics unavailable)
 # ---------------------------------------------------------------------------
 
 pyroomacoustics = pytest.importorskip("pyroomacoustics", reason="pyroomacoustics not installed")
@@ -192,6 +192,7 @@ pyroomacoustics = pytest.importorskip("pyroomacoustics", reason="pyroomacoustics
 
 def test_generate_rir_returns_record():
     from coralsep.data.rir_bank import generate_rir
+
     rng = np.random.default_rng(123)
     rir, meta = generate_rir(t60_s=0.5, rng=rng)
     assert isinstance(rir, np.ndarray)
@@ -202,6 +203,7 @@ def test_generate_rir_returns_record():
 
 def test_generate_rir_t60_in_spec():
     from coralsep.data.rir_bank import generate_rir
+
     rng = np.random.default_rng(0)
     _, meta = generate_rir(t60_s=0.6, rng=rng)
     assert 0.2 <= meta["t60_achieved_s"] <= 2.0

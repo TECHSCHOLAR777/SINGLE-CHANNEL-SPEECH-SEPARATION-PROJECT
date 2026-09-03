@@ -1,5 +1,5 @@
 """
-Prepare the WHAM! noise corpus for CoRAL-Sep — Phase 1 (P1-A3).
+Prepare the WHAM! noise corpus for CoRAL-Sep, Phase 1 (P1-A3).
 
 WHAM! (WSJ0 Hipster Ambient Mixtures) ships its ambient-noise recordings as a
 single freely downloadable archive, ``wham_noise.zip``.  This is the only piece

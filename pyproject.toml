@@ -70,6 +70,9 @@ target-version = ["py310"]
 [tool.ruff]
 line-length = 100
 target-version = "py310"
+# Notebooks are Kaggle artifacts, edited in a browser and rebaked wholesale.
+# Linting them produces noise nobody can act on without breaking the notebook.
+extend-exclude = ["notebooks", ".restoration", "build"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "W", "UP", "B"]
@@ -78,6 +81,10 @@ ignore = ["B008"]
 [tool.ruff.lint.per-file-ignores]
 "src/coralsep/demo/gradio_app.py" = ["E501"]
 "src/coralsep/eval/*.py" = ["E402", "F841", "E501"]
+# These insert the project root on sys.path before importing, so their imports
+# cannot be at the top of the file.
+"scripts/*.py" = ["E402"]
+"src/coralsep/data/fixed_eval_generator.py" = ["E402"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

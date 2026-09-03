@@ -3,26 +3,25 @@
 Gate M0 requires this file to pass alongside attractor_test.py.
 
 Two test classes:
-  TestE0Shape — always runs; mock confirms "e0" key is present and hook fires.
-  TestE0HookLive — requires sr_corrnet + checkpoint; confirms exact shape
+  TestE0Shape, always runs; mock confirms "e0" key is present and hook fires.
+  TestE0HookLive: requires sr_corrnet + checkpoint; confirms exact shape
                    (1, T, 65, 128) with T = ceil(L / 64) for 8 kHz audio.
 """
 
 from __future__ import annotations
 
-import sys
 import types
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 import torch
 
 from coralsep.models.srcorrnet import SRCorrNetWrapper
 
-
 # ---------------------------------------------------------------------------
 # Fixtures
 # ---------------------------------------------------------------------------
+
 
 def _random_wav(duration_s: float = 4.0, sr: int = 8000) -> torch.Tensor:
     n = int(duration_s * sr)
@@ -63,13 +62,14 @@ def _build_wrapper_with_mock(e0_shape: tuple[int, ...] = (1, 63, 65, 128)) -> SR
 
 
 # ---------------------------------------------------------------------------
-# Shape tests — always run
+# Shape tests, always run
 # ---------------------------------------------------------------------------
+
 
 class TestE0Shape:
     def test_e0_key_present(self) -> None:
         wrapper = _build_wrapper_with_mock()
-        assert "e0" in wrapper._e0_cache, "e0 key missing — Patch B hook not firing"
+        assert "e0" in wrapper._e0_cache, "e0 key missing, Patch B hook not firing"
 
     def test_e0_has_four_dims(self) -> None:
         wrapper = _build_wrapper_with_mock()
@@ -89,17 +89,17 @@ class TestE0Shape:
 
 
 # ---------------------------------------------------------------------------
-# Live tests — requires checkpoint
+# Live tests: requires checkpoint
 # ---------------------------------------------------------------------------
 
-import importlib.util as _ilu
+import importlib.util as _ilu  # noqa: E402
 
 _SR_CORRNET_AVAILABLE = _ilu.find_spec("sr_corrnet") is not None
 
 
 @pytest.mark.skipif(
     not _SR_CORRNET_AVAILABLE,
-    reason="sr_corrnet not installed — skipping live E(0) hook test",
+    reason="sr_corrnet not installed, skipping live E(0) hook test",
 )
 class TestE0HookLive:
     """Confirm exact E(0) shape on real checkpoint (BLUEPRINT §15.2)."""
@@ -112,7 +112,7 @@ class TestE0HookLive:
 
     def test_e0_not_none_after_forward(self, wrapper: SRCorrNetWrapper) -> None:
         result = wrapper.forward(_random_wav(duration_s=4.0))
-        assert result["e0"] is not None, "e0 is None — Patch B hook not firing"
+        assert result["e0"] is not None, "e0 is None, Patch B hook not firing"
 
     def test_e0_shape_batch_1(self, wrapper: SRCorrNetWrapper) -> None:
         result = wrapper.forward(_random_wav(duration_s=4.0))
@@ -135,12 +135,10 @@ class TestE0HookLive:
         result = wrapper.forward(_random_wav(duration_s=duration_s))
         T = result["e0"].shape[1]
         expected_approx = L // hop
-        assert abs(T - expected_approx) <= 4, (
-            f"E(0) time frames T={T}, expected ~{expected_approx}"
-        )
+        assert abs(T - expected_approx) <= 4, f"E(0) time frames T={T}, expected ~{expected_approx}"
 
     def test_dec_stages_have_4_entries(self, wrapper: SRCorrNetWrapper) -> None:
         result = wrapper.forward(_random_wav(duration_s=2.0))
-        assert len(result["dec_stages"]) == 4, (
-            f"dec_stages has {len(result['dec_stages'])} entries, expected 4"
-        )
+        assert (
+            len(result["dec_stages"]) == 4
+        ), f"dec_stages has {len(result['dec_stages'])} entries, expected 4"

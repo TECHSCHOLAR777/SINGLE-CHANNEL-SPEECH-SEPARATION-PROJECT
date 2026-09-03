@@ -28,7 +28,7 @@ from pathlib import Path
 import numpy as np
 from scipy import signal
 
-from coralsep.data.condition_mixer import CORALSEP_SAMPLE_RATE, CoralSepMixture, MixtureRecipe
+from coralsep.data.condition_mixer import CoralSepMixture, MixtureRecipe
 from coralsep.data.mixer_stub import MixtureSample
 from coralsep.data.rir_bank import RirBank, RirRecord, sample_t60
 
@@ -193,7 +193,10 @@ def apply_reverb(
     length = refs.shape[1]
 
     wet_refs = np.stack(
-        [make_wet_reference(refs[i], rir, record.n_peak, target_length=length) for i in range(refs.shape[0])],
+        [
+            make_wet_reference(refs[i], rir, record.n_peak, target_length=length)
+            for i in range(refs.shape[0])
+        ],
         axis=0,
     )
     wet_obs = np.stack(

@@ -1,35 +1,103 @@
 name: CI
 
+# This workflow watched `main` for 158 commits while the default branch was
+# `master`, so it never ran once and every lint and test failure on the default
+# branch went unseen. See docs/restoration/ISSUE_LEDGER.md I-011.
 on:
   push:
-    branches: [main]
+    branches: [master]
   pull_request:
-    branches: [main]
+    branches: [master]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install linters
+        run: python -m pip install --upgrade pip ruff==0.15.20 black==26.5.1
+
+      - name: Ruff
+        run: ruff check .
+
+      - name: Black
+        run: black --check .
+
   test:
+    name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
+      fail-fast: false
       matrix:
-        python-version: ["3.10", "3.11"]
+        python-version: ["3.10", "3.11", "3.12"]
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
-        uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
+          cache: pip
 
-      - name: Install dependencies
+      - name: System audio libraries
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg libsndfile1
+
+      - name: Install
+        # CPU-only torch keeps the job under the runner disk limit. The backbone
+        # loader is a git dependency, so pip needs git available, which the
+        # runner image provides.
         run: |
           python -m pip install --upgrade pip
+          pip install torch torchaudio --index-url https://download.pytorch.org/whl/cpu
           pip install -e ".[dev]"
 
-      - name: Lint
+      - name: Import sweep
+        # Catches the failure mode that survived 158 commits: a module that
+        # nothing imports, whose import is broken.
         run: |
-          ruff check .
-          black --check .
+          python - <<'PY'
+          import importlib, pathlib, sys
+          root = pathlib.Path("src/coralsep")
+          failures = []
+          for path in sorted(root.rglob("*.py")):
+              name = str(path.with_suffix("")).replace("/", ".")[4:]
+              try:
+                  importlib.import_module(name)
+              except Exception as exc:
+                  failures.append(f"{name}: {type(exc).__name__}: {exc}")
+          for f in failures:
+              print("FAIL", f)
+          sys.exit(1 if failures else 0)
+          PY
 
       - name: Test
-        run: pytest tests/ -v
+        run: pytest tests/ -q
+
+  secrets:
+    name: Credential scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Scan tracked files for credential patterns
+        # A Hugging Face write token, a Kaggle token and a Modal token pair were
+        # found in a project context file during the restoration. None reached
+        # this repository. This keeps it that way. See I-001.
+        run: |
+          if git grep -nIE 'hf_[A-Za-z0-9]{34}|KGAT_[A-Za-z0-9]{20,}|ak-[A-Za-z0-9]{20,}|as-[A-Za-z0-9]{20,}' -- . ; then
+            echo "::error::credential pattern found in a tracked file"
+            exit 1
+          fi
+          echo "no credential patterns found"

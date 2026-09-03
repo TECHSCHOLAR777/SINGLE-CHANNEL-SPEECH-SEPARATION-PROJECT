@@ -47,7 +47,9 @@ class MockExpert:
         current = wav
         for i in range(k):
             streams[i] = current / (i + 1.0)
-            current = np.convolve(current, np.array([0.25, 0.5, 0.25], dtype=np.float32), mode="same")
+            current = np.convolve(
+                current, np.array([0.25, 0.5, 0.25], dtype=np.float32), mode="same"
+            )
 
         probs = self._attractor_probs
         if probs is None:

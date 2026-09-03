@@ -29,9 +29,12 @@ from __future__ import annotations
 import json
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
+
+if TYPE_CHECKING:  # torch is imported lazily inside the scoring helpers
+    import torch
 
 _CONDITIONS = (
     "clean",
@@ -85,7 +88,7 @@ class EvalMatrix:
                 f.write(json.dumps(asdict(rec)) + "\n")
 
     @classmethod
-    def from_jsonl(cls, path: str | Path) -> "EvalMatrix":
+    def from_jsonl(cls, path: str | Path) -> EvalMatrix:
         obj = cls()
         with open(str(path)) as f:
             for line in f:
@@ -100,6 +103,7 @@ class EvalMatrix:
                                    count_acc, n_mixtures}
         """
         from collections import defaultdict
+
         buckets: dict[tuple, list] = defaultdict(list)
         for rec in self.records:
             buckets[(rec.condition, rec.n_true)].append(rec)
@@ -123,14 +127,23 @@ class EvalMatrix:
 
     def to_summary_csv(self, path: str | Path) -> None:
         import csv
+
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         summary = self.summary_by_condition()
         with open(path, "w", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=[
-                "condition", "n", "si_sdri_mean", "sdri_mean",
-                "dnsmos_mean", "count_acc", "n_mixtures"
-            ])
+            writer = csv.DictWriter(
+                f,
+                fieldnames=[
+                    "condition",
+                    "n",
+                    "si_sdri_mean",
+                    "sdri_mean",
+                    "dnsmos_mean",
+                    "count_acc",
+                    "n_mixtures",
+                ],
+            )
             writer.writeheader()
             for cond, n_dict in summary.items():
                 for n, stats in n_dict.items():
@@ -160,8 +173,6 @@ def run_eval_matrix(
         EvalMatrix with one record per mixture.
     """
     import soundfile as sf
-    from coralsep.train.losses import si_snr as _si_snr_torch
-    import torch
 
     matrix = EvalMatrix()
     bucket_counts: dict[tuple, int] = {}
@@ -179,7 +190,9 @@ def run_eval_matrix(
 
             try:
                 mix_wav, sr = sf.read(item["mixture_path"], dtype="float32", always_2d=False)
-                refs = [sf.read(p, dtype="float32", always_2d=False)[0] for p in item["reference_paths"]]
+                refs = [
+                    sf.read(p, dtype="float32", always_2d=False)[0] for p in item["reference_paths"]
+                ]
             except Exception as e:
                 print(f"[eval] skip {mixture_id}: {e}")
                 continue
@@ -231,6 +244,7 @@ def _compute_sisdr_sdri(
 ) -> tuple[float, float]:
     """Oracle PIT SI-SDRi and SDRi (dB improvement over mixture)."""
     import torch
+
     K = separated.shape[0]
     R = len(references)
     n = separated.shape[1]
@@ -248,6 +262,7 @@ def _compute_sisdr_sdri(
     best = -999.0
     best_sdr = -999.0
     from itertools import permutations
+
     for perm in permutations(range(K)):
         val = float(_si_snr_batch(sep[list(perm)], refs_t).mean().item())
         sdr_val = float(_sdr_batch(sep[list(perm)], refs_t).mean().item())
@@ -263,8 +278,9 @@ def _compute_sisdr_sdri(
     return best - baseline_sisdr, best_sdr - baseline_sdr
 
 
-def _si_snr_batch(est: "torch.Tensor", ref: "torch.Tensor") -> "torch.Tensor":
+def _si_snr_batch(est: torch.Tensor, ref: torch.Tensor) -> torch.Tensor:
     import torch
+
     est = est - est.mean(dim=-1, keepdim=True)
     ref = ref - ref.mean(dim=-1, keepdim=True)
     dot = (est * ref).sum(dim=-1, keepdim=True)
@@ -274,8 +290,9 @@ def _si_snr_batch(est: "torch.Tensor", ref: "torch.Tensor") -> "torch.Tensor":
     return 10 * torch.log10((s_target**2).sum(-1) / ((noise**2).sum(-1) + 1e-8) + 1e-8)
 
 
-def _sdr_batch(est: "torch.Tensor", ref: "torch.Tensor") -> "torch.Tensor":
+def _sdr_batch(est: torch.Tensor, ref: torch.Tensor) -> torch.Tensor:
     import torch
+
     dot = (est * ref).sum(-1)
     ref_pow = (ref * ref).sum(-1) + 1e-8
     noise = est - dot.unsqueeze(-1) / ref_pow.unsqueeze(-1) * ref

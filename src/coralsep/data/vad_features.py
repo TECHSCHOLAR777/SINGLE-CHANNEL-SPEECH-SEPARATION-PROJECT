@@ -96,7 +96,7 @@ def _silero_voiced_density(waveform: np.ndarray, sr: int) -> float | None:
 
     import torch
 
-    (get_speech_timestamps, _, read_audio, *_) = utils
+    get_speech_timestamps, _, read_audio, *_ = utils
 
     wav = np.asarray(waveform, dtype=np.float32).ravel()
     if sr != CORALSEP_SR:
@@ -194,7 +194,9 @@ def validate_vad_proxy(
     arr = np.asarray(densities, dtype=np.float64)
     discriminative = float(arr.max() - arr.min()) >= min_spread
 
-    note = "SileroVAD active" if backend == "silero" else "STFT energy fallback (Silero unavailable)"
+    note = (
+        "SileroVAD active" if backend == "silero" else "STFT energy fallback (Silero unavailable)"
+    )
 
     if overlap_labels is not None and len(overlap_labels) == len(waveforms):
         labels = np.asarray(overlap_labels, dtype=np.float64)
@@ -213,4 +215,3 @@ def validate_vad_proxy(
         discriminative=discriminative,
         note=note,
     )
-

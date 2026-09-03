@@ -1,5 +1,5 @@
 """
-Prepare SparseLibriMix (test-only) for CoRAL-Sep — Phase 3 (P3-A2).
+Prepare SparseLibriMix (test-only) for CoRAL-Sep, Phase 3 (P3-A2).
 
 SparseLibriMix is the sparse-overlap evaluation set: the same speakers mixed at
 six controlled overlap ratios {0, 0.2, 0.4, 0.6, 0.8, 1.0}.  It powers the
@@ -135,7 +135,7 @@ def _find_make_mixtures_script(repo: Path) -> Path:
             return path
     raise FileNotFoundError(
         f"Cannot find make_mixtures.py in {repo}. "
-        "The SparseLibriMix repo structure may have changed — check the clone."
+        "The SparseLibriMix repo structure may have changed, check the clone."
     )
 
 
@@ -238,7 +238,7 @@ def verify_layout(
 
     if missing:
         raise RuntimeError(
-            "Layout verification failed — missing directories:\n"
+            "Layout verification failed, missing directories:\n"
             + "\n".join(missing)
             + "\n\nRe-run prepare_sparselibrimix.py or check the generation output."
         )
