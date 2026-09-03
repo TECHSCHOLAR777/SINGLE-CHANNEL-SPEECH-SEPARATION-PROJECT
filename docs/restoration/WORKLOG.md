@@ -141,3 +141,35 @@
 **Documentation updated.** The full knowledge base under `docs/restoration/`.
 
 **Next action.** Commit the knowledge base, then begin repair at I-004.
+
+---
+
+## 2026-09-02 to 09-04, entry 6
+
+**Phase:** 6 and 7, repair.
+
+**Objective.** Clear every defect that does not need compute, in scoped commits with validation.
+
+**Actions and findings, in the order they happened.**
+
+Repaired the ten import failures. Nine were rename drift or v1 residue. Two of them exposed defects that had nothing to do with imports: `CalmSepPipeline` passed a gate mapping where `forward_context` expects an adapter name, which silently randomised every adapter gate at inference, and the attractor count readout both crashed on its documented numpy type and counted two slots that are not speaker slots.
+
+Resolved the deepest blocker. `configs/baseline.yaml` named `dmlguq456/SR_CorrNet`, which 404s. The real upstream is `dmlguq456/SR_CorrNet_SS`, MIT licensed, and its file tree matches the BLUEPRINT audit exactly. Verified live: installed into a directory outside the repository, the backbone loads and all three patches apply.
+
+Measured the parameter counts rather than quoting them. The backbone is 14,031,768 parameters. The 13,270,124 figure in the documentation is a `parameters()` count taken after the LoRA library was attached, which omits 1,065,856 base weights held as buffers.
+
+Recovered the four archive-only artifacts: the improved evaluation harness, the Whisper transcription work, the Modal deployment file, and the Libri5Mix result with the Stage 4 training log.
+
+Adopted a `src/coralsep/` layout and renamed the project, in one commit because both rewrite every import.
+
+Formatted the tree and fixed 399 ruff findings. Three were real defects rather than style.
+
+Repaired CI. It had watched `main` for 158 commits while the default branch was `master`, so it had never run once.
+
+Published all 39 tickets to GitHub Issues with type and priority labels, closing 27 with a comment naming the fix commit.
+
+**Validation after every commit.** Import sweep fell from 10 failures across 93 modules to 1 across 94, the remaining one being the external backbone package. Test suite rose from 504 passing with three modules uncollectable to 563 passing with none. Ruff and black both clean.
+
+**Issues closed.** 27. **Open.** 12, of which 9 need compute, Kaggle credentials or an owner decision.
+
+**Next action.** I-025 first: read the Stage 1 reverb training target. It needs no compute and may also explain I-003.

@@ -2,9 +2,9 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 39 tickets. 9 closed, 1 in progress, 29 open or blocked.
+**Status:** 🟠 39 tickets. 27 closed, 12 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
-**Last verified:** 2026-09-02
+**Last verified:** 2026-09-04
 
 ---
 
@@ -34,45 +34,45 @@
 
 | ID | Type | Pri | Title | State | Commit |
 |---|---|:---:|---|---|---|
-| I-001 | `[SEC]` | 🔴 P0 | Live API credentials present in the supplied archive | 🔴 BLOCKED on owner | rotation is the owner's action |
-| I-002 | `[EXP]` | 🔴 P0 | Evaluation supplies the oracle speaker count, so count accuracy is never measured | 🟠 READY | |
-| I-003 | `[MODEL]` | 🟠 P1 | Gate temperature 4.9872 flattens the sigmoid and disables condition routing | 🔴 BLOCKED on compute | |
-| I-004 | `[BUG]` | 🟠 P1 | `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE` | 🟢 CLOSED | `aacca0e` |
-| I-005 | `[BUG]` | 🟠 P1 | `eval/matrix.py` imports `si_snr`; the function is `si_sdr` | 🟢 CLOSED | `ad4ffb7` |
-| I-006 | `[BUG]` | 🟠 P1 | `CalmSepEngine` and `MockCalmSepWrapper` do not exist | 🟢 CLOSED | `ac42f28` |
-| I-007 | `[BUG]` | 🟡 P2 | `eval/ablation_gate.py` imports the non-existent `utils.logging` | 🟢 CLOSED | `3a42a94` |
-| I-008 | `[BUG]` | 🟡 P2 | `train/calibrate.py` imports the non-existent `calibration.fit` | 🟢 CLOSED | `3d35204` |
-| I-009 | `[CLEANUP]` | 🟡 P2 | Three modules import v1 CA-MoSE code that no longer exists | 🔵 IN_PROGRESS | |
-| I-010 | `[BUG]` | 🟡 P2 | `scripts/slice_for_kaggle.py` runs work at import time and hard-codes a data path | 🟠 READY | |
-| I-011 | `[BUG]` | 🟠 P1 | CI triggers on `main` while the default branch is `master`, so CI has never run | 🟠 READY | |
-| I-012 | `[TASK]` | 🟠 P1 | Recover the uncommitted `run_eval.py` improvements held only in the archive | 🟠 READY | |
-| I-013 | `[TASK]` | 🟠 P1 | Recover the uncommitted `demo.py` transcription work held only in the archive | 🟠 READY | |
-| I-014 | `[TASK]` | 🟡 P2 | Recover `modal_deploy.py`, which exists nowhere in Git history | 🟠 READY | |
-| I-015 | `[EXP]` | 🟠 P1 | Recover the Libri5Mix raw result and the Stage 4 training log from the archive | 🟠 READY | |
-| I-016 | `[DOC]` | 🔴 P0 | README results table is empty while verified raw results exist | 🟠 READY | |
-| I-017 | `[DOC]` | 🟠 P1 | README repository-structure section describes files that do not exist | 🟠 READY | |
-| I-018 | `[DOC]` | 🟠 P1 | `pyproject.toml` still declares the abandoned v1 project | 🟠 READY | |
-| I-019 | `[REPRO]` | 🔴 P0 | The `sr_corrnet` backbone had no recorded upstream or license | 🟢 CLOSED | see below |
-| I-020 | `[REPRO]` | 🟠 P1 | `requirements.txt` claims pinned versions but declares only lower bounds | 🟠 READY | |
-| I-021 | `[DATA]` | 🟡 P2 | Three documents give three different backbone parameter counts | 🟢 CLOSED | measured |
-| I-022 | `[DATA]` | 🟡 P2 | Two sources give different Stage 1 noise adapter epoch counts | 🔴 BLOCKED on Kaggle | |
-| I-023 | `[EXP]` | 🟠 P1 | Libri4Mix was never evaluated and every split used only 30 samples | 🔴 BLOCKED on compute | |
-| I-024 | `[EXP]` | 🟠 P1 | The Stage 2 universal adapter was never trained | 🔴 BLOCKED on compute | |
-| I-025 | `[MODEL]` | 🟠 P1 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition | 🟡 INVESTIGATING | |
-| I-026 | `[TEST]` | 🟡 P2 | No confidence interval or significance test has been run on any result | 🟠 READY | |
-| I-027 | `[CLEANUP]` | ⚪ P3 | `.gitignore` repeats `outputs/` and `pretrained_models/` | 🟢 CLOSED | `8fdcb15` |
-| I-028 | `[ARCH]` | 🟡 P2 | Flat top-level packages shadow standard library and third-party names | 🟠 READY | |
-| I-029 | `[DOC]` | 🟡 P2 | `configs/baseline.yaml` carries an unresolved data-root TODO and a v1 sample rate | 🟠 READY | |
-| I-030 | `[SEC]` | 🟡 P2 | The archive `memory/` directory holds unrelated personal notes | 🟢 CLOSED | `8fdcb15` |
-| I-031 | `[DECISION]` | 🟠 P1 | The project name must change from CALM-Sep | 🔵 IN_PROGRESS | DEC-006 |
-| I-032 | `[PERF]` | ⚪ P3 | CPU inference takes 72 to 116 seconds per 6 second clip | ⚪ OPEN | |
-| I-033 | `[CLEANUP]` | ⚪ P3 | `eval/eval_reverb_adapter.py` hard-codes Lightning AI paths for a banned platform | 🟠 READY | |
-| I-034 | `[EXP]` | 🟡 P2 | Calibration ECE and reliability diagrams were never produced | 🔴 BLOCKED on compute | |
-| I-035 | `[BUG]` | 🟠 P1 | `scripts/run_baseline.py` is a v1 CLI calling functions deleted in July | 🟠 READY | |
-| I-036 | `[BUG]` | 🔴 P0 | Inference passed a gate mapping where an adapter name belongs, randomising every gate | 🟢 CLOSED | `1eb2496` |
-| I-037 | `[BUG]` | 🟠 P1 | The attractor count readout crashed on numpy and counted non-speaker slots | 🟢 CLOSED | `efcc27f` |
-| I-038 | `[ARCH]` | 🟡 P2 | The four calibrators use three serialisation formats, two of them bare pickle | 🟠 READY | |
-| I-039 | `[DOC]` | 🟡 P2 | BLUEPRINT records 17 LoRA attachment points; the measured count is 37 | 🟠 READY | |
+| I-001 | `[SEC]` | 🔴 P0 | Live API credentials present in the supplied archive | 🔴 BLOCKED on owner | [#39](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/39) |
+| I-002 | `[EXP]` | 🔴 P0 | Evaluation supplies the oracle speaker count, so count accuracy is never measured | 🟠 READY | [#40](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/40) |
+| I-003 | `[MODEL]` | 🟠 P1 | Gate temperature 4.9872 flattens the sigmoid and disables condition routing | 🔴 BLOCKED on compute | [#41](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/41) |
+| I-004 | `[BUG]` | 🟠 P1 | `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE` | 🟢 CLOSED | [#42](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/42) |
+| I-005 | `[BUG]` | 🟠 P1 | `eval/matrix.py` imports `si_snr`; the function is `si_sdr` | 🟢 CLOSED | [#43](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/43) |
+| I-006 | `[BUG]` | 🟠 P1 | `CalmSepEngine` and `MockCalmSepWrapper` do not exist | 🟢 CLOSED | [#44](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/44) |
+| I-007 | `[BUG]` | 🟡 P2 | `eval/ablation_gate.py` imports the non-existent `utils.logging` | 🟢 CLOSED | [#45](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/45) |
+| I-008 | `[BUG]` | 🟡 P2 | `train/calibrate.py` imports the non-existent `calibration.fit` | 🟢 CLOSED | [#46](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/46) |
+| I-009 | `[CLEANUP]` | 🟡 P2 | Three modules import v1 CA-MoSE code that no longer exists | 🟢 CLOSED | [#47](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/47) |
+| I-010 | `[BUG]` | 🟡 P2 | `scripts/slice_for_kaggle.py` runs work at import time and hard-codes a data path | 🟢 CLOSED | [#76](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/76) |
+| I-011 | `[BUG]` | 🟠 P1 | CI triggers on `main` while the default branch is `master`, so CI has never run | 🟢 CLOSED | [#48](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/48) |
+| I-012 | `[TASK]` | 🟠 P1 | Recover the uncommitted `run_eval.py` improvements held only in the archive | 🟢 CLOSED | [#49](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/49) |
+| I-013 | `[TASK]` | 🟠 P1 | Recover the uncommitted `demo.py` transcription work held only in the archive | 🟢 CLOSED | [#50](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/50) |
+| I-014 | `[TASK]` | 🟡 P2 | Recover `modal_deploy.py`, which exists nowhere in Git history | 🟢 CLOSED | [#51](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/51) |
+| I-015 | `[EXP]` | 🟠 P1 | Recover the Libri5Mix raw result and the Stage 4 training log from the archive | 🟢 CLOSED | [#52](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/52) |
+| I-016 | `[DOC]` | 🔴 P0 | README results table is empty while verified raw results exist | 🟢 CLOSED | [#53](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/53) |
+| I-017 | `[DOC]` | 🟠 P1 | README repository-structure section describes files that do not exist | 🟢 CLOSED | [#54](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/54) |
+| I-018 | `[DOC]` | 🟠 P1 | `pyproject.toml` still declares the abandoned v1 project | 🟢 CLOSED | [#55](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/55) |
+| I-019 | `[REPRO]` | 🔴 P0 | The `sr_corrnet` backbone had no recorded upstream or license | 🟢 CLOSED | [#56](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/56) |
+| I-020 | `[REPRO]` | 🟠 P1 | `requirements.txt` claims pinned versions but declares only lower bounds | 🟢 CLOSED | [#57](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/57) |
+| I-021 | `[DATA]` | 🟡 P2 | Three documents give three different backbone parameter counts | 🟢 CLOSED | [#58](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/58) |
+| I-022 | `[DATA]` | 🟡 P2 | Two sources give different Stage 1 noise adapter epoch counts | 🔴 BLOCKED on Kaggle | [#59](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/59) |
+| I-023 | `[EXP]` | 🟠 P1 | Libri4Mix was never evaluated and every split used only 30 samples | 🔴 BLOCKED on compute | [#60](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/60) |
+| I-024 | `[EXP]` | 🟠 P1 | The Stage 2 universal adapter was never trained | 🔴 BLOCKED on compute | [#61](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/61) |
+| I-025 | `[MODEL]` | 🟠 P1 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition | 🟡 INVESTIGATING | [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) |
+| I-026 | `[TEST]` | 🟡 P2 | No confidence interval or significance test has been run on any result | 🟠 READY | [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63) |
+| I-027 | `[CLEANUP]` | ⚪ P3 | `.gitignore` repeats `outputs/` and `pretrained_models/` | 🟢 CLOSED | [#64](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/64) |
+| I-028 | `[ARCH]` | 🟡 P2 | Flat top-level packages shadow standard library and third-party names | 🟢 CLOSED | [#65](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/65) |
+| I-029 | `[DOC]` | 🟡 P2 | `configs/baseline.yaml` carries an unresolved data-root TODO and a v1 sample rate | 🟢 CLOSED | [#66](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/66) |
+| I-030 | `[SEC]` | 🟡 P2 | The archive `memory/` directory holds unrelated personal notes | 🟢 CLOSED | [#67](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/67) |
+| I-031 | `[DECISION]` | 🟠 P1 | The project name must change from CALM-Sep | 🟢 CLOSED | [#68](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/68) |
+| I-032 | `[PERF]` | ⚪ P3 | CPU inference takes 72 to 116 seconds per 6 second clip | ⚪ OPEN | [#69](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/69) |
+| I-033 | `[CLEANUP]` | ⚪ P3 | `eval/eval_reverb_adapter.py` hard-codes Lightning AI paths for a banned platform | 🟢 CLOSED | [#70](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/70) |
+| I-034 | `[EXP]` | 🟡 P2 | Calibration ECE and reliability diagrams were never produced | 🔴 BLOCKED on compute | [#71](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/71) |
+| I-035 | `[BUG]` | 🟠 P1 | `scripts/run_baseline.py` is a v1 CLI calling functions deleted in July | 🟢 CLOSED | [#72](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/72) |
+| I-036 | `[BUG]` | 🔴 P0 | Inference passed a gate mapping where an adapter name belongs, randomising every gate | 🟢 CLOSED | [#73](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/73) |
+| I-037 | `[BUG]` | 🟠 P1 | The attractor count readout crashed on numpy and counted non-speaker slots | 🟢 CLOSED | [#74](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/74) |
+| I-038 | `[ARCH]` | 🟡 P2 | The four calibrators use three serialisation formats, two of them bare pickle | 🟠 READY | [#75](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/75) |
+| I-039 | `[DOC]` | 🟡 P2 | BLUEPRINT records 17 LoRA attachment points; the measured count is 37 | 🟠 READY | [#77](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/77) |
 
 ---
 
@@ -81,11 +81,11 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 9
-    "READY" : 17
-    "BLOCKED" : 7
-    "IN_PROGRESS" : 2
-    "INVESTIGATING" : 3
+    "CLOSED" : 27
+    "READY" : 3
+    "BLOCKED" : 6
+    "IN_PROGRESS" : 0
+    "INVESTIGATING" : 2
     "OPEN" : 1
 ```
 
@@ -125,7 +125,7 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 
 ### I-001 [SEC] [P0] Live API credentials present in the supplied archive
 
-**State:** 🔴 BLOCKED , rotation is the project owner's action
+**State:** 🔴 BLOCKED , rotation is the project owner's action · GitHub [#39](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/39)
 
 **Problem.** `CONTEXT.md` in the supplied archive lists working credentials in plain text: a Hugging Face read token, a Hugging Face write token for account `parv0511`, a Kaggle API token for account `rishig777`, and Modal token-id and token-secret values.
 
@@ -152,7 +152,7 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 
 ### I-002 [EXP] [P0] Evaluation supplies the oracle speaker count, so count accuracy is never measured
 
-**State:** 🟠 READY
+**State:** 🟠 READY · GitHub [#40](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/40)
 
 **Problem.** `eval/run_eval.py` derives the speaker count from the LibriMix directory name and passes it to both the baseline and the full system. Speaker count accuracy is the primary graded axis of the project, and no run has ever measured it.
 
@@ -180,7 +180,7 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 
 ### I-003 [MODEL] [P1] Gate temperature 4.9872 flattens the sigmoid and disables condition routing
 
-**State:** 🔴 BLOCKED , needs the Stage 4 checkpoint
+**State:** 🔴 BLOCKED , needs the Stage 4 checkpoint · GitHub [#41](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/41)
 
 **Problem.** Stage 4c fitted a gate temperature of 4.9872 by golden-section search. `sigmoid(logit / 4.9872)` is close to linear near zero, so all three adapter gates sit near 0.5 for every input. The system is a fixed uniform blend of three adapters, not the condition-aware router the architecture claims.
 
@@ -206,7 +206,7 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 
 ### I-004 [BUG] [P1] `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE`
 
-**State:** 🟢 CLOSED , commit `aacca0e`
+**State:** 🟢 CLOSED , commit `aacca0e` · GitHub [#42](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/42)
 
 **Problem.** `models/baseline_runner.py` and `scripts/run_baseline.py` both import `CALMSEP_SR` from `models.preprocess`. That module defines `CALMSEP_SAMPLE_RATE`.
 
@@ -232,7 +232,7 @@ Both modules fail the import sweep. `models/preprocess.py` line 29 defines `CALM
 
 ### I-005 [BUG] [P1] `eval/matrix.py` imports `si_snr`; the function is `si_sdr`
 
-**State:** 🟢 CLOSED , commit `ad4ffb7`
+**State:** 🟢 CLOSED , commit `ad4ffb7` · GitHub [#43](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/43)
 
 **Problem.** `eval/matrix.py` imports `si_snr` from `eval.metrics`, which exports `si_sdr` and `si_sdr_improvement`.
 
@@ -257,7 +257,7 @@ ImportError: cannot import name 'si_snr' from 'eval.metrics'
 
 ### I-006 [BUG] [P1] `CalmSepEngine` and `MockCalmSepWrapper` do not exist; the class is `CalmSepPipeline`
 
-**State:** 🟢 CLOSED , commit `ac42f28`
+**State:** 🟢 CLOSED , commit `ac42f28` · GitHub [#44](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/44)
 
 **Problem.** `eval/baselines.py`, `tests/principle2_test.py`, and `tests/smoke_test.py` import `CalmSepEngine` and `MockCalmSepWrapper` from `pipeline.infer`. That module defines `CalmSepPipeline`, `InferenceCfg`, and `PipelineResult`, and no mock wrapper.
 
@@ -285,7 +285,7 @@ Two of the four tests the README calls blocking or smoke tests fail at collectio
 
 ### I-007 [BUG] [P2] `eval/ablation_gate.py` imports the non-existent `utils.logging`
 
-**State:** 🟢 CLOSED , commit `3a42a94`
+**State:** 🟢 CLOSED , commit `3a42a94` · GitHub [#45](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/45)
 
 **Problem.** `eval/ablation_gate.py` imports `utils.logging`. The `utils` package contains only `config.py` and `hashing.py`.
 
@@ -310,7 +310,7 @@ ModuleNotFoundError: No module named 'utils.logging'
 
 ### I-008 [BUG] [P2] `train/calibrate.py` imports the non-existent `calibration.fit`
 
-**State:** 🟢 CLOSED , commit `3d35204`
+**State:** 🟢 CLOSED , commit `3d35204` · GitHub [#46](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/46)
 
 **Problem.** `train/calibrate.py` imports `calibration.fit`. The `calibration` package contains `temperature.py`, `confidence.py`, `completeness.py`, and `ood.py`.
 
@@ -335,7 +335,7 @@ ModuleNotFoundError: No module named 'calibration.fit'
 
 ### I-009 [CLEANUP] [P2] Three modules import v1 CA-MoSE code that no longer exists
 
-**State:** 🔵 IN_PROGRESS
+**State:** 🟢 CLOSED · GitHub [#47](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/47)
 
 **Problem.** Three modules still reference the abandoned v1 cascade architecture:
 
@@ -364,7 +364,7 @@ ModuleNotFoundError: No module named 'calibration.fit'
 
 ### I-010 [BUG] [P2] `scripts/slice_for_kaggle.py` runs work at import time and hard-codes a data path
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#76](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/76)
 
 **Problem.** The script has no `if __name__ == "__main__"` guard. Importing it starts slicing work immediately. It then fails on a hard-coded relative path.
 
@@ -389,7 +389,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'data\\calmsep-8k\\libri
 
 ### I-011 [BUG] [P1] CI triggers on `main` while the default branch is `master`, so CI has never run
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#48](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/48)
 
 **Problem.** `.github/workflows/ci.yml` triggers on push and pull request against `main`. The repository default branch is `master`. No workflow run has ever been triggered.
 
@@ -413,7 +413,7 @@ FileNotFoundError: [Errno 2] No such file or directory: 'data\\calmsep-8k\\libri
 
 ### I-012 [TASK] [P1] Recover the uncommitted `run_eval.py` improvements held only in the archive
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#49](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/49)
 
 **Problem.** The archive holds a version of `eval/run_eval.py` that is strictly ahead of every branch in the repository and was never committed.
 
@@ -447,7 +447,7 @@ The recovered work:
 
 ### I-013 [TASK] [P1] Recover the uncommitted `demo.py` transcription work held only in the archive
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#50](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/50)
 
 **Problem.** The archive `demo.py` adds 226 lines against 12 removed, relative to the committed version, and exists in no branch.
 
@@ -472,7 +472,7 @@ The recovered work:
 
 ### I-014 [TASK] [P2] Recover `modal_deploy.py`, which exists nowhere in Git history
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#51](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/51)
 
 **Problem.** The archive contains `src/modal_deploy.py`. No path resembling it appears in any commit on any branch.
 
@@ -494,7 +494,7 @@ The recovered work:
 
 ### I-015 [EXP] [P1] Recover the Libri5Mix raw result and the Stage 4 training log from the archive
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#52](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/52)
 
 **Problem.** Two raw evidence artifacts exist only in the archive: `eval_outputs/calmsep_eval_5.json` and `training_logs/calm-sep-stage-4-joint-training.log`.
 
@@ -517,7 +517,7 @@ The Stage 4 log independently confirms the loss curve quoted in `NUMBERS.md` sec
 
 ### I-016 [DOC] [P0] README results table is empty while verified raw results exist
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#53](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/53)
 
 **Problem.** The README results section says results will be populated as training stages complete, and presents a table of five systems with every cell showing an em dash. Raw result artifacts for three of the four LibriMix splits exist and are internally consistent with `NUMBERS.md`.
 
@@ -540,7 +540,7 @@ The Stage 4 log independently confirms the loss curve quoted in `NUMBERS.md` sec
 
 ### I-017 [DOC] [P1] README repository-structure section describes files that do not exist
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#54](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/54)
 
 **Problem.** The repository-structure block lists a test suite that is not the one in the tree, and omits directories that are.
 
@@ -561,7 +561,7 @@ The Stage 4 log independently confirms the loss curve quoted in `NUMBERS.md` sec
 
 ### I-018 [DOC] [P1] `pyproject.toml` still declares the abandoned v1 project
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#55](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/55)
 
 **Problem.** The project metadata describes CA-MoSE, the architecture abandoned on 2026-07-16.
 
@@ -591,7 +591,7 @@ ca-mose-baseline = "scripts.run_baseline:main"
 
 ### I-019 [REPRO] [P0] The `sr_corrnet` backbone is an undeclared external dependency with no provenance
 
-**State:** 🟢 CLOSED , upstream identified and verified installable
+**State:** 🟢 CLOSED , upstream identified and verified installable · GitHub [#56](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/56)
 
 **Problem.** The frozen backbone that the entire architecture wraps is a Python package named `sr_corrnet` that is not vendored, not declared in any dependency file, and not installable from any public index. The only recorded location is a directory under a personal Downloads folder.
 
@@ -639,7 +639,7 @@ The package declares `numpy`, `loguru`, `rotary-embedding-torch`, `pyyaml`, `sou
 
 ### I-020 [REPRO] [P1] `requirements.txt` claims pinned versions but declares only lower bounds
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#57](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/57)
 
 **Problem.** The file header says the dependencies are pinned for reproducible installs. Every line is a lower bound.
 
@@ -672,7 +672,7 @@ The numpy upper bound matters: `CONTEXT.md` records five Modal deployment iterat
 
 ### I-021 [DATA] [P2] Two documents give different backbone parameter counts
 
-**State:** 🟢 CLOSED , measured
+**State:** 🟢 CLOSED , measured · GitHub [#58](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/58)
 
 **Problem.** `CONTEXT.md` states the backbone has 7.4M parameters. `NUMBERS.md` states 13,270,124. Both were written on 2026-09-01 by the same author about the same checkpoint.
 
@@ -710,7 +710,7 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 ### I-022 [DATA] [P2] Two sources give different Stage 1 noise adapter epoch counts
 
-**State:** 🔴 BLOCKED , needs Kaggle access
+**State:** 🔴 BLOCKED , needs Kaggle access · GitHub [#59](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/59)
 
 **Problem.** `NUMBERS.md` records `best_noise.pt` at roughly 40 epochs. The project memory note dated 2026-07-18 records the local `best_noise.pt` as an epoch-2 artifact and states that all three adapters needed retraining.
 
@@ -732,7 +732,7 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 ### I-023 [EXP] [P1] Libri4Mix was never evaluated and every split used only 30 samples
 
-**State:** 🔴 BLOCKED
+**State:** 🔴 BLOCKED · GitHub [#60](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/60)
 
 **Problem.** Three of four required splits were evaluated, each on 30 test clips out of roughly 3,000 available.
 
@@ -755,7 +755,7 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 ### I-024 [EXP] [P1] The Stage 2 universal adapter was never trained
 
-**State:** 🔴 BLOCKED
+**State:** 🔴 BLOCKED · GitHub [#61](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/61)
 
 **Problem.** The architecture uses three condition-specific adapters. The stated justification for three rather than one is the Stage 2 universal-adapter ablation, which was never run.
 
@@ -777,7 +777,7 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 ### I-025 [MODEL] [P1] The Stage 1 reverb adapter degrades SI-SNR in every tested condition
 
-**State:** 🔴 BLOCKED
+**State:** 🔴 BLOCKED · GitHub [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62)
 
 **Problem.** The reverb adapter, trained for 40 epochs, makes output worse than the frozen backbone in all three tested conditions.
 
@@ -812,7 +812,7 @@ The wet-reference hypothesis is the strongest, because it explains the sign of t
 
 ### I-026 [TEST] [P2] No confidence interval or significance test has been run on any result
 
-**State:** 🟠 READY
+**State:** 🟠 READY · GitHub [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63)
 
 **Problem.** `eval/stats.py` implements bootstrap BCa confidence intervals and a Wilcoxon signed-rank test. Neither has been applied to any recorded result.
 
@@ -835,7 +835,7 @@ The wet-reference hypothesis is the strongest, because it explains the sign of t
 
 ### I-027 [CLEANUP] [P3] `.gitignore` repeats `outputs/` and `pretrained_models/`
 
-**State:** 🟢 CLOSED , commit `8fdcb15`
+**State:** 🟢 CLOSED , commit `8fdcb15` · GitHub [#64](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/64)
 
 **Problem.** The last lines of `.gitignore` repeat `outputs/` three times and `pretrained_models/` twice.
 
@@ -855,7 +855,7 @@ The wet-reference hypothesis is the strongest, because it explains the sign of t
 
 ### I-028 [ARCH] [P2] Flat top-level packages shadow standard library and third-party names
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#65](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/65)
 
 **Problem.** The repository puts eleven packages at the top level, including `eval`, `data`, `demo`, `schemas`, `align`, `pipeline`, and `utils`. `eval` shadows nothing in the standard library as a module name but reads as the builtin; `utils`, `schemas`, `data`, and `align` are common enough to collide with installed distributions on `sys.path`.
 
@@ -881,7 +881,7 @@ There is also a name collision inside the repository: `demo.py` and the `demo/` 
 
 ### I-029 [DOC] [P2] `configs/baseline.yaml` carries an unresolved data-root TODO
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#66](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/66)
 
 **Problem.**
 ```yaml
@@ -905,7 +905,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-030 [SEC] [P2] The archive `memory/` directory holds unrelated personal notes
 
-**State:** 🟢 CLOSED , commit `8fdcb15`
+**State:** 🟢 CLOSED , commit `8fdcb15` · GitHub [#67](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/67)
 
 **Problem.** The archive contains twelve agent memory files. Eleven describe projects unrelated to this one, including named third parties, other people's internship deliverables, a commercial venture, and business details of a named company.
 
@@ -927,7 +927,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-031 [DECISION] [P1] The project name must change from CALM-Sep
 
-**State:** 🔵 IN_PROGRESS , see DECISIONS.md DEC-006
+**State:** 🟢 CLOSED · GitHub [#68](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/68)
 
 **Problem.** The project owner has asked for a new name. CALM-Sep also carries a naming inconsistency: `pyproject.toml` still says `ca-mose`, so the tree currently answers to two dead names at once.
 
@@ -951,7 +951,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-032 [PERF] [P3] CPU inference takes 72 to 116 seconds per 6 second clip
 
-**State:** ⚪ OPEN
+**State:** ⚪ OPEN · GitHub [#69](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/69)
 
 **Problem.** Measured wall time is 12 to 20 times slower than real time on CPU.
 
@@ -967,7 +967,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-033 [CLEANUP] [P3] `eval/eval_reverb_adapter.py` hard-codes Lightning AI paths for a banned platform
 
-**State:** 🟠 READY
+**State:** 🟢 CLOSED · GitHub [#70](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/70)
 
 **Problem.** The module's docstring and its `sys.path` search hard-code `/teamspace/studios/this_studio/...`, which is a Lightning AI workspace. `CONTEXT.md` records Lightning AI as permanently banned from the project after the account was deleted on 2026-07-18.
 
@@ -987,7 +987,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-034 [EXP] [P2] Calibration ECE and reliability diagrams were never produced
 
-**State:** 🔴 BLOCKED
+**State:** 🔴 BLOCKED · GitHub [#71](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/71)
 
 **Problem.** Four calibration components are implemented and one is fitted. None has a measured calibration error.
 
@@ -1011,7 +1011,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-035 `[BUG]` P1 `scripts/run_baseline.py` is a v1 CLI calling functions deleted in July
 
-**State:** READY
+**State:** 🟢 CLOSED · GitHub [#72](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/72)
 
 **Problem.** The script imports `BaselineConfig` and `run_baseline` from `models.baseline_runner`. Neither exists. That module exports `run_corpus_transfer_baseline` and `write_baseline_log`.
 
@@ -1036,7 +1036,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-036 `[BUG]` P0 Inference passed a gate mapping where an adapter name belongs, randomising every gate
 
-**State:** CLOSED, commit `1eb2496`
+**State:** CLOSED, commit `1eb2496` · GitHub [#73](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/73)
 
 **Problem.** `CalmSepPipeline._separate_chunk` called `self.lora.forward_context(gate_vec)` with a dict of gate values. `forward_context` takes an adapter **name**.
 
@@ -1052,7 +1052,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-037 `[BUG]` P1 The attractor count readout crashed on numpy and counted non-speaker slots
 
-**State:** CLOSED, commit `efcc27f`
+**State:** CLOSED, commit `efcc27f` · GitHub [#74](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/74)
 
 **Problem.** Two defects in the no-counter fallback of `CalmSepPipeline._three_vote_count`.
 
@@ -1068,7 +1068,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-038 `[ARCH]` P2 The four calibrators use three serialisation formats, two of them bare pickle
 
-**State:** READY
+**State:** READY · GitHub [#75](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/75)
 
 **Problem.** Four classes in one package, four different `save` implementations:
 
@@ -1105,7 +1105,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-039 `[DOC]` P2 BLUEPRINT records 17 LoRA attachment points; the measured count is 37
 
-**State:** READY
+**State:** READY · GitHub [#77](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/77)
 
 **Problem.** `docs/decisions.md`, entry dated 2026-07-17, states "Primary LoRA attach set = 17 QKV+filter layers; Matches BLUEPRINT section 5.3 layer count". The measured count is 37.
 

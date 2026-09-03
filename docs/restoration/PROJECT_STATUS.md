@@ -2,9 +2,9 @@
 
 **Purpose:** one-page answer to "what shape is this project in right now".
 
-**Status:** [AMBER]
+**Status:** 🟠 AMBER. Every defect that does not need compute is fixed. What remains is scientific, not mechanical.
 
-**Last verified:** 2026-09-02
+**Last verified:** 2026-09-04
 
 **Source of truth:** the commands recorded in `VALIDATION_MATRIX.md`, run on this machine.
 
@@ -12,30 +12,26 @@
 
 ## Summary in three sentences
 
-The codebase is more complete and more honest than its own README suggests: seven training stages, a full evaluation harness, a calibration suite, an inference pipeline, a Gradio demo and 513 tests all exist, and 504 of those tests pass. What is broken is mostly connective tissue, ten import failures caused by symbol renames that were never propagated, surviving because the CI workflow watches a branch that does not exist. What is genuinely unresolved is scientific rather than mechanical: the primary graded axis of the project, speaker count accuracy, has never been measured, because every evaluation run so far handed the true speaker count to both systems.
-
----
+The codebase was in better shape than its own documentation suggested, and it is now in better shape than that: 563 tests pass with nothing uncollectable, every module in the package imports, and lint and formatting are clean. Twenty-seven of the thirty-nine problems found are closed, most of them connective tissue that survived because CI had been watching a branch that does not exist for 158 commits. What remains unresolved is scientific rather than mechanical, and it is dominated by one fact: the primary graded axis of this project, speaker count accuracy, has never been measured, because every evaluation run handed the true count to both systems.
 
 ## Health by dimension
 
 | Dimension | Status | Evidence |
 |---|---|---|
-| Repository integrity | [GREEN] | 158 commits, 13 branches reconciled, no divergence, no history damage, no secrets committed |
-| Archive reconciliation | [GREEN] | 20 of 21 archive source files identical to `master`; 3 recoverable items identified |
-| Environment | [RED] | `sr_corrnet` backbone loader is undeclared and unobtainable (I-019); requirements are unpinned despite claiming otherwise (I-020) |
-| Import and runtime integrity | [AMBER] | 83 of 93 modules import; 10 fail on renamed symbols and v1 residue (I-004 to I-010) |
-| Data pipeline | [AMBER] | 26 modules, all import, 6,834 lines, well tested; no dataset present locally and one config carries an unresolved TODO (I-029) |
-| Model | [AMBER] | All architecture modules import and are unit-tested; the reverb adapter is measurably harmful (I-025) and the gate does not route (I-003) |
-| Training | [AMBER] | All seven stage scripts import; Stage 2 was never run (I-024); Stage 4 stopped at epoch 14 of 20 |
-| Inference | [RED] | `pipeline/infer.py` imports, but nothing can run without the backbone (I-019) |
-| Evaluation | [RED] | `eval/matrix.py`, `eval/baselines.py` and `eval/ablation_gate.py` do not import; results carry oracle speaker count (I-002) |
-| Tests | [AMBER] | 504 pass, 10 skip, 3 modules fail to collect (I-006, I-009) |
-| CI | [RED] | Configured for `main`, default branch is `master`, has never executed (I-011) |
-| Reproducibility | [RED] | Cannot be attempted; backbone, checkpoints and datasets are all external and only partly documented |
-| Documentation | [AMBER] | Deep and unusually honest where it exists (`NUMBERS.md`, `PROJECT_HISTORY.md`), but the README contradicts it and the package metadata still names a project abandoned in July (I-016, I-017, I-018) |
-| Security | [AMBER] | Repository is clean; the supplied archive carries five live credentials that must be rotated (I-001) |
-
----
+| Repository integrity | 🟢 GREEN | 13 branches reconciled, no divergence, no history damage, no secrets committed |
+| Archive reconciliation | 🟢 GREEN | all four archive-only artifacts recovered and committed |
+| Environment | 🟢 GREEN | backbone pinned by commit and verified installable; every runtime import declared and enforced by a test |
+| Import and runtime integrity | 🟢 GREEN | 94 of 94 modules import in an environment with the backbone installed |
+| Data pipeline | 🟢 GREEN | all modules import, preparation split into its own subpackage, config placeholders resolved |
+| Model | 🟠 AMBER | architecture verified and parameter counts measured; the reverb adapter is measurably harmful (I-025) and the gate does not route (I-003) |
+| Training | 🟠 AMBER | all seven stage scripts import; Stage 2 was never run (I-024); Stage 4 stopped at epoch 14 of 20 with loss still falling |
+| Inference | 🟢 GREEN | the full pipeline runs end to end against a mock expert, which it could not do before |
+| Evaluation | 🟠 AMBER | every evaluation module imports; results still carry the oracle speaker count (I-002) |
+| Tests | 🟢 GREEN | 563 passed, 11 skipped, nothing uncollectable, up from 504 with three broken modules |
+| CI | 🟢 GREEN | triggers on `master`, three jobs, import sweep and credential scan |
+| Reproducibility | 🟠 AMBER | a clean environment can now obtain the backbone and run the suite; past results still cannot be tied to specific weights, since no checkpoint has a hash |
+| Documentation | 🟢 GREEN | README and knowledge base rewritten against the artifacts; every number traces to a file in `results/` |
+| Security | 🟠 AMBER | repository clean and guarded by a pre-commit hook and a CI job; the five archive credentials still need rotating by the owner (I-001) |
 
 ## What is verified, and what only looks verified
 
@@ -58,19 +54,19 @@ The codebase is more complete and more honest than its own README suggests: seve
 
 ## Current blockers
 
-1. **I-019, backbone provenance.** `sr_corrnet` is not installable. Everything downstream of the backbone is unrunnable and unverifiable until its upstream source and license are known. This needs the project owner, not more investigation.
-2. **I-001, credential rotation.** Five live tokens are in the supplied archive. Rotation is the owner's action.
-3. **Compute.** No GPU, no checkpoints and no datasets on this machine. Every ticket that needs a training run or a full evaluation is out of reach here and is marked [BLOCKED] for that reason rather than for a technical one.
+None of these is a blocker on knowledge. Each is a blocker on access.
 
----
+1. **Compute.** No GPU here. Nine open tickets need a training run or a full evaluation.
+2. **Kaggle credentials.** Every checkpoint lives in datasets under one account. Reading the epoch field out of a Stage 1 checkpoint would settle I-022 in minutes.
+3. **I-001, credential rotation.** Five live tokens sit in the supplied archive. None reached the repository. Rotation is the owner's action.
 
 ## Highest value next work, in order
 
-1. Repair the ten import failures (I-004 to I-010). No compute needed, mechanical, and it unblocks CI.
-2. Recover the three uncommitted archive files (I-012, I-013, I-014) before the archive is the only copy.
-3. Fix CI so the default branch is actually gated (I-011).
-4. Reconcile the README with the artifacts (I-016, I-017, I-018).
-5. Rename and restructure (I-031, I-028).
-6. Then, and only with compute available, the scientific backlog: oracle N removal, Libri4Mix, larger n, confidence intervals, Stage 2 ablation.
+1. **Read the Stage 1 reverb training target** (I-025). No compute needed. If the reference signal is the wet one, that explains the strongest negative result in the project, and possibly the flat gate as well.
+2. **Remove the oracle speaker count from evaluation** (I-002). The counting mechanism and the metrics both already exist and are tested. The code half can be written and unit-tested here.
+3. **Retain per-sample scores in the result artifact** (I-026), so confidence intervals become possible at all.
+4. Then, with compute: rerun all four splits at n of at least 300, train Stage 2 for the ablation, measure calibration error.
 
-The first four cost nothing but care and make every later step verifiable.
+Steps 1 to 3 need nothing but a laptop, and doing them first means the eventual GPU run answers the right question. A rerun that still supplies the oracle count would produce another set of numbers about the wrong thing.
+
+See [`../../ISSUES.md`](../../ISSUES.md) for what each open ticket would cost to close.

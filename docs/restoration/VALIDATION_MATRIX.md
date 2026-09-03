@@ -4,7 +4,7 @@
 
 **Status:** [AMBER] Static and unit-level validation complete. Everything requiring the backbone, a checkpoint or a dataset is unreachable on this machine.
 
-**Last verified:** 2026-09-02
+**Last verified:** 2026-09-04
 
 **Environment for every row below.** Windows 11, Python 3.14.3, torch 2.10.0+cpu, torchaudio 2.11.0+cpu, numpy 2.4.3, scipy 1.17.1, CPU only, no GPU. `speechbrain`, `asteroid`, `pyroomacoustics` and `sr_corrnet` are absent. No training was run.
 
@@ -32,7 +32,25 @@
 | V-16 | Hygiene | TODO, FIXME and placeholder markers | grep across `*.py`, `*.yaml`, `*.md` | reviewed | 13 hits, 1 actionable | [PASS] see I-029 |
 | V-17 | Results | Documented numbers versus raw artifacts | manual read of `calmsep_eval.json` and `calmsep_eval_5.json` against `NUMBERS.md` | agreement | exact agreement to 3 decimal places on all 12 values | [PASS] |
 | V-18 | Results | Documented Stage 4 loss curve versus the raw log | manual read of the Kaggle log against `NUMBERS.md` section 3.3 | agreement | exact agreement on all 11 recorded epochs | [PASS] |
-| V-19 | CI | Workflow trigger matches the default branch | read `.github/workflows/ci.yml` against `git branch -a` | match | workflow watches `main`, default is `master` | [FAIL] see I-011 |
+| V-19 | CI | Workflow trigger matches the default branch | read `.github/workflows/ci.yml` against `git branch -a` | match | workflow watched `main`, default is `master` | 🔴 FAIL, fixed in `df16162` |
+
+### After repair, 2026-09-04
+
+Same machine, with the backbone package installed into an isolated directory.
+
+| # | Area | Check | Actual | Status |
+|---|---|---|---|---|
+| V-20 | Environment | Backbone installs from its pinned commit | installs cleanly | 🟢 PASS |
+| V-21 | Model | Backbone loads and patches A, B and C apply | loads | 🟢 PASS |
+| V-22 | Model | Backbone parameter count | **14,031,768** | 🟢 PASS, corrects three documents |
+| V-23 | Model | LoRA attachment count and adapter size | 37 modules, 101,404 params each | 🟢 PASS |
+| V-24 | Imports | Every module in the package imports | 94 of 94 | 🟢 PASS |
+| V-25 | Tests | Full suite, no exclusions | **563 passed, 11 skipped** | 🟢 PASS |
+| V-26 | Lint | `ruff check .` | All checks passed | 🟢 PASS |
+| V-27 | Lint | `black --check .` | 153 files unchanged | 🟢 PASS |
+| V-28 | Repro | Every third-party import is declared | 6 passed | 🟢 PASS |
+| V-29 | Security | Credential scan of the tracked tree | no match | 🟢 PASS |
+| V-30 | Hygiene | No em dashes in tracked source or documentation | none outside the raw evidence logs | 🟢 PASS |
 
 ---
 
@@ -81,11 +99,14 @@ Recorded so that absence is not mistaken for failure.
 Any change made from here must leave this unchanged or better:
 
 ```
-pytest tests/ -q --ignore=tests/principle2_test.py --ignore=tests/smoke_test.py --ignore=tests/test_cached_dataset.py
-504 passed, 10 skipped, 2 warnings
+pytest tests/ -q          563 passed, 11 skipped
+ruff check .              All checks passed
+black --check .           153 files would be left unchanged
 ```
 
-and must not increase the import failure count above ten. Both numbers are re-measured after every commit and recorded in `WORKLOG.md`.
+No module in the package may fail to import, and no test module may fail to collect. All of it is re-measured after every commit and recorded in `WORKLOG.md`.
+
+The original baseline, kept for comparison: 504 passed with three modules uncollectable, and ten import failures across 93 modules.
 
 ---
 

@@ -4,7 +4,7 @@
 
 **Status:** [AMBER] Inventoried and reconciled. Baseline established. Repair not started.
 
-**Last verified:** 2026-09-02
+**Last verified:** 2026-09-04
 
 **Source of truth for this document:** direct inspection of the cloned repository, the supplied ZIP archive, and executed commands recorded in `VALIDATION_MATRIX.md`.
 
