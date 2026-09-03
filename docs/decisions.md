@@ -1,5 +1,17 @@
 # Architecture decision log
 
+> 🕰️ **Historical record, not edited.** Entries run from 2026-07-09 to 2026-07-17 and
+> use the project names in force at the time: CA-MoSE for the abandoned cascade,
+> then CALM-Sep. The project is now CoRAL-Sep. The old names are left in place
+> because rewriting a dated decision log falsifies the record.
+>
+> Decisions taken from 2026-09-02 onward, with full context and consequences,
+> live in [restoration/DECISIONS.md](restoration/DECISIONS.md).
+>
+> One entry is known to be wrong: the 2026-07-17 line stating 17 LoRA attachment
+> points. The measured count is 37. Tracked as I-039; a dated correction will be
+> appended rather than the original entry edited.
+
 | Date | Decision | Reason |
 |------|----------|--------|
 | 2026-07-09 | `SeparationResult` dataclass in `schemas/separation_result.py` is the single shared output type | Prevents ad-hoc result objects across experts, fusion, eval, and demo |

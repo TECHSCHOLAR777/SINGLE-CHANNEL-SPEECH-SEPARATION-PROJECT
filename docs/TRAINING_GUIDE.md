@@ -1,4 +1,4 @@
-# CALM-Sep Training Guide
+# CoRAL-Sep Training Guide
 
 End-to-end training sequence from raw data to a calibrated, deployable pipeline.
 All notebooks are in `notebooks/` and target Kaggle T4/P100 GPUs.
@@ -24,12 +24,12 @@ REPO_PATH  = "/kaggle/input/calmsep-code" # this codebase
 
 ---
 
-## Phase 0 — Data preparation (run once, CPU job)
+## Phase 0, Data preparation (run once, CPU job)
 
 These scripts must complete **before** any training notebook.
 Run them locally or in a CPU-only Kaggle session. They do not require GPU.
 
-### Step 0.1 — LibriSpeech → 8 kHz
+### Step 0.1, LibriSpeech → 8 kHz
 
 ```bash
 python data/prepare_librispeech_8k.py \
@@ -40,7 +40,7 @@ python data/prepare_librispeech_8k.py \
 
 Writes `manifest.json` used by the mixer and eval generator.
 
-### Step 0.2 — Stage noise (WHAM! + DNS-4)
+### Step 0.2, Stage noise (WHAM! + DNS-4)
 
 ```bash
 # WHAM! + DNS-4 at 8 kHz and 16 kHz side-by-side
@@ -55,7 +55,7 @@ python data/prepare_dns4.py \
     --target-gb 20
 ```
 
-### Step 0.3 — BUT ReverbDB (measured RIRs)
+### Step 0.3, BUT ReverbDB (measured RIRs)
 
 ```bash
 python data/prepare_but_reverbdb.py \
@@ -64,7 +64,7 @@ python data/prepare_but_reverbdb.py \
 
 Downloads SLR17 from OpenSLR, resamples to 8 kHz, writes `but_bank.json`.
 
-### Step 0.4 — Simulated RIR bank
+### Step 0.4, Simulated RIR bank
 
 ```bash
 python -c "
@@ -73,7 +73,7 @@ build_rir_bank(n_rooms=2000, out_path='data/rirs/bank.json')
 "
 ```
 
-### Step 0.5 — Fixed evaluation manifests
+### Step 0.5, Fixed evaluation manifests
 
 Pre-built JSONL manifests are already committed in `data/fixed_eval/` (16 files).
 If you need to regenerate them:
@@ -88,7 +88,7 @@ python data/fixed_eval_generator.py \
 
 ---
 
-## Phase 1 — Stage 1: Single-adapter training
+## Phase 1, Stage 1: Single-adapter training
 
 **Notebook:** `notebooks/stage1_train_adapter.ipynb`
 **Runs:** 3 times (once per adapter)
@@ -110,7 +110,7 @@ Change `ADAPTER_NAME` and `CONFIG_PATH` at the top of the notebook for each run.
 
 **Key hyperparameters (from config):**
 - LR = 1e-4, epochs = 40, batch = 8
-- Co-activation gate for inactive adapters: U(0.0, 0.2) — do not change
+- Co-activation gate for inactive adapters: U(0.0, 0.2), do not change
 - Severity holdout: T60 > 0.9 s for reverb; SNR < −4 dB for noise (10% allowed)
 - Codec held-out combos: `reverb+codec`, `noise+codec` never seen here
 
@@ -121,7 +121,7 @@ Adapter keys: [...]   # should list A and B matrices for each target module
 
 ---
 
-## Phase 1b — Stage 2: Universal adapter baseline (decision gate)
+## Phase 1b, Stage 2: Universal adapter baseline (decision gate)
 
 **Notebook:** `notebooks/stage2_universal.ipynb`  
   *(also available as `notebooks/P1b_train_universal_adapter.ipynb` for reference)*
@@ -140,7 +140,7 @@ Record the verdict in `docs/decisions.md`.
 
 ---
 
-## Phase 2 — Stage 3: Gate + Level-2 analyzer
+## Phase 2, Stage 3: Gate + Level-2 analyzer
 
 **Notebook:** `notebooks/stage3_gate.ipynb`
 **GPU time:** ~4–6 hours on T4
@@ -168,7 +168,7 @@ level2_analyzer.pt: OK
 
 ---
 
-## Phase 3 — Stage 4: Joint fine-tuning
+## Phase 3, Stage 4: Joint fine-tuning
 
 **Notebook:** `notebooks/stage4_joint.ipynb`
 **GPU time:** ~10–14 hours on T4 / 8–10 hours on P100
@@ -181,11 +181,11 @@ Fine-tunes all components together: adapters + gate + Level-2 analyzer.
 STAGE1_DIR     = "/kaggle/working/adapters"
 STAGE3_DIR     = "/kaggle/working/gate"
 CHECKPOINT_DIR = "/kaggle/working/joint"
-LR             = 1e-5   # MUST be exactly 1/10 of Stage 1 LR — do not change
+LR             = 1e-5   # MUST be exactly 1/10 of Stage 1 LR, do not change
 ```
 
 **Key hyperparameters:**
-- LR = **1e-5** (1/10 of Stage 1 — hardcoded by blueprint)
+- LR = **1e-5** (1/10 of Stage 1, hardcoded by blueprint)
 - Epochs = 20, batch = 8
 - `--use-olora` flag: adds O-LoRA cross-adapter interference penalty (recommended)
 - Held-out combos still withheld: `reverb+codec`, `noise+codec`
@@ -201,7 +201,7 @@ joint_level2_analyzer.pt: OK
 
 ---
 
-## Phase 4 — Calibration fitting
+## Phase 4, Calibration fitting
 
 **Script:** `train/calibrate.py` (CLI, no notebook)
 **Prerequisites:** Stage 4 joint checkpoints
@@ -212,19 +212,19 @@ joint_level2_analyzer.pt: OK
 # Dry-run on synthetic data (smoke test)
 python -m train.calibrate --dry-run --out-dir calibration/artifacts
 
-# Real run — replace synthetic data in calibrate.py with held-out dumps from Stage 4
+# Real run, replace synthetic data in calibrate.py with held-out dumps from Stage 4
 python -m train.calibrate --out-dir calibration/artifacts
 ```
 
 Writes artifacts to `calibration/artifacts/`:
-- `temperature.pt` — temperature scalar
-- `confidence_isotonic.pkl` — isotonic regressor
-- `completeness_platt.pkl` — Platt sigmoid
-- `mahalanobis_ood.pkl` — Mahalanobis OOD detector
+- `temperature.pt`, temperature scalar
+- `confidence_isotonic.pkl`, isotonic regressor
+- `completeness_platt.pkl`, Platt sigmoid
+- `mahalanobis_ood.pkl`, Mahalanobis OOD detector
 
 ---
 
-## Phase 5 — Evaluation
+## Phase 5, Evaluation
 
 **Notebook:** `notebooks/eval_matrix.ipynb`
 **GPU time:** ~2–4 hours on T4
@@ -245,9 +245,9 @@ DNSMOS_MODEL   = None  # path to sig_bak_ovrl.onnx for DNSMOS, else None
 ```
 
 **Outputs:**
-- `results/eval_matrix.jsonl` — per-mixture records
-- `results/summary.csv` — aggregated by (condition, N)
-- `results/bootstrap_ci.json` — 95% BCa confidence intervals (BLUEPRINT §9.1)
+- `results/eval_matrix.jsonl`, per-mixture records
+- `results/summary.csv`, aggregated by (condition, N)
+- `results/bootstrap_ci.json`, 95% BCa confidence intervals (BLUEPRINT §9.1)
 
 **Metrics computed:** SI-SDRi, SDRi, DNSMOS (if model available), count accuracy,
 completeness probability, OOD flag rate, cardinality-aware score (§9.2).
@@ -341,7 +341,7 @@ diagnostics JSON panel with count estimate, completeness probability, and OOD fl
 |---------|-----|
 | `CUDA out of memory` in Stage 4 | Reduce `BATCH_SIZE` to 4; gradient accumulation × 2 |
 | `FileNotFoundError` on RIR bank | Run Phase 0.3–0.4 first; check `but_bank.json` exists |
-| `AttributeError: ood_flag` in demo | Ensure `schemas/separation_result.py` has CALM-Sep fields (already in integration branch) |
+| `AttributeError: ood_flag` in demo | Ensure `schemas/separation_result.py` has CoRAL-Sep fields (already in integration branch) |
 | Stage 3 gate output always `[0,0,0]` | Check `in_dim=10` in `configs/gate.yaml`; Level-1 + Level-2 must both feed the gate |
 | BCa bootstrap `nan` CIs | Need ≥ 50 samples per bucket; increase `n_per_bucket` in `configs/eval.yaml` |
 | `SSInference.from_pretrained` crash | Ensure `checkpoint_path=` kwarg is used, not `config=` (known upstream quirk) |

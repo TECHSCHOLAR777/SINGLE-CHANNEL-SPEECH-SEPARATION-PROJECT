@@ -3,8 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CALM-Sep — Condition-Aware LoRA Mixture Speech Separation</title>
-<meta name="description" content="CALM-Sep achieves +1.76 dB SI-SDR over SR-CorrNet baseline by dynamically routing speech mixtures through condition-specific LoRA adapters.">
+<title>CoRAL-Sep, Condition-Aware LoRA Mixture Speech Separation</title>
+<meta name="description" content="CoRAL-Sep achieves +1.76 dB SI-SDR over SR-CorrNet baseline by dynamically routing speech mixtures through condition-specific LoRA adapters.">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -445,7 +445,7 @@ footer {
   <h1 class="display-muted">hear each one clearly.</h1>
 
   <p class="hero-sub">
-    CALM-Sep dynamically routes each mixture through condition-specific LoRA adapters —
+    CoRAL-Sep dynamically routes each mixture through condition-specific LoRA adapters ,
     achieving <strong>+1.76 dB SI-SDR</strong> over the SR-CorrNet baseline
     on LibriMix benchmarks.
   </p>
@@ -503,7 +503,7 @@ footer {
         </div>
         <table class="btable">
           <thead>
-            <tr><th>Metric</th><th>SR-CorrNet</th><th>CALM-Sep</th><th>Δ</th></tr>
+            <tr><th>Metric</th><th>SR-CorrNet</th><th>CoRAL-Sep</th><th>Δ</th></tr>
           </thead>
           <tbody>
             <tr><td>SI-SDR</td><td class="td-base">5.60 dB</td><td class="td-calm">7.36 dB</td><td class="td-delta">+1.76</td></tr>
@@ -519,7 +519,7 @@ footer {
         </div>
         <table class="btable">
           <thead>
-            <tr><th>Metric</th><th>SR-CorrNet</th><th>CALM-Sep</th><th>Δ</th></tr>
+            <tr><th>Metric</th><th>SR-CorrNet</th><th>CoRAL-Sep</th><th>Δ</th></tr>
           </thead>
           <tbody>
             <tr><td>SI-SDR</td><td class="td-base">5.75 dB</td><td class="td-calm">7.49 dB</td><td class="td-delta">+1.74</td></tr>
@@ -541,7 +541,7 @@ footer {
       <div class="pipe-card">
         <span class="pipe-n">Stage 01</span>
         <span class="pipe-name">Adapter Training</span>
-        <span class="pipe-desc">Three condition-specific LoRA adapters — reverb, noise, codec — trained independently on augmented LibriSpeech mixtures.</span>
+        <span class="pipe-desc">Three condition-specific LoRA adapters, reverb, noise, codec, trained independently on augmented LibriSpeech mixtures.</span>
       </div>
       <div class="pipe-card">
         <span class="pipe-n">Stage 02</span>
@@ -572,7 +572,7 @@ footer {
       <div class="demo-icon">🎙️</div>
       <p class="demo-card-title">Run the full interactive demo locally</p>
       <p class="demo-card-body">
-        The separation backend requires PyTorch. Clone the repo and start the Gradio app in one command — checkpoints are included.
+        The separation backend requires PyTorch. Clone the repo and start the Gradio app in one command, checkpoints are included.
       </p>
       <div style="background:#050505;border:1px solid rgba(255,255,255,0.07);border-radius:10px;padding:1rem 1.25rem;width:100%;max-width:520px;text-align:left;">
         <p style="font-size:0.65rem;letter-spacing:0.12em;text-transform:uppercase;color:#2a2a2a;margin-bottom:0.6rem;">Terminal</p>

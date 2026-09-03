@@ -1,15 +1,15 @@
-# CALM-Sep: Condition-Aware LoRA Mixture for Multi-Speaker Speech Separation
+# CoRAL-Sep: Condition-Routed Adapter Library for Speech Separation
 
 ## Master Project Blueprint and Source of Truth
 
-This document is the complete and self-contained description of the CALM-Sep project. It defines the problem, the scientific and engineering ideas behind the solution, the full system architecture, the data plan, the training plan, the evaluation plan, the development roadmap, the risks, and the alternatives that were considered and rejected. A reader who has never seen any earlier material on this project should be able to understand it fully, and a developer or an autonomous coding agent should be able to build the system from this document alone. Every mechanism in this document carries either a concrete default value or an explicit procedure for choosing one.
+This document is the complete and self-contained description of the CoRAL-Sep project. It defines the problem, the scientific and engineering ideas behind the solution, the full system architecture, the data plan, the training plan, the evaluation plan, the development roadmap, the risks, and the alternatives that were considered and rejected. A reader who has never seen any earlier material on this project should be able to understand it fully, and a developer or an autonomous coding agent should be able to build the system from this document alone. Every mechanism in this document carries either a concrete default value or an explicit procedure for choosing one.
 
 > **Fixed constraints (never revisited):**
-> - **Base checkpoint:** `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk` — downloaded once, frozen forever. The backbone is never fine-tuned, never modified, and no Stage 0 training is performed.
+> - **Base checkpoint:** `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk`, downloaded once, frozen forever. The backbone is never fine-tuned, never modified, and no Stage 0 training is performed.
 > - **Speaker count:** N = 2–5 only. There is no 6-or-7-speaker regime in this project.
 > - **Sample rate:** 8 kHz, locked by the checkpoint (128-sample STFT window, 64-sample hop). The system operates entirely at 8 kHz internally.
 > - **Quality patch:** Band recovery (Option B) is the fixed quality path for bandwidth extension to 16 kHz output. There is no Option A (backbone retraining) and no Option C.
-> - **New trainable parameters:** Condition analyzer, gate MLP, counting fusion, calibration heads, and the three LoRA adapter libraries — approximately 3–4 M parameters total against a 13.6 M parameter frozen base.
+> - **New trainable parameters:** Condition analyzer, gate MLP, counting fusion, calibration heads, and the three LoRA adapter libraries, approximately 3–4 M parameters total against a 13.6 M parameter frozen base.
 > - **Compute:** Not a problem. No base training. The largest single training run is one adapter (~0.4–0.8 M parameters) for 20–40 GPU-hours on free-tier hardware.
 
 ---
@@ -57,7 +57,7 @@ Everything else is a bonus. This ordering governs every design decision: wheneve
 
 ### 1.3 The central idea in one paragraph
 
-The project takes one strong pretrained speech separation network — SR-CorrNet var-2-5 — freezes it completely, and teaches it to handle adverse conditions through a library of three small plug-in adapters called LoRA modules. Each adapter specializes in one condition: reverberation, background noise, or codec artifacts. A lightweight two-level condition analyzer inspects each chunk using raw signal statistics and neural features, estimates how much of each condition is present, and blends the adapters into the frozen network in proportion to those strengths. The blending happens inside the weight matrices before any audio is produced, so the system always runs one forward pass and always emits one coherent set of output voices. Adapters are trained with co-activation warm-up so that they compose cleanly, and they are jointly fine-tuned at Stage 4 on compound-condition data — this joint stage is mandatory. A band recovery head extends the 0–4 kHz 8 kHz output to 0–8 kHz audio at 16 kHz sample rate for perceptual quality. A dedicated residual-energy completeness detector, bounded to three sweep candidates, guards against missed speakers.
+The project takes one strong pretrained speech separation network, SR-CorrNet var-2-5, freezes it completely, and teaches it to handle adverse conditions through a library of three small plug-in adapters called LoRA modules. Each adapter specializes in one condition: reverberation, background noise, or codec artifacts. A lightweight two-level condition analyzer inspects each chunk using raw signal statistics and neural features, estimates how much of each condition is present, and blends the adapters into the frozen network in proportion to those strengths. The blending happens inside the weight matrices before any audio is produced, so the system always runs one forward pass and always emits one coherent set of output voices. Adapters are trained with co-activation warm-up so that they compose cleanly, and they are jointly fine-tuned at Stage 4 on compound-condition data, this joint stage is mandatory. A band recovery head extends the 0–4 kHz 8 kHz output to 0–8 kHz audio at 16 kHz sample rate for perceptual quality. A dedicated residual-energy completeness detector, bounded to three sweep candidates, guards against missed speakers.
 
 ### 1.4 Why this shape of solution
 
@@ -66,12 +66,12 @@ Real recordings rarely contain a single, isolated difficulty. Two families of so
 - A bank of separate specialist models with a switch fails because conditions co-occur; combining audio outputs across models is ill-posed.
 - A single model fine-tuned on everything tends to average its behavior across conditions.
 
-The adapter-mixture design takes the good part of both: specialist capacity per condition, and a single shared backbone so there is never any output-merging problem. The backbone never changes — all routing decisions produce streams from the same split, with the same speaker identities.
+The adapter-mixture design takes the good part of both: specialist capacity per condition, and a single shared backbone so there is never any output-merging problem. The backbone never changes, all routing decisions produce streams from the same split, with the same speaker identities.
 
 ### 1.5 Project deliverables
 
 1. **A working system**: documented codebase, CLI entry point, Gradio demo.
-2. **A trained model bundle**: frozen base checkpoint, adapter library (3 adapters), condition analyzer, gate network, band recovery head, calibration parameters — all versioned and hashed.
+2. **A trained model bundle**: frozen base checkpoint, adapter library (3 adapters), condition analyzer, gate network, band recovery head, calibration parameters, all versioned and hashed.
 3. **An evaluation report**: the full measurement matrix in Section 9 with statistical error bars.
 4. **A demonstration**: Gradio page with optional Whisper transcripts and condition routing visualization.
 
@@ -119,7 +119,7 @@ This project routes continuously: the router outputs a strength in [0, 1.5] per 
 
 ### 2.8 Disentanglement and why the condition embedding must be supervised
 
-The condition analyzer produces a vector where each dimension is supervised against a known target (SNR, T60, codec class, voiced-frame density). This supervision is mandatory because an end-to-end-only condition vector would find degenerate shortcuts — most commonly activating every adapter at medium strength for every input. Supervised dimensions are individually inspectable: a routing failure can be traced to a wrong T60 estimate.
+The condition analyzer produces a vector where each dimension is supervised against a known target (SNR, T60, codec class, voiced-frame density). This supervision is mandatory because an end-to-end-only condition vector would find degenerate shortcuts, most commonly activating every adapter at medium strength for every input. Supervised dimensions are individually inspectable: a routing failure can be traced to a wrong T60 estimate.
 
 ### 2.9 Calibration, ECE, and temperature scaling
 
@@ -168,9 +168,9 @@ E(0) → TF-Encoder (B_E=2 blocks) → coarse separation features
 
 The dynamic split module determines speaker count inside the model. A stack of Transformer decoder blocks holds `K0+1` learnable query vectors. These cross-attend to the encoder output and produce `K0+1` attractor vectors. Each attractor yields an existence probability `p_k` via a linear layer and sigmoid.
 
-**K0 specification:** `K0=5` is set in the frozen checkpoint (`max_n_spks: 5` in the YAML config). The learnable `spk_query` parameter has shape `(1, 7, 128)` — 7 slots where slot 0 is a residual/bookkeeping slot, slots 1–5 are the actual speaker existence slots, and slot 6 is an overflow slot. This shape is baked into the checkpoint weights and is never changed by any component of this project.
+**K0 specification:** `K0=5` is set in the frozen checkpoint (`max_n_spks: 5` in the YAML config). The learnable `spk_query` parameter has shape `(1, 7, 128)`, 7 slots where slot 0 is a residual/bookkeeping slot, slots 1–5 are the actual speaker existence slots, and slot 6 is an overflow slot. This shape is baked into the checkpoint weights and is never changed by any component of this project.
 
-**`p_k` index convention:** `pres["probs"]` has shape `(1, 7)`. The active speaker existence probabilities are at indices 1 through 5 (`probs[0, 1:6]`). A speaker is considered active when its probability exceeds `prob_thres=0.5`. This threshold is **hardcoded** in `AttractorSplit.forward` — expose it as a configurable parameter before the calibration stage (Section 8.5).
+**`p_k` index convention:** `pres["probs"]` has shape `(1, 7)`. The active speaker existence probabilities are at indices 1 through 5 (`probs[0, 1:6]`). A speaker is considered active when its probability exceeds `prob_thres=0.5`. This threshold is **hardcoded** in `AttractorSplit.forward`, expose it as a configurable parameter before the calibration stage (Section 8.5).
 
 **Batch size constraint:** `AttractorSplit.forward` contains `assert x.size(0) == 1` when `n_spks=None`. Unknown-speaker inference is strictly single-sample only. This cannot be changed without modifying the checkpoint's `AttractorSplit` logic.
 
@@ -205,8 +205,8 @@ Published performance on clean benchmarks: 100.0 / 99.7 / 97.7 / 96.9 percent co
 | Status | Never modified |
 | Local path after download | `sr_corrnet/checkpoints/SS/1ch_WSJ_var_2_5spk/model.pt` |
 | Download command | `python sr_corrnet/export.py --download --variant SS --config 1ch_WSJ_var_2_5spk.yaml` |
-| Checkpoint file format | Bare `OrderedDict` (no `model_state_dict` wrapper key) — `from_pretrained` handles this |
-| `load_state_dict` mode | `strict=False` — adding new LoRA params before loading is safe; they initialize from scratch |
+| Checkpoint file format | Bare `OrderedDict` (no `model_state_dict` wrapper key), `from_pretrained` handles this |
+| `load_state_dict` mode | `strict=False`, adding new LoRA params before loading is safe; they initialize from scratch |
 
 ---
 
@@ -216,7 +216,7 @@ Five principles govern every decision.
 
 **1. One backbone, adapted, never arbitrated.** All specialization lives in adapters on a single frozen network. A shared backbone makes the stream-alignment problem structurally impossible.
 
-**2. Never worse than the base — empirically verified, not just asserted.** When all gate values are exactly zero, the network equals the frozen base. This is structural. However, "gates are near-zero on clean input" is an empirical outcome that requires: (a) including clean audio in condition-analyzer training with zero-gate targets, (b) gate sparsity regularization (L1, weight 1e-3), and (c) a mandatory smoke test at end of Stage 3 comparing the full system on clean Libri2Mix against the frozen base alone. If the gap is negative, the sparsity weight is increased until it closes. Verified by measurement, not declared by design.
+**2. Never worse than the base, empirically verified, not just asserted.** When all gate values are exactly zero, the network equals the frozen base. This is structural. However, "gates are near-zero on clean input" is an empirical outcome that requires: (a) including clean audio in condition-analyzer training with zero-gate targets, (b) gate sparsity regularization (L1, weight 1e-3), and (c) a mandatory smoke test at end of Stage 3 comparing the full system on clean Libri2Mix against the frozen base alone. If the gap is negative, the sparsity weight is increased until it closes. Verified by measurement, not declared by design.
 
 **3. Conditions are quantities, not categories.** All routing is continuous gating scaled by estimated strength, never a discrete expert switch.
 
@@ -254,7 +254,7 @@ Input audio (8 kHz) → Preprocessing → [Pass 1: frozen correlation module →
 
 **Acknowledged circularity and its resolution:** The condition analyzer taps E(0), the output of the correlation module. The reverb, noise, and codec adapters all attach to the correlation module itself. This means Pass 1 reads pre-adaptation features to decide how to adapt. Under heavy codec degradation, pre-adaptation E(0) may be the least reliable input for condition estimation.
 
-**Resolution:** The condition analyzer uses a two-level design. Level 1 operates exclusively on raw STFT statistics and never touches E(0); it provides the SNR estimate, codec estimate, and voiced-frame density — the three signal conditions where corruption is worst at the point of E(0) tapping. Level 2 refines the reverberation estimate and speaker count prior using pooled E(0), where reverberation structure survives SCOT-β normalization better than absolute power. Gate values for the reverb, noise, and codec adapters are driven primarily by Level 1. This breaks the circularity at the signal-condition adapters where it matters most.
+**Resolution:** The condition analyzer uses a two-level design. Level 1 operates exclusively on raw STFT statistics and never touches E(0); it provides the SNR estimate, codec estimate, and voiced-frame density, the three signal conditions where corruption is worst at the point of E(0) tapping. Level 2 refines the reverberation estimate and speaker count prior using pooled E(0), where reverberation structure survives SCOT-β normalization better than absolute power. Gate values for the reverb, noise, and codec adapters are driven primarily by Level 1. This breaks the circularity at the signal-condition adapters where it matters most.
 
 ### 5.2 Preprocessing
 
@@ -275,37 +275,37 @@ Three adapters covering the three signal degradation conditions. All three attac
 
 **Exact LoRA attachment points (verified from model code):**
 
-All attention layers use a fused QKV projection `Linear(128, 384, bias=False)` and a separate output projection `Linear(128, 128, bias=False)`. These are the LoRA targets. The ConvFFN layers inside TF_Block use `Conv1d` — skip them or implement a Conv LoRA variant; they are not on the critical path.
+All attention layers use a fused QKV projection `Linear(128, 384, bias=False)` and a separate output projection `Linear(128, 128, bias=False)`. These are the LoRA targets. The ConvFFN layers inside TF_Block use `Conv1d`, skip them or implement a Conv LoRA variant; they are not on the critical path.
 
 ```
 # Encoder blocks (N_Enc=2):
-model.enc_block[i].freq_block.block.sa.block.qkv               # Linear(128, 384) — LoRA rank 8
-model.enc_block[i].freq_block.block.sa.block.aggregate_heads[0] # Linear(128, 128) — LoRA rank 8
-model.enc_block[i].time_block.block.sa.block.qkv               # Linear(128, 384) — LoRA rank 8
-model.enc_block[i].time_block.block.sa.block.aggregate_heads[0] # Linear(128, 128) — LoRA rank 8
+model.enc_block[i].freq_block.block.sa.block.qkv               # Linear(128, 384), LoRA rank 8
+model.enc_block[i].freq_block.block.sa.block.aggregate_heads[0] # Linear(128, 128), LoRA rank 8
+model.enc_block[i].time_block.block.sa.block.qkv               # Linear(128, 384), LoRA rank 8
+model.enc_block[i].time_block.block.sa.block.aggregate_heads[0] # Linear(128, 128), LoRA rank 8
 # (i = 0, 1)
 
 # Decoder blocks (N_Dec=4):
-model.dec_block[i].freq_block.block.sa.block.qkv               # Linear(128, 384) — LoRA rank 8
-model.dec_block[i].freq_block.block.sa.block.aggregate_heads[0] # Linear(128, 128) — LoRA rank 8
-model.dec_block[i].time_block.block.sa.block.qkv               # Linear(128, 384) — LoRA rank 8
-model.dec_block[i].time_block.block.sa.block.aggregate_heads[0] # Linear(128, 128) — LoRA rank 8
+model.dec_block[i].freq_block.block.sa.block.qkv               # Linear(128, 384), LoRA rank 8
+model.dec_block[i].freq_block.block.sa.block.aggregate_heads[0] # Linear(128, 128), LoRA rank 8
+model.dec_block[i].time_block.block.sa.block.qkv               # Linear(128, 384), LoRA rank 8
+model.dec_block[i].time_block.block.sa.block.aggregate_heads[0] # Linear(128, 128), LoRA rank 8
 # (i = 0, 1, 2, 3)
 
 # Cross-speaker blocks (N_Dec=4):
-model.dec_cs[i].block.block['sa'].block.qkv                    # Linear(128, 384) — LoRA rank 8
-model.dec_cs[i].block.block['sa'].block.aggregate_heads[0]     # Linear(128, 128) — LoRA rank 8
+model.dec_cs[i].block.block['sa'].block.qkv                    # Linear(128, 384), LoRA rank 8
+model.dec_cs[i].block.block['sa'].block.aggregate_heads[0]     # Linear(128, 128), LoRA rank 8
 # (i = 0, 1, 2, 3)
 # Note: dec_cs uses ModuleDict, so access via .block['sa'] not .block.sa
 
 # Filter estimator head:
-model.filter_estim.mask.net                                     # Linear(128, 27) — LoRA rank 4
-model.filter_estim_aux[i].mask.net                              # Linear(128, 27) — LoRA rank 4, i=0..3
+model.filter_estim.mask.net                                     # Linear(128, 27), LoRA rank 4
+model.filter_estim_aux[i].mask.net                              # Linear(128, 27), LoRA rank 4, i=0..3
 ```
 
 **Total LoRA target layers per adapter:** 4 (enc) + 8 (dec) + 4 (dec_cs) + 1 (filter head) = 17 Linear layers. Each rank-8 LoRA on `Linear(128, 384)` adds `128×8 + 8×384 = 4,096` parameters; each rank-8 on `Linear(128, 128)` adds `128×8 + 8×128 = 2,048` parameters. Approximately 0.4–0.6 M parameters per adapter.
 
-**`get_correlation` is always `@torch.no_grad()`:** Gradients through the correlation computation step are always blocked by the model. However, LoRA corrections in the encoder's attention layers downstream of the encoder are still reachable by gradients — the no-grad boundary applies only to the correlation arithmetic itself inside `Encoder.forward`.
+**`get_correlation` is always `@torch.no_grad()`:** Gradients through the correlation computation step are always blocked by the model. However, LoRA corrections in the encoder's attention layers downstream of the encoder are still reachable by gradients, the no-grad boundary applies only to the correlation arithmetic itself inside `Encoder.forward`.
 
 **Co-activation warm-up (required in Stage 1):** Each adapter trains with the other two randomly activated, gates sampled from Uniform(0.0, 0.2).
 
@@ -370,7 +370,7 @@ Corrections applied as parallel branches, never merged into weight matrices. One
 
 **Vote 2 (prior): condition analyzer count prior.** From Level-2 E(0) + Level-1 features. Not circular (reads pre-split features).
 
-**Vote 3 (verification): residual sweep — bounded cost.** Runs only when top-2 posterior margin < 0.2. Sweeps at most 3 candidates: {mode−1, mode, mode+1}, clipped to [2, 5]. Runs decoder-only (encoder cached). Worst-case cost: 3 × 0.3 = 0.9 extra equivalent forward passes per uncertain chunk.
+**Vote 3 (verification): residual sweep, bounded cost.** Runs only when top-2 posterior margin < 0.2. Sweeps at most 3 candidates: {mode−1, mode, mode+1}, clipped to [2, 5]. Runs decoder-only (encoder cached). Worst-case cost: 3 × 0.3 = 0.9 extra equivalent forward passes per uncertain chunk.
 
 **Fusion:** Logistic regression over vote features, trained on validation data spanning all degradation conditions, temperature-calibrated.
 
@@ -488,7 +488,7 @@ All evaluation audio at 8 kHz for separation scoring; band-recovered 16 kHz vers
 | Real recordings | LibriCSS (1ch downmix); separation at 8 kHz, band-recover for DNSMOS | DNSMOS + Whisper WER; no clean references | 2+ | Full test set |
 | Band recovery gain | Matched pairs: 8 kHz pass-through vs. band-recovered 16 kHz on primary benchmark | Isolates band recovery contribution | 2 | 500 |
 
-**Note on OpenSLR SLR28:** SLR28 is the AISHELL-2 Mandarin ASR corpus — not a RIR database. The correct source for real room impulse responses is **BUT ReverbDB (OpenSLR SLR17)**, used above.
+**Note on OpenSLR SLR28:** SLR28 is the AISHELL-2 Mandarin ASR corpus, not a RIR database. The correct source for real room impulse responses is **BUT ReverbDB (OpenSLR SLR17)**, used above.
 
 **Real-RIR evaluation is mandatory.** Simulated rooms produce cleaner RIRs than real measured rooms. A system scoring well on simulated reverb but poorly on real reverb has an engineering gap that must be diagnosed.
 
@@ -500,7 +500,7 @@ All evaluation audio at 8 kHz for separation scoring; band-recovered 16 kHz vers
 
 ### 7.6 Reference policy for reverberant data
 
-Training target and evaluation reference: **wet source** (individual speaker convolved with the RIR, truncated at `n_peak + 512` samples). The system separates speakers — it does not dereverberate them.
+Training target and evaluation reference: **wet source** (individual speaker convolved with the RIR, truncated at `n_peak + 512` samples). The system separates speakers, it does not dereverberate them.
 
 ### 7.7 Pretrained tools used at inference, never re-trained
 
@@ -531,14 +531,14 @@ Stage 4: Joint adapter polish (mandatory) + band recovery + calibration
 
 ### 8.1 Stage 0: Obtain and verify the frozen checkpoint
 
-**Step 1 — Download:**
+**Step 1, Download:**
 ```bash
 python sr_corrnet/export.py --download --variant SS --config 1ch_WSJ_var_2_5spk.yaml
 # Saves to: sr_corrnet/checkpoints/SS/1ch_WSJ_var_2_5spk/model.pt
 # File is a bare OrderedDict; from_pretrained handles both bare and wrapped formats
 ```
 
-**Step 2 — Apply the three required patches (Section 15.1) before any further work:**
+**Step 2, Apply the three required patches (Section 15.1) before any further work:**
 
 Patch A: Expose `p_k` through `_single_pass_session` in `engine_infer.py`.
 Patch B: Register `register_forward_hook` on `model.encoder` to capture E(0) = `(B, T, F, 128)` before enc_block.
@@ -546,19 +546,19 @@ Patch C: Register hooks on each `dec_block[i]` (input side) to capture decoder s
 
 All three patches are non-destructive (hooks and a one-line passthrough); the checkpoint loads cleanly after them.
 
-**Step 3 — Run `attractor_test.py`:**
+**Step 3, Run `attractor_test.py`:**
 ```python
 # Assertions that must pass before any adapter code is written:
 assert pres["probs"].shape == (1, 7)           # slot layout confirmed
 assert pres["probs"][0, 1:6].min() < 0.5       # at least one non-active slot at N<5
 # Run at N=2,3,4,5: count active slots (probs > 0.5) == true N for each fixture
 ```
-If this test fails — i.e. `pres` is not returned or `probs` shape is wrong — stop and fix the wrapper before touching anything else.
+If this test fails, i.e. `pres` is not returned or `probs` shape is wrong, stop and fix the wrapper before touching anything else.
 
-**Step 4 — Confirm YAML constants:**
+**Step 4, Confirm YAML constants:**
 `sampling_rate: 8000`, `max_n_spks: 5`, `frame_length: 128`, `frame_shift: 64`, `N_Enc: 2`, `N_Dec: 4`, `d_model: 128`, `n_head: 4`
 
-**Step 5 — Establish corpus-transfer baseline:**
+**Step 5, Establish corpus-transfer baseline:**
 Run `process_waveform` on 20 LibriSpeech-based 2-speaker mixtures (synthesized from `dev-clean`). Record mean SI-SDRi. This is the floor every adapter and gate must beat.
 
 **No GPU hours spent in Stage 0.** Inference only. No training, no data generation.
@@ -582,8 +582,8 @@ loss = loss_main + 0.5 * loss_mag(aux_outputs, targets, prior_idx=perm) + bce_lo
 **`model.forward` call for adapter training:**
 ```python
 out, out_aux, pres = model(model_input, aux_loss=True, n_spks=None)
-# model_input: (1, 2, 65, T) — (B=1, 2*num_mics, F, T) real/imag stacked
-# out: list of K tensors, each (1, 1, 65, T, 2) — (B, M_o, F, T, real/imag)
+# model_input: (1, 2, 65, T), (B=1, 2*num_mics, F, T) real/imag stacked
+# out: list of K tensors, each (1, 1, 65, T, 2), (B, M_o, F, T, real/imag)
 # out_aux: list of N_Dec=4 elements, each a list of K tensors same shape
 # pres: {"logits": (1,7), "probs": (1,7), "split_res": ...}
 ```
@@ -598,7 +598,7 @@ out, out_aux, pres = model(model_input, aux_loss=True, n_spks=None)
 
 **Cost per adapter:** 20–40 GPU-hours on T4. Three adapters: 60–120 GPU-hours total.
 
-### 8.3 Stage 2: Universal adapter baseline (calibration gate — train first)
+### 8.3 Stage 2: Universal adapter baseline (calibration gate, train first)
 
 Before building the condition analyzer and gate, train one universal adapter: a single LoRA of the full adapter library's parameter budget (~2.5 M), trained on the union of all single-condition datasets.
 
@@ -750,7 +750,7 @@ SR-CorrNet and its transformer-decoder attractor mechanism; LoRA, LoRA-Hub, O-Lo
 ## 13. Repository Structure and Engineering Practices
 
 ```
-calm-sep/
+coral-sep/
   configs/
     base_checkpoint.yaml   # locked checkpoint path + SHA; no training settings
     adapters/              # one YAML per adapter (reverb, noise, codec)
@@ -804,7 +804,7 @@ calm-sep/
 | 8 kHz constraint | The locked operating rate of the frozen checkpoint; band recovery extends output to 16 kHz after separation |
 | Attractor | Learned vector representing one candidate speaker slot (K0=5); existence probability is the model's belief the slot is occupied |
 | Band recovery (Option B) | Small convolutional head predicting 4–8 kHz spectral content from low-band separated output + 16 kHz mixture; guarded by dual-metric test; the only quality-extension mechanism used |
-| BUT ReverbDB | Real room impulse response database (OpenSLR SLR17); used for mandatory sim-to-real reverb evaluation. SLR28 is AISHELL-2 (Mandarin ASR corpus) — not a RIR database |
+| BUT ReverbDB | Real room impulse response database (OpenSLR SLR17); used for mandatory sim-to-real reverb evaluation. SLR28 is AISHELL-2 (Mandarin ASR corpus), not a RIR database |
 | Calibration / ECE | Agreement between stated confidence and actual accuracy; ECE = average disagreement across confidence bins |
 | Cardinality-aware scoring | Evaluation rule for N_hat ≠ N; missed speakers contribute 0 dB, not excluded |
 | Co-activation warm-up | Training each adapter with the other two randomly active at low strength [0.0, 0.2] |
@@ -843,11 +843,11 @@ The audit was performed on the extracted codebase at commit matching `shinuh/sr-
 
 ### 15.1 Three Required Patches (Must Apply in Phase 0, Before Anything Else)
 
-These three patches expose internal model state that CALM-Sep needs but the default inference API silently drops. They are non-destructive: no weights change, no behavior changes for existing users.
+These three patches expose internal model state that CoRAL-Sep needs but the default inference API silently drops. They are non-destructive: no weights change, no behavior changes for existing users.
 
 ---
 
-#### Patch A — Expose `p_k` through `_single_pass_session`
+#### Patch A, Expose `p_k` through `_single_pass_session`
 
 **File:** `sr_corrnet/models/SR_CorrNet_SS/engine_infer.py`
 
@@ -882,11 +882,11 @@ After this patch, `SSInference.process_stft(stft)["pres"]["probs"]` returns `(1,
 
 ---
 
-#### Patch B — Expose E(0) via forward hook on `model.encoder`
+#### Patch B, Expose E(0) via forward hook on `model.encoder`
 
-**Problem:** In `Model.forward` (`model.py`), `x_enc` is computed by `self.encoder(x[:, self.ref_ch], x_mf)` — this is E(0), shape `(B, T, F, 128)`. It is never stored or returned.
+**Problem:** In `Model.forward` (`model.py`), `x_enc` is computed by `self.encoder(x[:, self.ref_ch], x_mf)`, this is E(0), shape `(B, T, F, 128)`. It is never stored or returned.
 
-**Fix (non-invasive — register once after loading checkpoint):**
+**Fix (non-invasive, register once after loading checkpoint):**
 ```python
 _e0_cache = {}
 
@@ -897,14 +897,14 @@ model.encoder.register_forward_hook(_e0_hook)
 
 # After model(model_input):
 e0 = _e0_cache["e0"]                       # (1, T, F, 128)
-e0_pooled = e0.mean(dim=(1, 2))            # (1, 128) — input to Level-2 condition heads
+e0_pooled = e0.mean(dim=(1, 2))            # (1, 128), input to Level-2 condition heads
 ```
 
-This hook fires every forward pass. The E(0) captured here is pre-positional-encoding, pre-enc_block — exactly what the condition analyzer Level-2 heads should read. Do not tap E(N_Enc) (after enc_block) as it is entangled with the split decision.
+This hook fires every forward pass. The E(0) captured here is pre-positional-encoding, pre-enc_block, exactly what the condition analyzer Level-2 heads should read. Do not tap E(N_Enc) (after enc_block) as it is entangled with the split decision.
 
 ---
 
-#### Patch C — Expose decoder stage features via hooks on `dec_block[i]`
+#### Patch C, Expose decoder stage features via hooks on `dec_block[i]`
 
 **Problem:** `decoder_forward` builds `x_dec_h = []` (list of per-stage inputs, shape `(B, K, T, F, 128)`) but only uses it internally for auxiliary filter heads. These features are the inter-stage consistency signal needed by the per-stream confidence head (Section 5.8).
 
@@ -915,7 +915,7 @@ _dec_stage_cache = {}
 for i, block in enumerate(model.dec_block):
     def _make_hook(idx):
         def _hook(module, input, output):
-            _dec_stage_cache[idx] = input[0]  # input[0]: (B*K, T, F, 128) — reshaped inside decoder_forward
+            _dec_stage_cache[idx] = input[0]  # input[0]: (B*K, T, F, 128), reshaped inside decoder_forward
         return _hook
     block.register_forward_hook(_make_hook(i))
 
@@ -935,13 +935,13 @@ Note: `decoder_forward` reshapes `x` to `(B*K, T, F, C)` before passing to each 
 ```python
 class Model(nn.Module):
     def forward(self, x, aux_loss=False, n_spks=None):
-        # x: (B, 2*M, F, T) real/imag stacked, or (2*M, F, T) — batch dim auto-unsqueezed
+        # x: (B, 2*M, F, T) real/imag stacked, or (2*M, F, T), batch dim auto-unsqueezed
         # For 1ch config: x shape is (1, 2, 65, T)
         # aux_loss: True → compute out_aux (slower); False → out_aux = None
         # n_spks: None → attractor infers count (batch_size must be 1); int → known count
         #
         # Returns: (out, out_aux, pres)
-        #   out:     list of K tensors, each (1, 1, 65, T, 2) — (B, M_o, F, T, real/imag)
+        #   out:     list of K tensors, each (1, 1, 65, T, 2), (B, M_o, F, T, real/imag)
         #   out_aux: list of N_Dec=4 elements [list of K tensors same shape] if aux_loss else None
         #   pres:    {"logits": (1,7), "probs": (1,7), "split_res": ...} if is_var_spks else None
 ```
@@ -968,7 +968,7 @@ class Model(nn.Module):
 
 | Method | Input | Returns | Notes |
 |---|---|---|---|
-| `from_pretrained(config, checkpoint_path, device)` | HF repo ID or local path | `SSInference` instance | `strict=False` on load — new params safe |
+| `from_pretrained(config, checkpoint_path, device)` | HF repo ID or local path | `SSInference` instance | `strict=False` on load, new params safe |
 | `process_file(path, output_dir, n_spks)` | path string | `{"waveforms": list, "vad": None, "doa": None}` | After Patch A: also `"pres"` |
 | `process_waveform(waveform, n_spks)` | `(M, L)` or `(L,)` float tensor | same as above | Normalizes internally |
 | `process_stft(stft_input, n_spks)` | `(M, F, T)` complex | `{"stft_out": (N,F,T) complex, ...}` | After Patch A: also `"pres"` |
@@ -976,7 +976,7 @@ class Model(nn.Module):
 | `model.stft(waveform, cplx=True)` | `(M, L)` | `(M, 65, T)` complex | 128-sample window, 64-sample hop |
 | `model.istft(stft, cplx=True, squeeze=True)` | `(F, T)` or `(M, F, T)` complex | `(L,)` or `(M, L)` | Inverse STFT |
 
-**Important:** `process_waveform` and `process_stft` apply std-normalization before STFT. `process_stft_chunk` does not normalize — if you call it directly, normalize the waveform first or the STFT magnitudes will be inconsistent.
+**Important:** `process_waveform` and `process_stft` apply std-normalization before STFT. `process_stft_chunk` does not normalize, if you call it directly, normalize the waveform first or the STFT magnitudes will be inconsistent.
 
 ---
 
@@ -988,13 +988,13 @@ class Model(nn.Module):
 class AttractorSplit(nn.Module):
     def __init__(self, d_model, d_freq, n_head, max_n_spks, dropout_rate):
         # spk_query: nn.Parameter, shape (1, max_n_spks+2, d_model) = (1, 7, 128)
-        # dec: AttractorDecoder (2 x TransDecoderBlock — cross-attn + self-attn + FFN)
-        # pres_linear: nn.Linear(128, 1) — maps each attractor → existence logit
-        # split: SplitModule — Linear(2*C, 4*C) → SiLU → Linear(4*C, C) — fuses attractor+encoder
-        # pe_tf: buffer (5000, 1500, 128) — 2D sinusoidal PE, pre-allocated
+        # dec: AttractorDecoder (2 x TransDecoderBlock, cross-attn + self-attn + FFN)
+        # pres_linear: nn.Linear(128, 1), maps each attractor → existence logit
+        # split: SplitModule, Linear(2*C, 4*C) → SiLU → Linear(4*C, C), fuses attractor+encoder
+        # pe_tf: buffer (5000, 1500, 128), 2D sinusoidal PE, pre-allocated
 
     def forward(self, x, n_spks=None, prob_thres=0.5):
-        # x: (B, T, F, C) — output of enc_block
+        # x: (B, T, F, C), output of enc_block
         # HARD CONSTRAINT: assert x.size(0) == 1 when n_spks=None
         # Returns: (x_sep, pres_dict, speaker_mask)
         # x_sep: (B, K, T, F, C) where K = (probs[0,1:] > prob_thres).sum()
@@ -1024,7 +1024,7 @@ class STFT(STFTBase):
         # normalize=True: skips the x * N**0.5 scaling (already applied to K)
 ```
 
-**The STFT module is a `nn.Module` with frozen parameters — it is part of the checkpoint.** When building the band recovery head's separate 16 kHz STFT, instantiate a fresh `STFT(frame_length=256, frame_shift=128)` — do not reuse the model's 8 kHz STFT.
+**The STFT module is a `nn.Module` with frozen parameters, it is part of the checkpoint.** When building the band recovery head's separate 16 kHz STFT, instantiate a fresh `STFT(frame_length=256, frame_shift=128)`, do not reuse the model's 8 kHz STFT.
 
 ---
 
@@ -1035,7 +1035,7 @@ class STFT(STFTBase):
 ```python
 class PIT_SISNR_time(nn.Module):
     def forward(self, estims, targets, eps=1e-10, return_perm_idx=False):
-        # estims:  list of N tensors, each (B, L) — time-domain waveforms
+        # estims:  list of N tensors, each (B, L), time-domain waveforms
         # targets: list of N tensors, each (B, L)
         # Iterates all permutations of range(N), picks best SI-SNR assignment
         # return_perm_idx=True: returns (scalar_loss, list_of_perm_indices)
@@ -1044,7 +1044,7 @@ class PIT_SISNR_time(nn.Module):
 class PIT_SISNR_mag(nn.Module):
     def forward(self, estims, targets, eps=1e-10, prior_idx=None):
         # estims: list of N_Dec lists, each containing N tensors (magnitude STFT)
-        # prior_idx: permutation from the time-domain PIT — reuse for consistent alignment
+        # prior_idx: permutation from the time-domain PIT, reuse for consistent alignment
         # Used only when aux_loss=True
 
 # Auxiliary loss weight schedule (from engine.py):
@@ -1060,7 +1060,7 @@ class PIT_SISNR_mag(nn.Module):
 
 **Converting `out` (complex STFT) to waveform for loss computation:**
 ```python
-# model returns out[n]: (B, M_o, F, T, 2) — last dim is real/imag
+# model returns out[n]: (B, M_o, F, T, 2), last dim is real/imag
 # Engine's existing helper (engine.py _train):
 estim_stft = torch.complex(out[n][..., 0], out[n][..., 1])  # (B, M_o, F, T)
 estim_wav = engine.istft(estim_stft[:, ref_ch], cplx=True)  # (B, L)
@@ -1068,13 +1068,13 @@ estim_wav = engine.istft(estim_stft[:, ref_ch], cplx=True)  # (B, L)
 
 **Target preparation for PIT:**
 ```python
-# target_stft: (B, N, F, T) complex — synthesized mixture's per-speaker STFTs
+# target_stft: (B, N, F, T) complex, synthesized mixture's per-speaker STFTs
 # Reuse existing dataset.py for loading or build equivalently for dynamic mixing
 ```
 
 ---
 
-### 15.7 Inference Wrapper: Loading Pattern for CALM-Sep
+### 15.7 Inference Wrapper: Loading Pattern for CoRAL-Sep
 
 ```python
 from sr_corrnet import SSInference
@@ -1135,7 +1135,7 @@ Complete path map for navigating the model (use with `base_nn.` prefix):
 ```
 base_nn
 ├── encoder                          # Encoder: correlation → E(0), shape (B,T,F,128)
-│   ├── embed[0]                     # Conv2d(18, 512, 3) — 18 = 2*1*3*3 (1ch, 3×3 neighborhood)
+│   ├── embed[0]                     # Conv2d(18, 512, 3), 18 = 2*1*3*3 (1ch, 3×3 neighborhood)
 │   └── embed[2]                     # Conv2d(512, 128, 3)
 ├── enc_block                        # nn.ModuleList of N_Enc=2 TF_Blocks
 │   └── [i]                          # TF_Block
@@ -1144,16 +1144,16 @@ base_nn
 │       │   └── sa.block.aggregate_heads[0]  # Linear(128,128) ← LoRA target
 │       └── time_block.block         # TransBlock (time axis), same structure
 ├── spk_split                        # AttractorSplit: encoder output → speaker streams
-│   ├── spk_query                    # nn.Parameter (1, 7, 128) — K0+2 slots
+│   ├── spk_query                    # nn.Parameter (1, 7, 128), K0+2 slots
 │   ├── dec.net1                     # TransDecoderBlock 1 (cross-attn + self-attn + FFN)
-│   │   ├── ca.block.kv              # Linear(128, 256) — cross-attn key/value
-│   │   ├── ca.block.q               # Linear(128, 128) — cross-attn query
-│   │   └── sa.block.qkv             # Linear(128, 384) — self-attn
+│   │   ├── ca.block.kv              # Linear(128, 256), cross-attn key/value
+│   │   ├── ca.block.q               # Linear(128, 128), cross-attn query
+│   │   └── sa.block.qkv             # Linear(128, 384), self-attn
 │   ├── dec.net2                     # TransDecoderBlock 2, same structure
-│   └── pres_linear                  # Linear(128, 1) — existence logit per attractor
+│   └── pres_linear                  # Linear(128, 1), existence logit per attractor
 ├── dec_block                        # nn.ModuleList of N_Dec=4 TF_Blocks (same structure as enc_block)
 ├── dec_cs                           # nn.ModuleList of N_Dec=4 CrossSpkBlocks
-│   └── [i].block.block['sa']        # CS_TransBlock MHSA — note: ModuleDict key 'sa'
+│   └── [i].block.block['sa']        # CS_TransBlock MHSA, note: ModuleDict key 'sa'
 │       ├── block.qkv                # Linear(128, 384) ← LoRA target
 │       └── block.aggregate_heads[0] # Linear(128, 128) ← LoRA target
 ├── filter_estim                     # FilterEstimator: dec output → complex filters
@@ -1166,7 +1166,7 @@ base_nn
 
 ### 15.10 Existing Tests and Coverage Gaps
 
-**File:** `tests/smoke_test_future_work.py` — 6 tests, all covering `future_work/` only.
+**File:** `tests/smoke_test_future_work.py`, 6 tests, all covering `future_work/` only.
 
 | Existing test | What it covers |
 |---|---|
@@ -1179,10 +1179,10 @@ base_nn
 
 **Zero tests exist for:** `Model`, `Engine`, `EngineInfer`, `SSInference`, `AttractorSplit`, `FilterEstimator`, or any core separation pipeline component.
 
-**Tests CALM-Sep must add (§13 references these):**
+**Tests CoRAL-Sep must add (§13 references these):**
 
 ```python
-# attractor_test.py — BLOCKING: nothing else can start until this passes
+# attractor_test.py, BLOCKING: nothing else can start until this passes
 def test_pk_exposed_and_varies():
     model = SSInference.from_pretrained("shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk", device="cpu")
     for n_true in [2, 3, 4, 5]:
@@ -1190,17 +1190,17 @@ def test_pk_exposed_and_varies():
         stft = model.stft(mix.unsqueeze(0), cplx=True)
         result = model.process_stft(stft, n_spks=None)
         pres = result["pres"]
-        assert pres is not None, "pres not returned — apply Patch A"
+        assert pres is not None, "pres not returned, apply Patch A"
         assert pres["probs"].shape == (1, 7), f"unexpected shape {pres['probs'].shape}"
         n_active = (pres["probs"][0, 1:6] > 0.5).sum().item()
         assert n_active == n_true, f"N={n_true}: model counted {n_active}"
 
-# principle2_test.py — Required at end of Stage 3
+# principle2_test.py, Required at end of Stage 3
 def test_never_worse_on_clean():
     # Frozen base vs. full system with all adapters active on 20 clean Libri2Mix segments
     # Assert: mean SI-SDRi(system) >= mean SI-SDRi(base) - 0.1 dB (allow 0.1 dB noise)
 
-# e0_hook_test.py — Verify Patch B works
+# e0_hook_test.py, Verify Patch B works
 def test_e0_hook_shape():
     # Confirm _e0_cache["e0"].shape == (1, T, 65, 128) after a forward pass
 ```
@@ -1209,7 +1209,7 @@ def test_e0_hook_shape():
 
 ### 15.11 `future_work/` Compatibility Note
 
-The `future_work/` files (`FutureSRCorrNet`, `LongContextSession`, `SpeakerMemoryBank`) are **a separate model** — they do not share weights with the published `Model` checkpoint. `load_backbone_from_published_state_dict` copies matching-shape parameters by key name. CALM-Sep does not use `future_work/` at all; it builds directly on the published `Model` class. The `future_work/` code can coexist in the repo without conflict.
+The `future_work/` files (`FutureSRCorrNet`, `LongContextSession`, `SpeakerMemoryBank`) are **a separate model**, they do not share weights with the published `Model` checkpoint. `load_backbone_from_published_state_dict` copies matching-shape parameters by key name. CoRAL-Sep does not use `future_work/` at all; it builds directly on the published `Model` class. The `future_work/` code can coexist in the repo without conflict.
 
 ---
 
