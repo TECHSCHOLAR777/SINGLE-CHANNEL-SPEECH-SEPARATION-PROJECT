@@ -9,7 +9,7 @@ speaker silent for one chunk keeps their track), Hungarian-matches each new
 chunk against the bank, spawns new tracks for genuinely new voices, and
 overlap-adds with a crossfade into continuous per-speaker waveforms.
 
-All thresholds come from configs/devc.yaml via the constructor; nothing is
+All thresholds come from configs/runtime.yaml via the constructor; nothing is
 hardcoded in the logic.
 """
 

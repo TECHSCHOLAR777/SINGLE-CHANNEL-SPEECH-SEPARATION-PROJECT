@@ -7,7 +7,7 @@ overrides last. Nothing in the codebase should hardcode a tunable that
 belongs in configs/.
 
 Usage:
-    cfg = load_config("configs/default.yaml", "configs/devc.yaml")
+    cfg = load_config("configs/default.yaml", "configs/runtime.yaml")
     sr = cfg_get(cfg, "sample_rate", 16000)
     policy = cfg_get(cfg, "eval.scoring.missing_policy", "mixture_fallback")
 """

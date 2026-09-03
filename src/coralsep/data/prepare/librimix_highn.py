@@ -38,7 +38,7 @@ import sys
 from pathlib import Path
 
 # Reuse the proven LibriSpeech download from the Phase-0 script (same folder).
-from coralsep.data.prepare_librimix import download_librispeech
+from coralsep.data.prepare.librimix import download_librispeech
 
 # ── URLs and constants ────────────────────────────────────────────────────────
 

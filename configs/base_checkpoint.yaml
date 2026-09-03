@@ -1,32 +1,41 @@
-# Frozen SR-CorrNet var-2-5 checkpoint (BLUEPRINT §3.5, task P0-B1)
-# Run scripts/download_checkpoint.py to populate sha256 after first download.
+# Frozen backbone checkpoint. Never modify the checkpoint itself.
+#
+# The weights are public on Hugging Face. The loader package is separate and
+# MIT licensed, pinned by commit in pyproject.toml, because models/srcorrnet
+# patches internal attribute paths of it. See BLUEPRINT section 3.5.
 
 checkpoint_id: shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk
+revision: main
 local_path: sr_corrnet/checkpoints/SS/1ch_WSJ_var_2_5spk/model.pt
-sha256: ""  # fill after: python scripts/download_checkpoint.py
+sha256: "" # filled by: python scripts/download_checkpoint.py
+frozen: true # no base training is permitted, BLUEPRINT section 4.1
 
-# Architecture constants, locked by checkpoint weights, never change
-sample_rate: 8000
-max_n_spks: 5
-n_enc: 2
-n_dec: 4
-d_model: 128
-stft_window: 128
-stft_hop: 64
-freq_bins: 65
+# Architecture constants. Locked by the checkpoint weights; changing any of
+# these silently breaks the load rather than raising.
+model:
+  sample_rate: 8000 # CORALSEP_SAMPLE_RATE, hard-locked by the STFT parameters
+  max_n_spks: 5 # attractor slots 1..5 carry speakers
+  n_enc: 2
+  n_dec: 4
+  d_model: 128
+  stft_window: 128
+  stft_hop: 64
+  freq_bins: 65 # window // 2 + 1
+  spk_query_shape: [1, 7, 128]
+  total_params: 14031768 # measured 2026-09-04, not quoted
 
-# Configurable inference parameter (exposed via prob_thres patch, BLUEPRINT §15.4)
+# The only configurable inference parameter, exposed by the prob_thres patch.
 prob_thres: 0.5
 
-# Published baseline on clean WSJ0-mix (BLUEPRINT §3.3)
-baseline_performance:
-  count_accuracy_pct:
-    n2: 100.0
-    n3: 99.7
-    n4: 97.7
-    n5: 96.9
-  si_sdri_db:
-    n2: 24.8
-    n3: 24.4
-    n4: 21.9
-    n5: 19.9
+# Hooks the wrapper installs at load time to expose state the public API drops.
+patches:
+  expose_attractor_probs: true # patch A: pres["probs"]
+  hook_encoder_e0: true # patch B: E(0) from the encoder
+  hook_decoder_features: true # patch C: per-decoder-stage outputs
+
+# Published backbone performance on clean WSJ0-mix, from the upstream paper.
+# This is the domain the backbone was trained on. It transfers poorly to
+# LibriMix, which is why our absolute numbers sit far below these.
+upstream_wsj0_mix:
+  count_accuracy_pct: { n2: 100.0, n3: 99.7, n4: 97.7, n5: 96.9 }
+  si_sdri_db: { n2: 24.8, n3: 24.4, n4: 21.9, n5: 19.9 }

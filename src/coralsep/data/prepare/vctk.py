@@ -273,7 +273,7 @@ def main() -> None:
 
     print("=" * 60)
     print("Done.  Feed the pool into the dynamic mixer:")
-    print("  from data.prepare_vctk import discover_vctk_files")
+    print("  from data.prepare.vctk import discover_vctk_files")
     print("  from data.mixer import DynamicMixer")
     print(f'  files = discover_vctk_files("{pool_dir}")')
     print("  mixer = DynamicMixer(files, test_speaker_ids={'p225', 'p226'})")

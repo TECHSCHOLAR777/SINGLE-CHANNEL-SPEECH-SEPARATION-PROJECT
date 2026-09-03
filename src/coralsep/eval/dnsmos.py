@@ -4,7 +4,7 @@ DNSMOS P.835 reference-free quality scorer (Dev C, P0-C4).
 Download sig_bak_ovrl.onnx from the Microsoft DNS-Challenge repository:
   https://github.com/microsoft/DNS-Challenge/tree/master/DNSMOS
 
-Place the file at a path and configure eval.dnsmos.model_path in configs/devc.yaml,
+Place the file at a path and configure eval.dnsmos.model_path in configs/runtime.yaml,
 or pass the path directly to DnsmosScorer(model_path=...).
 
 Inference: segments the waveform into 9.01 s windows (matching the model's
@@ -33,7 +33,7 @@ _DOWNLOAD_HINT = (
     "DNSMOS model not configured. Download sig_bak_ovrl.onnx from:\n"
     "  https://github.com/microsoft/DNS-Challenge/tree/master/DNSMOS\n"
     "Then pass its path to DnsmosScorer(model_path=...) or set eval.dnsmos.model_path\n"
-    "in configs/devc.yaml."
+    "in configs/runtime.yaml."
 )
 
 

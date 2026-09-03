@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from coralsep.data.prepare_librimix import (
+from coralsep.data.prepare.librimix import (
     REQUIRED_SUBSETS,
     STREAM_DIRS,
     _ensure_train_alias,
@@ -154,7 +154,7 @@ def test_download_skips_existing_split(tmp_path: Path) -> None:
         extracted.mkdir(parents=True)
         (extracted / "dummy.flac").write_text("")  # non-empty
 
-    with patch("coralsep.data.prepare_librimix.urllib.request.urlretrieve") as mock_dl:
+    with patch("coralsep.data.prepare.librimix.urllib.request.urlretrieve") as mock_dl:
         download_librispeech(ls_dir)
         mock_dl.assert_not_called()
 
@@ -182,10 +182,10 @@ def test_download_calls_urlretrieve_for_missing_split(tmp_path: Path) -> None:
 
     with (
         patch(
-            "coralsep.data.prepare_librimix.urllib.request.urlretrieve",
+            "coralsep.data.prepare.librimix.urllib.request.urlretrieve",
             side_effect=fake_urlretrieve,
         ),
-        patch("coralsep.data.prepare_librimix.tarfile.open", side_effect=fake_tarfile_open),
+        patch("coralsep.data.prepare.librimix.tarfile.open", side_effect=fake_tarfile_open),
     ):
         download_librispeech(ls_dir)
 
@@ -219,10 +219,10 @@ def test_download_skips_tarball_download_if_tarball_exists(tmp_path: Path) -> No
 
     with (
         patch(
-            "coralsep.data.prepare_librimix.urllib.request.urlretrieve",
+            "coralsep.data.prepare.librimix.urllib.request.urlretrieve",
             side_effect=fake_urlretrieve,
         ) as mock_dl,
-        patch("coralsep.data.prepare_librimix.tarfile.open", side_effect=fake_tarfile_open),
+        patch("coralsep.data.prepare.librimix.tarfile.open", side_effect=fake_tarfile_open),
     ):
         download_librispeech(ls_dir)
 
@@ -240,7 +240,7 @@ def test_clone_skips_existing_repo(tmp_path: Path) -> None:
     repo.mkdir(parents=True)
     (repo / "README.md").write_text("already cloned")
 
-    with patch("coralsep.data.prepare_librimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare.librimix.subprocess.run") as mock_run:
         result = clone_librimix(tools_dir)
         mock_run.assert_not_called()
 
@@ -256,7 +256,7 @@ def test_clone_calls_git_clone(tmp_path: Path) -> None:
         repo.mkdir(parents=True, exist_ok=True)
         (repo / "README.md").write_text("cloned")
 
-    with patch("coralsep.data.prepare_librimix.subprocess.run", side_effect=fake_run) as mock_run:
+    with patch("coralsep.data.prepare.librimix.subprocess.run", side_effect=fake_run) as mock_run:
         result = clone_librimix(tools_dir)
 
     mock_run.assert_called_once()
@@ -281,7 +281,7 @@ def test_generate_skips_if_output_exists(tmp_path: Path) -> None:
     repo = _make_librimix_repo(tmp_path / "repo")
     (repo / "create_librimix_from_metadata.py").write_text("")
 
-    with patch("coralsep.data.prepare_librimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare.librimix.subprocess.run") as mock_run:
         generate_librimix(repo, tmp_path / "ls", output_dir)
         mock_run.assert_not_called()
 
@@ -295,7 +295,7 @@ def test_generate_calls_script_with_correct_args(tmp_path: Path) -> None:
     script = repo / "create_librimix_from_metadata.py"
     script.write_text("")
 
-    with patch("coralsep.data.prepare_librimix.subprocess.run") as mock_run:
+    with patch("coralsep.data.prepare.librimix.subprocess.run") as mock_run:
         generate_librimix(repo, ls_dir, output_dir, include_train=False)
 
     mock_run.assert_called_once()
@@ -335,7 +335,7 @@ def test_generate_does_not_include_train_csv_by_default(tmp_path: Path) -> None:
             arg_map[cmd[i]] = cmd[i + 1]
         captured_meta_path.append(Path(arg_map["--metadata_path"]))
 
-    with patch("coralsep.data.prepare_librimix.subprocess.run", side_effect=capture_run):
+    with patch("coralsep.data.prepare.librimix.subprocess.run", side_effect=capture_run):
         generate_librimix(repo, ls_dir, output_dir, include_train=False)
 
     meta_dir = captured_meta_path[0] / "Libri3Mix"
@@ -352,7 +352,7 @@ def test_ensure_train_alias_creates_alias_for_train360(tmp_path: Path) -> None:
     train360 = wav_root / "train-360"
     train360.mkdir(parents=True)
 
-    with patch("coralsep.data.prepare_librimix._create_directory_alias") as mock_alias:
+    with patch("coralsep.data.prepare.librimix._create_directory_alias") as mock_alias:
         _ensure_train_alias(wav_root)
         mock_alias.assert_called_once_with(train360, wav_root / "train")
 
@@ -361,7 +361,7 @@ def test_ensure_train_alias_no_op_when_train_exists(tmp_path: Path) -> None:
     wav_root = tmp_path / "wav16k" / "max"
     (wav_root / "train").mkdir(parents=True)
 
-    with patch("coralsep.data.prepare_librimix._create_directory_alias") as mock_alias:
+    with patch("coralsep.data.prepare.librimix._create_directory_alias") as mock_alias:
         _ensure_train_alias(wav_root)
         mock_alias.assert_not_called()
 
@@ -371,7 +371,7 @@ def test_ensure_train_alias_no_op_when_no_train_data(tmp_path: Path) -> None:
     wav_root = tmp_path / "wav16k" / "max"
     wav_root.mkdir(parents=True)
 
-    with patch("coralsep.data.prepare_librimix._create_directory_alias") as mock_alias:
+    with patch("coralsep.data.prepare.librimix._create_directory_alias") as mock_alias:
         _ensure_train_alias(wav_root)
         mock_alias.assert_not_called()
 

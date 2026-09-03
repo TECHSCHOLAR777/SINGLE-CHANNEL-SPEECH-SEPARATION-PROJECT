@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from coralsep.data.prepare_wham import (
+from coralsep.data.prepare.wham import (
     WHAM_NOISE_URL,
     download_wham_noise,
     verify_layout,
@@ -37,7 +37,7 @@ def test_download_skips_existing(tmp_path: Path) -> None:
     extracted = out / "wham_noise"
     _make_noise_layout(extracted)
 
-    with patch("coralsep.data.prepare_wham.urlretrieve") as mock_dl:
+    with patch("coralsep.data.prepare.wham.urlretrieve") as mock_dl:
         result = download_wham_noise(out)
         mock_dl.assert_not_called()
     assert result == extracted
@@ -61,8 +61,8 @@ def test_download_calls_urlretrieve_when_missing(tmp_path: Path) -> None:
         return cm
 
     with (
-        patch("coralsep.data.prepare_wham.urlretrieve", side_effect=fake_urlretrieve) as mock_dl,
-        patch("coralsep.data.prepare_wham.zipfile.ZipFile", side_effect=fake_zipfile),
+        patch("coralsep.data.prepare.wham.urlretrieve", side_effect=fake_urlretrieve) as mock_dl,
+        patch("coralsep.data.prepare.wham.zipfile.ZipFile", side_effect=fake_zipfile),
     ):
         result = download_wham_noise(out)
 
@@ -87,8 +87,8 @@ def test_download_uses_custom_url(tmp_path: Path) -> None:
         return cm
 
     with (
-        patch("coralsep.data.prepare_wham.urlretrieve", side_effect=fake_urlretrieve) as mock_dl,
-        patch("coralsep.data.prepare_wham.zipfile.ZipFile", side_effect=fake_zipfile),
+        patch("coralsep.data.prepare.wham.urlretrieve", side_effect=fake_urlretrieve) as mock_dl,
+        patch("coralsep.data.prepare.wham.zipfile.ZipFile", side_effect=fake_zipfile),
     ):
         download_wham_noise(out, url=custom)
 
@@ -108,8 +108,8 @@ def test_download_skips_download_when_archive_present(tmp_path: Path) -> None:
         return cm
 
     with (
-        patch("coralsep.data.prepare_wham.urlretrieve") as mock_dl,
-        patch("coralsep.data.prepare_wham.zipfile.ZipFile", side_effect=fake_zipfile),
+        patch("coralsep.data.prepare.wham.urlretrieve") as mock_dl,
+        patch("coralsep.data.prepare.wham.zipfile.ZipFile", side_effect=fake_zipfile),
     ):
         result = download_wham_noise(out)
         mock_dl.assert_not_called()  # archive present → no re-download
@@ -130,8 +130,8 @@ def test_download_raises_if_extraction_wrong_layout(tmp_path: Path) -> None:
         return cm
 
     with (
-        patch("coralsep.data.prepare_wham.urlretrieve", side_effect=fake_urlretrieve),
-        patch("coralsep.data.prepare_wham.zipfile.ZipFile", side_effect=fake_zipfile),
+        patch("coralsep.data.prepare.wham.urlretrieve", side_effect=fake_urlretrieve),
+        patch("coralsep.data.prepare.wham.zipfile.ZipFile", side_effect=fake_zipfile),
     ):
         with pytest.raises(RuntimeError, match="did not produce expected directory"):
             download_wham_noise(out)

@@ -39,5 +39,5 @@ def test_wrong_sample_rate_rejected_when_available(tmp_path) -> None:
 
 
 def test_config_carries_dnsmos_key() -> None:
-    cfg = load_config("configs/default.yaml", "configs/devc.yaml")
+    cfg = load_config("configs/default.yaml", "configs/runtime.yaml")
     assert cfg_get(cfg, "eval.dnsmos.model_path", "MISSING") is None

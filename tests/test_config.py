@@ -40,6 +40,6 @@ def test_cfg_get_dot_path_and_default() -> None:
 
 
 def test_repo_configs_load_together() -> None:
-    cfg = load_config("configs/default.yaml", "configs/devc.yaml")
+    cfg = load_config("configs/default.yaml", "configs/runtime.yaml")
     assert cfg["sample_rate"] == 16000
     assert cfg_get(cfg, "eval.scoring.missing_policy") == "mixture_fallback"
