@@ -129,6 +129,14 @@ def _build_gate_dataset(args: argparse.Namespace) -> object:
     noise_files: list[Path] = []
     noise_dir_arg = Path(getattr(args, "noise_dir", ""))
     if noise_dir_arg.exists():
+        # I-044: same WHAM split provenance guard as stage1_single.py. The
+        # gate is trained on the same staged noise the reverb/noise/codec
+        # adapters are, so it carries the identical leakage risk against
+        # LibriMix's official test mixtures.
+        if not getattr(args, "allow_unverified_noise_split", False):
+            from coralsep.data.prepare.noise_staging import check_noise_provenance
+
+            check_noise_provenance(noise_dir_arg)
         noise_files = sorted((noise_dir_arg / "wham").glob("*_8k.wav")) + sorted(
             (noise_dir_arg / "dns4").glob("*_8k.wav")
         )
@@ -358,6 +366,16 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--data-root", default="")  # alias used by notebooks
     p.add_argument("--rir-bank", default="datasets/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
+    p.add_argument(
+        "--allow-unverified-noise-split",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip the WHAM split provenance check (I-044) for a noise "
+            "directory staged before that check existed and already "
+            "confirmed safe by hand."
+        ),
+    )
     # Stage 1 adapter paths can be given explicitly or via --stage1-dir.
     p.add_argument("--adapter-reverb", default="")
     p.add_argument("--adapter-noise", default="")

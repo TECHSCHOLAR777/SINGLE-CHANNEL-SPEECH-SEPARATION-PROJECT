@@ -264,6 +264,18 @@ def _build_dataset(adapter: str, args: argparse.Namespace) -> object:
     noise_files: list[Path] = []
     if adapter == "noise":
         noise_dir = Path(args.noise_dir)
+        # I-044: refuse to train on noise whose WHAM split provenance is
+        # unknown or wrong. LibriMix's official test mixtures are built
+        # from WHAM, so training on tt or cv (or an unfiltered stage of the
+        # whole corpus) risks the adapter and gate seeing noise acoustically
+        # related to the exact clips the headline results are later scored
+        # against. Skippable only via --allow-unverified-noise-split, for a
+        # manifest that predates this check and has already been confirmed
+        # safe by hand.
+        if not getattr(args, "allow_unverified_noise_split", False):
+            from coralsep.data.prepare.noise_staging import check_noise_provenance
+
+            check_noise_provenance(noise_dir)
         # Accept files in named sub-dirs (wham/, dns4/) OR directly in noise_dir.
         noise_files = sorted((noise_dir / "wham").glob("*_8k.wav")) + sorted(
             (noise_dir / "dns4").glob("*_8k.wav")
@@ -669,6 +681,17 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--data-root", default="")  # alias used by notebooks
     p.add_argument("--rir-bank", default="datasets/rirs/bank.json")
     p.add_argument("--noise-dir", default="")
+    p.add_argument(
+        "--allow-unverified-noise-split",
+        action="store_true",
+        default=False,
+        help=(
+            "Skip the WHAM split provenance check (I-044) for a noise "
+            "directory staged before that check existed and already "
+            "confirmed safe by hand. Do not use for a directory whose split "
+            "has not actually been verified."
+        ),
+    )
     p.add_argument("--output-dir", default="")
     p.add_argument("--checkpoint-dir", default="")  # alias used by notebooks
     p.add_argument("--config", default="")  # accepted but unused (config baked in)

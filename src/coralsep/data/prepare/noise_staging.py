@@ -92,17 +92,31 @@ def stage_source(
     source_name: str,
     target_8k: int = TARGET_SR_8K,
     target_16k: int = TARGET_SR_16K,
+    required_split: str | None = None,
 ) -> list[dict]:
     """
     Resample all audio files under src_dir and write them to dst_dir.
 
     Returns a list of manifest entry dicts. Skips corrupt files and already-
     staged files (idempotent).
+
+    required_split, when given, restricts staging to files with that split
+    name as a path component (WHAM's tr/cv/tt layout). LibriMix's official
+    test mixtures are built from WHAM noise, so staging from the wrong split
+    (or the unfiltered whole corpus) risks the noise adapter and gate
+    training on clips acoustically related to the ones the headline results
+    are later scored against. See I-044. Nothing enforced this before; a
+    caller that wants the guard must now pass required_split explicitly, and
+    the manifest records whichever split (or "unfiltered") was actually used
+    so a downstream consumer can check it, per check_noise_provenance below.
     """
     audio_files = sorted(p for p in src_dir.rglob("*") if p.suffix.lower() in _AUDIO_EXTENSIONS)
+    if required_split is not None:
+        audio_files = [p for p in audio_files if required_split in p.relative_to(src_dir).parts]
     if not audio_files:
+        scope = f" under split {required_split!r}" if required_split else ""
         raise RuntimeError(
-            f"No audio files found under {src_dir} "
+            f"No audio files found{scope} under {src_dir} "
             f"(checked extensions: {sorted(_AUDIO_EXTENSIONS)})."
         )
 
@@ -112,6 +126,8 @@ def stage_source(
         clip_name = src.stem
         dst_8k = dst_dir / f"{clip_name}_8k.wav"
         dst_16k = dst_dir / f"{clip_name}_16k.wav"
+
+        split = required_split if required_split is not None else "unfiltered"
 
         both_exist = dst_8k.exists() and dst_16k.exists()
         if both_exist:
@@ -125,6 +141,7 @@ def stage_source(
                     "path_8k": str(dst_8k),
                     "path_16k": str(dst_16k),
                     "duration_s": round(info.duration, 6),
+                    "split": split,
                 }
             )
             continue
@@ -153,10 +170,55 @@ def stage_source(
                 "path_8k": str(dst_8k),
                 "path_16k": str(dst_16k),
                 "duration_s": round(float(len(audio_8k)) / target_8k, 6),
+                "split": split,
             }
         )
 
     return entries
+
+
+def check_noise_provenance(noise_dir: Path, required_split: str = "tr") -> None:
+    """
+    Refuse to proceed if the staged noise directory's manifest does not
+    record every WHAM entry as coming from the required split.
+
+    LibriMix's official test mixtures are built from WHAM noise, so training
+    the noise adapter or the gate on any other split (or on an unfiltered
+    stage that mixed splits together) risks the training data overlapping
+    acoustically with the exact clips the headline results are later scored
+    against (I-044). An old manifest with no "split" field at all, or one
+    recording "unfiltered", is exactly the unsafe case this guard exists to
+    catch, so both fail loudly rather than being treated as acceptable.
+
+    Args:
+        noise_dir: The staging output_dir passed to this module's --output-dir
+            (the directory containing wham/ and dns4/ and noise_manifest.json),
+            not the wham/ subdirectory itself.
+        required_split: The split every wham entry must be staged from.
+
+    Raises:
+        RuntimeError: If the manifest is missing, or if any wham entry lacks
+            a "split" field or does not match required_split.
+    """
+    manifest_path = Path(noise_dir) / "noise_manifest.json"
+    if not manifest_path.exists():
+        raise RuntimeError(
+            f"No noise_manifest.json in {noise_dir}. Cannot verify WHAM split "
+            f"provenance before training on it. Run prepare.noise_staging "
+            f"with --wham-split {required_split} first."
+        )
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    clips = manifest.get("clips", []) if isinstance(manifest, dict) else manifest
+    bad = [e for e in clips if e.get("source") == "wham" and e.get("split") != required_split]
+    if bad:
+        seen = sorted({e.get("split", "MISSING") for e in bad})
+        raise RuntimeError(
+            f"{len(bad)} WHAM entries in {manifest_path} are not from the "
+            f"required split {required_split!r} (found: {seen}). Re-stage "
+            f"with `python -m coralsep.data.prepare.noise_staging --wham-split "
+            f"{required_split} ...` before training the noise adapter or the "
+            f"gate on this directory. See I-044."
+        )
 
 
 def main() -> None:
@@ -189,6 +251,20 @@ def main() -> None:
         help=f"Low-rate target (default {TARGET_SR_8K}). "
         "16 kHz copies are always written alongside.",
     )
+    parser.add_argument(
+        "--wham-split",
+        default=None,
+        metavar="SPLIT",
+        help=(
+            "Restrict WHAM staging to this split (tr/cv/tt), and record it in "
+            "the manifest. LibriMix's official test mixtures are built from "
+            "WHAM, so training data must come from tr, not tt or cv, and not "
+            "an unfiltered stage of the whole corpus. Omitting this flag "
+            "stages everything under --wham-dir and records the manifest "
+            "entries as split 'unfiltered', which check_noise_provenance "
+            "will refuse. See I-044."
+        ),
+    )
     args = parser.parse_args()
 
     if args.wham_dir is None and args.dns4_dir is None:
@@ -215,7 +291,10 @@ def main() -> None:
     for source_name, src_dir in sources:
         dst_dir = output_dir / source_name
         print(f"\n[{source_name}] {src_dir} → {dst_dir}")
-        entries = stage_source(src_dir, dst_dir, source_name, args.target_sr, TARGET_SR_16K)
+        split = args.wham_split if source_name == "wham" else None
+        entries = stage_source(
+            src_dir, dst_dir, source_name, args.target_sr, TARGET_SR_16K, required_split=split
+        )
         all_entries.extend(entries)
         total_dur_h = sum(e["duration_s"] for e in entries) / 3600.0
         print(f"  {len(entries)} clips staged, {total_dur_h:.2f} h total")
