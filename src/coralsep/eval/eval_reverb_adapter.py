@@ -8,21 +8,20 @@ Runs 5 diagnostic passes:
   4. TARGET, SI-SNR vs wet reference vs anechoic reference (explains loss numbers)
   5. SUMMARY, verdict and root-cause
 
-Usage (Lightning AI):
-  cd /teamspace/studios/this_studio/coralsep
-  python src/coralsep/eval/eval_reverb_adapter.py \
-    --checkpoint /teamspace/studios/this_studio/checkpoints/stage1_reverb/best_reverb.pt \
-    --librispeech-8k /teamspace/studios/this_studio/data/calmsep-8k/librispeech-8k \
-    --rir-bank /teamspace/studios/this_studio/data/calmsep-8k/rirs \
-    --output-dir /teamspace/studios/this_studio/eval_outputs
-
-Usage (local Mac):
+Usage:
   cd ~/Desktop/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT
   .venv/bin/python src/coralsep/eval/eval_reverb_adapter.py \
     --checkpoint checkpoints/stage1_reverb/best_reverb.pt \
     --librispeech-8k data/calmsep-8k/librispeech-8k \
     --rir-bank data/calmsep-8k/rirs \
     --output-dir eval_outputs
+
+History: the run that produced the I-025 finding (see EXPERIMENT_REGISTRY.md
+EXP-003) executed on a Lightning AI workspace under
+/teamspace/studios/this_studio/. That platform was banned permanently on
+2026-07-18 after the account was deleted; nothing in this script depends on
+it any more. See docs/PROJECT_HISTORY.md and docs/restoration/ISSUE_LEDGER.md
+I-033.
 """
 
 from __future__ import annotations
@@ -37,7 +36,7 @@ import soundfile as sf
 import torch
 
 # ---------------------------------------------------------------------------
-# Path setup, works both on Lightning AI and local Mac
+# Path setup
 # ---------------------------------------------------------------------------
 
 
@@ -47,8 +46,6 @@ def _add_paths() -> None:
     candidates = [
         repo,
         repo.parent / "SR_CorrNet_SS",
-        Path("/teamspace/studios/this_studio/SR_CorrNet_SS"),
-        Path("/teamspace/studios/this_studio/coralsep"),
     ]
     for p in candidates:
         s = str(p)
