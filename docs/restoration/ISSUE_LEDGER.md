@@ -223,7 +223,7 @@ This is the opposite of what I-042's hypothesis predicts. Forcing Level-2 to zer
 - [x] Gate output distribution per condition is recorded, from the Stage 3 checkpoint (the Stage 4 checkpoint with the fitted temperature is not yet reachable).
 - [ ] A decision record explains which of the three original causes the evidence supports. One of the four total candidates (I-042, zero Level-2) is now measured and not supported. The other three remain untested.
 
-**Validation.** `python -m coralsep.eval.diagnose_gate_flatness`, run against the real Stage 3 checkpoint on the university GPU box, 2026-09-04. The Stage 4 checkpoint with the fitted temperature would let this measure the exact calibrated flatness this ticket describes; it is on Kaggle under a dataset not yet located.
+**Validation.** `python -m coralsep.eval.diagnose_gate_flatness`, run against the real Stage 3 checkpoint on the university GPU box, 2026-09-04. The Stage 4 checkpoint with the fitted temperature would let this measure the exact calibrated flatness this ticket describes. Checked the full list of datasets under the `rishig777` Kaggle account (not just a keyword search): it is not there. Only the 8kHz training slice, the backbone bundle, the Stage 1 adapters, and the Stage 3 gate are published. If it survives anywhere, it is inside a Kaggle notebook's own session output, not a published dataset, and would need to be located there or supplied by the project owner directly.
 
 **Dependencies.** Related to I-025, I-042 (measured, not supported), I-051 (the bug that had to be fixed before this measurement was even possible).
 
