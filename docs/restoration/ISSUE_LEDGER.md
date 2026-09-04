@@ -77,7 +77,7 @@
 | I-041 | `[BUG]` | 🔴 P0 | The deployed gate crashed on every call once a real gate network was attached | 🟢 CLOSED | [#79](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/79) |
 | I-042 | `[ARCH]` | 🟠 P1 | The gate runs once per utterance from Level-1 only; the documented per-chunk Level-2 lag was never implemented | ⚪ OPEN | [#80](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/80) |
 | I-043 | `[MODEL]` | 🟡 P2 | Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference | 🟢 CLOSED, ruled out | [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) |
-| I-044 | `[DATA]` | 🟡 P2 | The noise adapter's WHAM split is never checked against the LibriMix test split, a leakage risk | 🟠 READY | [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82) |
+| I-044 | `[DATA]` | 🟡 P2 | The noise adapter's WHAM split is never checked against the LibriMix test split, a leakage risk | 🟡 INVESTIGATING, guard done | [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82) |
 | I-045 | `[MODEL]` | 🟡 P2 | Band recovery masks the shared 16 kHz mixture, not a separated signal, and its evaluation guard can see ground truth deployment never has | 🟠 READY | [#83](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/83) |
 | I-046 | `[RESEARCH]` | ⚪ P3 | Freezing the backbone entirely rests on an analogy from a different experiment, not a direct ablation | ⚪ OPEN | [#84](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/84) |
 | I-047 | `[EXP]` | 🟠 P1 | If LibriMix `mix_both` carries no reverberation, every headline result still carries the reverb adapter at roughly 0.5 gate | 🔴 BLOCKED on compute | [#85](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/85) |
@@ -94,10 +94,10 @@
 pie showData
     title Ticket state
     "CLOSED" : 34
-    "READY" : 3
+    "READY" : 2
     "BLOCKED" : 6
     "IN_PROGRESS" : 0
-    "INVESTIGATING" : 4
+    "INVESTIGATING" : 5
     "OPEN" : 4
 ```
 
@@ -1284,7 +1284,9 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-044 `[DATA]` P2 The noise adapter's WHAM split is never checked against the LibriMix test split, a leakage risk
 
-**State:** READY · GitHub [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82)
+**State:** 🟡 INVESTIGATING, code guard done, historical leakage unconfirmed · commit `fa87d91` · GitHub [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82)
+
+**2026-09-04 update.** `stage_source` now records which split (or "unfiltered") every staged clip came from, and a new `check_noise_provenance` function refuses to let `stage1_single.py` or `stage3_gate.py` train on a noise directory whose manifest does not show every WHAM entry as `tr`, including the case of a manifest written before this field existed. The guard is skippable only via an explicit `--allow-unverified-noise-split` flag. This closes the code gap; it does not confirm or refute whether the existing Stage 1 noise checkpoint (on Kaggle) was actually trained on the correct split, since the staged data or its manifest was not inspected this session.
 
 **Problem.** `data/prepare/wham.py` is aware of WHAM's `tr`/`cv`/`tt` splits. The code that actually populates the directory the noise adapter trains from, `data/prepare/noise_staging.py::stage_source`, globs `src_dir.rglob("*")` over whatever `--wham-dir` is passed with no split filtering. The consumers, `train/stage1_single.py::_build_dataset` and `train/stage3_gate.py`, glob that flat staged directory with no split awareness either. There is no equivalent of `CoralSepMixer.assert_speaker_isolation()` for noise.
 
@@ -1297,11 +1299,11 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Scope.** Zero-compute now: confirm the code gap exists as described (done) and add a manifest-recorded split provenance, checked at load time, so a wrong split fails fast instead of silently. Confirming whether leakage actually occurred requires inspecting the staged data or manifest, which lives on Kaggle.
 
 **Acceptance criteria.**
-- [ ] `noise_staging.py` records which WHAM split it staged from, in a manifest.
-- [ ] `stage1_single.py` and `stage3_gate.py` refuse to load noise files without a recorded `tr`-split provenance.
+- [x] `noise_staging.py` records which WHAM split it staged from, in a manifest.
+- [x] `stage1_single.py` and `stage3_gate.py` refuse to load noise files without a recorded `tr`-split provenance.
 - [ ] The split actually used for the existing Stage 1 noise checkpoint is confirmed from Kaggle and recorded.
 
-**Validation.** The provenance guard is unit-testable here. Confirming historical leakage needs Kaggle access.
+**Validation.** `pytest tests/test_noise_provenance.py -q`, 7 passed. Confirming historical leakage needs the staged noise data or manifest on Kaggle, not reached this session.
 
 **Dependencies.** None.
 
