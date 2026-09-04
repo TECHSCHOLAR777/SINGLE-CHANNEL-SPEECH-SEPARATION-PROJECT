@@ -59,7 +59,7 @@
 | I-023 | `[EXP]` | 🟠 P1 | Libri4Mix was never evaluated and every split used only 30 samples | 🔴 BLOCKED on compute | [#60](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/60) |
 | I-024 | `[EXP]` | 🟠 P1 | The Stage 2 universal adapter was never trained | 🔴 BLOCKED on compute | [#61](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/61) |
 | I-025 | `[MODEL]` | 🔴 P0 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition, confirmed on a corrected GPU run | 🔴 P0, cause still open | [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) |
-| I-026 | `[TEST]` | 🟡 P2 | No confidence interval or significance test has been run on any result | 🟠 READY | [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63) |
+| I-026 | `[TEST]` | 🟡 P2 | No confidence interval or significance test has been run on any result | 🟡 INVESTIGATING, code done | [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63) |
 | I-027 | `[CLEANUP]` | ⚪ P3 | `.gitignore` repeats `outputs/` and `pretrained_models/` | 🟢 CLOSED | [#64](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/64) |
 | I-028 | `[ARCH]` | 🟡 P2 | Flat top-level packages shadow standard library and third-party names | 🟢 CLOSED | [#65](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/65) |
 | I-029 | `[DOC]` | 🟡 P2 | `configs/baseline.yaml` carries an unresolved data-root TODO and a v1 sample rate | 🟢 CLOSED | [#66](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/66) |
@@ -93,10 +93,10 @@
 pie showData
     title Ticket state
     "CLOSED" : 32
-    "READY" : 5
+    "READY" : 4
     "BLOCKED" : 7
     "IN_PROGRESS" : 0
-    "INVESTIGATING" : 2
+    "INVESTIGATING" : 3
     "OPEN" : 4
 ```
 
@@ -848,7 +848,9 @@ The real defect is in the diagnostic that produced the table above. `eval/eval_r
 
 ### I-026 [TEST] [P2] No confidence interval or significance test has been run on any result
 
-**State:** 🟠 READY · GitHub [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63)
+**State:** 🟡 INVESTIGATING, per-sample retention and bootstrap CIs wired in, Wilcoxon and a real run remain · commit `3cebed6` · GitHub [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63)
+
+**2026-09-04 update.** `_score_split` now appends a per-sample record (uid, n_true, n_hat, si_sdr, si_sdri) for both models on every mixture, and computes a 95% BCa bootstrap CI via `eval/stats.py::bootstrap_ci` once a split has at least 8 samples, below which it records `None` rather than a number that looks precise and is not. The Wilcoxon signed-rank comparison between the two models is not yet wired in, and no real run has produced a result with this in place, so this closes the code half of the ticket but not the evidence half.
 
 **Problem.** `eval/stats.py` implements bootstrap BCa confidence intervals and a Wilcoxon signed-rank test. Neither has been applied to any recorded result.
 
@@ -859,11 +861,12 @@ The real defect is in the diagnostic that produced the table above. `eval/eval_r
 **Scope.** Wire `stats.py` into the evaluation output so per-sample scores are retained and confidence intervals are computed alongside the means. The current result JSON keeps only aggregates, so per-sample retention has to come first.
 
 **Acceptance criteria.**
-- [ ] Per-sample SI-SDR values are written to the result artifact.
-- [ ] Bootstrap confidence intervals and the Wilcoxon result are computed and stored.
-- [ ] A unit test covers the statistics path on synthetic data.
+- [x] Per-sample SI-SDR values are written to the result artifact.
+- [x] Bootstrap confidence intervals are computed and stored. The Wilcoxon result is not yet wired in.
+- [x] A unit test covers the statistics path on synthetic data.
+- [ ] A real run against real LibriMix data produces a result with a CI attached.
 
-**Validation.** The unit test runs on this machine. Applying it to real results needs a rerun.
+**Validation.** `pytest tests/test_run_eval.py -q`, 5 passed. Applying it to a real run is now unblocked by compute (see WORKLOG 2026-09-04) but not yet done.
 
 **Dependencies.** Feeds I-023.
 
