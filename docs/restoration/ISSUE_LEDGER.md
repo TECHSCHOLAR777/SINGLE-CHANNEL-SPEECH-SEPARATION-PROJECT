@@ -90,7 +90,7 @@
 | I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | [#92](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/92) |
 | I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, confirmed on three reruns | [#93](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/93) |
 | I-056 | `[BUG]` | 🔴 P0 | CI has never once passed on this repository | 🟡 fix landed, next run unconfirmed | [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94) |
-| I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟡 INVESTIGATING, diagnostic written | pending |
+| I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟡 INVESTIGATING, diagnostic written | [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95) |
 
 ---
 
@@ -1627,7 +1627,7 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-057 `[MODEL]` P1 The noise and codec LoRA adapters have never been independently evaluated for harm or benefit
 
-**State:** INVESTIGATING, diagnostic written, GPU run pending · commit pending
+**State:** INVESTIGATING, diagnostic written, GPU run pending · commit `6313324` · GitHub [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95)
 
 **Problem.** I-025 found the reverb adapter harmful in its shipped configuration. `docs/restoration/DATA_AND_MODEL_INVENTORY.md` CKPT-002 (noise) and CKPT-003 (codec) show both checkpoints were downloaded and loaded this session, but only for the I-043 co-activation diagnostic, which measures the cost of running all three adapters together at deployment gate values; neither has ever been scored on its own against the frozen backbone the way the reverb adapter was.
 
