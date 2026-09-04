@@ -193,11 +193,22 @@ def test_rir_bank_load_shape(tmp_path):
     assert rir.shape[0] > 0
 
 
-def test_rir_bank_sample_out_of_range_raises(tmp_path):
+def test_rir_bank_sample_out_of_range_degrades_to_nearest(tmp_path):
+    """
+    RirBank.sample's own docstring is explicit that a t60_s with nothing in
+    tolerance degrades to the nearest achieved T60 rather than raising, "so a
+    sparse bucket degrades the label slightly instead of failing the epoch."
+    This test used to assert the opposite (ValueError), which the code never
+    did and was never meant to; it went unnoticed because pyroomacoustics
+    being absent everywhere skipped this whole file until this session.
+    """
     bank_dir = _write_bank(tmp_path, n=4)
     bank = RirBank(bank_dir)
-    with pytest.raises(ValueError):
-        bank.sample(t60_s=5.0, tolerance_s=0.05)
+    # _write_bank's records span T60 0.3 to 0.6s; 5.0s is far outside that,
+    # so every record is out of tolerance and the fallback path must run.
+    rec = bank.sample(t60_s=5.0, tolerance_s=0.05)
+    achieved = [r.t60_achieved_s for r in bank.records]
+    assert rec.t60_achieved_s == max(achieved)
 
 
 # ---------------------------------------------------------------------------
