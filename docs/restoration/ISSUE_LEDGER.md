@@ -85,7 +85,7 @@
 | I-049 | `[TEST]` | 🟡 P2 | Two tests only passed by environmental accident: an onnxruntime-dependent test with no skip guard, and a stale sr_corrnet availability assumption predating I-019 | 🟢 CLOSED | [#87](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/87) |
 | I-050 | `[BUG]` | 🟠 P1 | The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU | 🟢 CLOSED | [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88) |
 | I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | [#89](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/89) |
-| I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | pending |
+| I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
 
 ---
 
@@ -1479,7 +1479,7 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-052 `[BUG]` P1 `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life
 
-**State:** CLOSED, commit pending · GitHub pending
+**State:** CLOSED, commit `e7761e5` · GitHub [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90)
 
 **Problem.** The module's own docstring and code claimed BUT ReverbDB is "OpenSLR resource 17" and built its download URL from `https://www.openslr.org/resources/17/`. That resource is MUSAN, an unrelated music/speech/noise corpus; BUT ReverbDB has never been hosted there. Both filenames the code tried, `BUT_ReverbDB_rel_19_06_RIR.tgz` and `reverb_data_but.zip`, returned HTTP 404 at that host. Even the filename itself was wrong: the real archive is named `BUT_ReverbDB_rel_19_06_RIR-Only.tgz`, with an `-Only` suffix the code never had.
 
