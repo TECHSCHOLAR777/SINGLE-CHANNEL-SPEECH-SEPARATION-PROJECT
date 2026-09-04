@@ -498,9 +498,20 @@ def diag_target(
 
     gap_base = snr_base_anec - snr_base_wet
     print(f"\n  anechoic vs wet reference gap: {gap_base:+.2f} dB")
-    if gap_base > 2:
-        print("  → The wet reference target IS harder than anechoic, explains high loss values.")
-        print("    Training loss of ~8.6 ≠ SI-SNRi of -8.6 dB vs anechoic.")
+    # abs(), not a plain > check: the gap is informative in either direction.
+    # A large negative gap (anechoic scores far lower than wet) means the
+    # output is close to the wet target and far from the dry one, exactly
+    # what a working separate-but-do-not-dereverberate adapter should look
+    # like; a large positive gap would mean the reverse. Either way, a small
+    # gap is the case that means the reference choice barely matters, not a
+    # gap of either sign. See I-025 and I-040.
+    if abs(gap_base) > 2:
+        direction = "lower" if gap_base < 0 else "higher"
+        print(
+            f"  → Large gap: anechoic scores {direction} than wet by {abs(gap_base):.1f} dB. "
+            "The reference choice materially changes what these numbers mean; "
+            "see I-025 for which one is the correct measure for this adapter."
+        )
     else:
         print(
             "  → Small gap: the loss values reflect real separation quality, not just target choice."
