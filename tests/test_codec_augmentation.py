@@ -15,9 +15,11 @@ import pytest
 import soundfile as sf
 
 from coralsep.data.codec_augmentation import (
+    MULAW_FALLBACK_LABEL,
     CodecAugmentor,
     CodecConfig,
     _fit_length,
+    apply_codec_roundtrip,
     is_ffmpeg_available,
 )
 from coralsep.data.mixer_stub import MixtureSample
@@ -363,3 +365,87 @@ def test_fit_length_pads_short_audio() -> None:
 def test_fit_length_exact_unchanged() -> None:
     audio = np.ones(SR, dtype=np.float32)
     assert len(_fit_length(audio, SR)) == SR
+
+
+# ---------------------------------------------------------------------------
+# apply_codec_roundtrip records what actually ran (I-054)
+# ---------------------------------------------------------------------------
+#
+# Before this fix, apply_codec_roundtrip returned only the damaged audio, and
+# its one caller (degradations.py::apply_codec) recorded the requested codec
+# name in the ground-truth recipe unconditionally. Some ffmpeg builds omit
+# AMR-NB entirely, which silently mislabeled every one of those samples as
+# "amr-nb" when the audio was actually mu-law. Confirmed on a real fixed-eval
+# generation run this session: the recipe said codec_name="amr-nb" while the
+# generation log showed "ffmpeg codec roundtrip failed for 'amr-nb'; falling
+# back to mu-law simulation" for that exact sample.
+
+
+def test_apply_codec_roundtrip_returns_the_requested_codec_on_success() -> None:
+    rng = np.random.default_rng(1)
+    audio = rng.standard_normal(SR).astype(np.float32)
+
+    with patch("coralsep.data.codec_augmentation.is_ffmpeg_available", return_value=True):
+        with patch(
+            "coralsep.data.codec_augmentation._ffmpeg_roundtrip_standalone",
+            return_value=audio * 0.5,
+        ):
+            damaged, actual_codec = apply_codec_roundtrip(audio, SR, "opus", 16_000)
+
+    assert actual_codec == "opus"
+    assert not np.array_equal(damaged, audio)
+
+
+def test_apply_codec_roundtrip_labels_fallback_when_ffmpeg_unavailable() -> None:
+    audio = np.ones(SR, dtype=np.float32) * 0.5
+
+    with patch("coralsep.data.codec_augmentation.is_ffmpeg_available", return_value=False):
+        with pytest.warns(RuntimeWarning, match="falling back to mu-law"):
+            _, actual_codec = apply_codec_roundtrip(audio, SR, "amr-nb", 9_324)
+
+    assert actual_codec == MULAW_FALLBACK_LABEL
+    assert actual_codec != "amr-nb"
+
+
+def test_apply_codec_roundtrip_labels_fallback_when_ffmpeg_roundtrip_fails() -> None:
+    """This is the exact path that produced the real mislabeling: ffmpeg is
+    on PATH (opus and aac work), but the specific codec (amr-nb) fails, most
+    commonly because that ffmpeg build was not compiled with AMR support."""
+    audio = np.ones(SR, dtype=np.float32) * 0.5
+
+    with patch("coralsep.data.codec_augmentation.is_ffmpeg_available", return_value=True):
+        with patch(
+            "coralsep.data.codec_augmentation._ffmpeg_roundtrip_standalone",
+            return_value=None,
+        ):
+            with pytest.warns(RuntimeWarning, match="falling back to mu-law"):
+                _, actual_codec = apply_codec_roundtrip(audio, SR, "amr-nb", 9_324)
+
+    assert actual_codec == MULAW_FALLBACK_LABEL
+
+
+def test_degradations_apply_codec_records_the_actual_codec_not_the_request() -> None:
+    """The real regression: degradations.py::apply_codec must record actual_codec
+    in the recipe, not the codec_name it was asked for."""
+    from coralsep.data.condition_mixer import CoralSepMixture, MixtureRecipe
+    from coralsep.data.degradations import apply_codec
+    from coralsep.data.mixer_stub import MixtureSample
+
+    rng = np.random.default_rng(2)
+    refs = rng.standard_normal((2, SR)).astype(np.float32)
+    mixture = CoralSepMixture(
+        sample=MixtureSample(
+            mixture=refs.sum(axis=0),
+            references=refs,
+            sample_rate=SR,
+            utterance_id="u",
+        ),
+        recipe=MixtureRecipe(n_speakers=2),
+    )
+
+    with patch("coralsep.data.codec_augmentation.is_ffmpeg_available", return_value=False):
+        with pytest.warns(RuntimeWarning):
+            out = apply_codec(mixture, codec_name="amr-nb", bitrate_bps=9_324)
+
+    assert out.recipe.codec_name == MULAW_FALLBACK_LABEL
+    assert out.recipe.codec_name != "amr-nb"

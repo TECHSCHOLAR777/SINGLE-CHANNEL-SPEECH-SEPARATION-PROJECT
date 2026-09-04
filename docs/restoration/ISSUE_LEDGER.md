@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 53 tickets. 36 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 54 tickets. 37 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -87,6 +87,7 @@
 | I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | [#89](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/89) |
 | I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
 | I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
+| I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | pending |
 
 ---
 
@@ -95,7 +96,7 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 36
+    "CLOSED" : 37
     "READY" : 2
     "BLOCKED" : 6
     "IN_PROGRESS" : 0
@@ -1527,6 +1528,31 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Validation.** `pytest tests/test_but_reverbdb.py -q`, 5 passed. Full suite: 600 passed, 11 skipped. Regenerated the real bank on the GPU box against the actual downloaded archive, confirmed the statistics above directly from the resulting `but_bank.json`.
 
 **Dependencies.** Found while executing the fix for I-052; blocks trusting any number derived from the `but_reverb` evaluation tier until the bank is regenerated.
+
+---
+
+### I-054 `[BUG]` P0 A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law
+
+**State:** CLOSED, commit pending · GitHub pending
+
+**Problem.** `data/codec_augmentation.py::apply_codec_roundtrip` falls back to mu-law companding when ffmpeg cannot perform the requested codec, a deliberate and documented degradation of quality. It returned only the damaged audio, not which method actually ran. Its one caller, `data/degradations.py::apply_codec`, recorded the requested `codec_name` into the ground-truth recipe unconditionally, regardless of whether the real codec ran or the fallback did.
+
+**Evidence.** Found running the first real `fixed_eval_generator.py` smoke test this session (see WORKLOG 2026-09-04). The generation log showed repeated `RuntimeWarning: ffmpeg codec roundtrip failed for 'amr-nb'; falling back to mu-law simulation` (this box's ffmpeg build has no AMR-NB encoder, a common licensing-driven omission). Loading the corresponding generated sample's recipe directly: `"codec_name": "amr-nb"`. The recorded ground truth and the actual audio disagreed.
+
+**Impact.** Every generated sample where AMR-NB fell back to mu-law is mislabeled in exactly the direction that matters: anyone evaluating "robustness to AMR-NB compression" from this manifest would actually be scoring robustness to a much simpler mu-law companding, a materially different and easier degradation. This is the same class of defect CLAUDE.md names directly: never silently substitute one preprocessing path for another. Opus and AAC worked correctly on this machine and are unaffected; only codecs whose ffmpeg encoder is genuinely missing are at risk, but there was no code path that would have caught it even for those that are.
+
+**Suspected cause.** The fallback itself is intentional and documented. Recording only the request, never the outcome, was the gap; nothing had generated real data with a codec ffmpeg here could not handle until this session, so nothing had surfaced the mismatch.
+
+**Scope.** `apply_codec_roundtrip` now returns `(damaged_audio, actual_codec)`, where `actual_codec` is either the requested codec or the new `MULAW_FALLBACK_LABEL` sentinel. `apply_codec` records `actual_codec` in the recipe instead of the request. A second, separate consumer of the same fallback pattern, the `CodecAugmentor` class used for on-the-fly training augmentation, has no per-sample provenance tracking of any kind (training data is already documented as not exactly reproducible, `DATA_AND_MODEL_INVENTORY.md` "Note on mixture generation"), so it was left alone rather than expanding this fix's scope beyond the one path that actually claims to record ground truth.
+
+**Acceptance criteria.**
+- [x] `apply_codec_roundtrip` reports which codec actually ran.
+- [x] `apply_codec`'s recorded recipe reflects the actual codec, not the request.
+- [x] A regression test reproduces the exact real-world case (AMR-NB unavailable) and confirms the recipe is no longer mislabeled.
+
+**Validation.** `pytest tests/test_codec_augmentation.py -q`, 31 passed, including 4 new tests. Full suite: 604 passed, 11 skipped. ruff and black clean.
+
+**Dependencies.** Found while validating the fixed evaluation matrix generator's first real run (I-052, I-053).
 
 ---
 

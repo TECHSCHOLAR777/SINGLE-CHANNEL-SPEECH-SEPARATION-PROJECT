@@ -293,11 +293,18 @@ def apply_codec(
         tmp_dir: Scratch directory for the encode/decode round trip.
 
     Returns:
-        A new CoralSepMixture with a codec-damaged observation.
+        A new CoralSepMixture with a codec-damaged observation. The recipe's
+        codec_name records what actually ran, which is not always what was
+        requested: some ffmpeg builds omit AMR-NB entirely (a common
+        licensing-driven omission), in which case apply_codec_roundtrip falls
+        back to mu-law companding. Recording the request here regardless
+        would silently mislabel the sample's ground truth (I-054); the value
+        recorded is either codec_name unchanged or
+        codec_augmentation.MULAW_FALLBACK_LABEL.
     """
     from coralsep.data.codec_augmentation import apply_codec_roundtrip
 
-    damaged = apply_codec_roundtrip(
+    damaged, actual_codec = apply_codec_roundtrip(
         audio=mixture.mixture,
         sample_rate=mixture.sample.sample_rate,
         codec=codec_name,
@@ -306,7 +313,7 @@ def apply_codec(
     )
     damaged = _fit_length(damaged, mixture.mixture.shape[0]).astype(np.float32)
 
-    recipe = replace(mixture.recipe, codec_name=codec_name, codec_bitrate_bps=int(bitrate_bps))
+    recipe = replace(mixture.recipe, codec_name=actual_codec, codec_bitrate_bps=int(bitrate_bps))
     sample = MixtureSample(
         mixture=damaged,
         references=mixture.references,

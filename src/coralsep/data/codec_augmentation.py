@@ -78,15 +78,22 @@ def is_ffmpeg_available() -> bool:
     return shutil.which("ffmpeg") is not None
 
 
+MULAW_FALLBACK_LABEL = "mulaw-fallback"
+"""Recorded as the actual codec in a recipe when the real codec roundtrip was
+not possible and apply_codec_roundtrip fell back to mu-law companding. Never
+the same string as a real codec name, so a caller checking codec_name against
+_SUPPORTED_CODECS can tell a genuine codec run from a fallback at a glance."""
+
+
 def apply_codec_roundtrip(
     audio: np.ndarray,
     sample_rate: int,
     codec: str,
     bitrate_bps: int | float,
     tmp_dir: str | Path | None = None,
-) -> np.ndarray:
+) -> tuple[np.ndarray, str]:
     """
-    Encode → decode ``audio`` through a real codec and return the damaged signal.
+    Encode -> decode ``audio`` through a real codec and return the damaged signal.
 
     Public wrapper used by ``data.degradations.apply_codec``. Supports "opus",
     "aac", "amr-nb", and "amr-wb". AMR-NB requires 8 kHz input; AMR-WB
@@ -94,7 +101,14 @@ def apply_codec_roundtrip(
     sample rate differs, but callers should note the resampling.
 
     Falls back to mu-law companding (G.711 approximation) when ffmpeg is
-    unavailable or the roundtrip fails.
+    unavailable or the roundtrip fails. The fallback is a deliberate, accepted
+    degradation of quality, not of correctness (see the module docstring), but
+    a caller that only recorded the requested codec name, not what actually
+    ran, would silently mislabel every fallback sample as the real codec.
+    Some ffmpeg builds omit AMR-NB entirely (a common licensing-driven
+    omission), which makes this path common enough to have caused exactly
+    that mislabeling in practice; see I-054. Returning which method actually
+    ran, not just the damaged audio, is what lets a caller record the truth.
 
     Args:
         audio: 1-D float32 waveform.
@@ -104,7 +118,8 @@ def apply_codec_roundtrip(
         tmp_dir: Scratch directory; uses a new tempdir when None.
 
     Returns:
-        Damaged waveform, same length as ``audio``, float32.
+        (damaged waveform, same length as audio, float32; the codec name that
+        actually ran, either the requested one or MULAW_FALLBACK_LABEL).
     """
     if codec not in _SUPPORTED_CODECS:
         raise ValueError(f"codec {codec!r} not supported; choose from {_SUPPORTED_CODECS}")
@@ -118,18 +133,18 @@ def apply_codec_roundtrip(
             RuntimeWarning,
             stacklevel=2,
         )
-        return _mulaw_fallback(audio_f32)
+        return _mulaw_fallback(audio_f32), MULAW_FALLBACK_LABEL
 
     result = _ffmpeg_roundtrip_standalone(audio_f32, sample_rate, codec, bitrate_kbps, tmp_dir)
     if result is not None:
-        return result
+        return result, codec
 
     warnings.warn(
         f"ffmpeg codec roundtrip failed for {codec!r}; falling back to mu-law simulation.",
         RuntimeWarning,
         stacklevel=2,
     )
-    return _mulaw_fallback(audio_f32)
+    return _mulaw_fallback(audio_f32), MULAW_FALLBACK_LABEL
 
 
 def _ffmpeg_roundtrip_standalone(
