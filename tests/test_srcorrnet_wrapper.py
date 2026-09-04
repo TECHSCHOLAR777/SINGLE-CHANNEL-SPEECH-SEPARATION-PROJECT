@@ -132,6 +132,43 @@ def test_inner_model_finds_the_real_two_level_nesting() -> None:
     assert expert._inner_model() is real_inner
 
 
+def test_dec_hook_survives_a_stream_count_other_than_k0() -> None:
+    """
+    Regression for I-051: the decoder hook used to assume every call produces
+    K0=5 streams (feat.shape[0] // K0), which crashed feat.view whenever the
+    model was actually asked for a different count, since separate() calls
+    process_waveform with a specific n_spks and the decoder emits exactly
+    that many streams, not always K0. A crash inside a forward hook aborts
+    the whole forward pass it is attached to, so this also checks the fix
+    degrades to skipping the stage instead of raising.
+    """
+
+    class FakeDecoderModel(torch.nn.Module):
+        def __init__(self) -> None:
+            super().__init__()
+            self.encoder = torch.nn.Identity()
+            self.dec_block = torch.nn.ModuleList([torch.nn.Identity()])
+
+    class FakeEngine:
+        def __init__(self, inner: torch.nn.Module) -> None:
+            self.model = inner
+
+    class FakeSSInference:
+        def __init__(self, inner: torch.nn.Module) -> None:
+            self.engine = FakeEngine(inner)
+
+    inner = FakeDecoderModel()
+    expert = SRCorrNetExpert(device="cpu")
+    expert._model = FakeSSInference(inner)  # type: ignore[assignment]
+    expert._register_hooks()
+
+    # 2 streams (bk=2), not divisible by the old hardcoded K0=5.
+    fake_output = torch.randn(2, 3, 4, 5)
+    inner.dec_block[0](fake_output)  # runs the registered forward hook
+
+    assert expert._dec_features[0].shape == (1, 2, 3, 4, 5)
+
+
 def test_inner_model_still_finds_one_level_nesting() -> None:
     """The old one-level shape (self._model.model directly an nn.Module)
     must keep working, in case some SSInference build uses it."""

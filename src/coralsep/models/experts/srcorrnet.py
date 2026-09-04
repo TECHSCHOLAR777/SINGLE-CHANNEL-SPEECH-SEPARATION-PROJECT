@@ -151,16 +151,28 @@ class SRCorrNetExpert:
                 def _dec_hook(
                     module: torch.nn.Module, input: Any, output: Any, idx: int = i
                 ) -> None:
-                    # output: (B*K, T, F, D) → reshape to (B, K, T, F, D)
+                    # output: (B*K, T, F, D) -> reshape to (B, K, T, F, D).
+                    # separate() always calls with a single mixture (B=1), so
+                    # K is whatever the model actually produced this call,
+                    # not always K0=5: n_spks conditions the decoder to emit
+                    # exactly n_spks streams, and K0 is only the maximum. The
+                    # previous version hardcoded k=K0, which crashed
+                    # feat.view whenever n_spks != K0 (bk // K0 floored to 0
+                    # and the reshape's element count no longer matched). A
+                    # crashing instrumentation hook aborts the whole forward
+                    # pass it is attached to, so this is defensive as well as
+                    # corrected: a genuinely unexpected shape is skipped for
+                    # this stage rather than taking inference down with it.
+                    # See I-051.
                     if isinstance(output, torch.Tensor):
                         feat = output.detach()
-                        # Expand dec_features list as needed
                         while len(self._dec_features) <= idx:
                             self._dec_features.append(torch.zeros(1))
-                        bk, T, F, D = feat.shape
-                        k = K0
-                        b = bk // k
-                        self._dec_features[idx] = feat.view(b, k, T, F, D)
+                        try:
+                            bk, T, F, D = feat.shape
+                            self._dec_features[idx] = feat.view(1, bk, T, F, D)
+                        except (ValueError, RuntimeError):
+                            pass
 
                 h = block.register_forward_hook(_dec_hook)
                 self._hooks.append(h)

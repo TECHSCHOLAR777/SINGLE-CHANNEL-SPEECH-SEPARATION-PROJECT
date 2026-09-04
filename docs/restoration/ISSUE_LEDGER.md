@@ -1443,12 +1443,14 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 **Scope.** Widen `_inner_model` to check the same two-level nesting `_get_inner_module` already handles.
 
+**2026-09-04, second update.** Fixing `_inner_model` let the Patch B and Patch C hooks register for the first time against a real backbone, which immediately exposed a second, previously unreachable bug: the decoder-feature hook (Patch C) hardcoded `k = K0` (5) when reshaping `(B*K, T, F, D)` to `(B, K, T, F, D)`. `separate()` always calls with batch size 1, and the decoder emits exactly `n_spks` streams for that call, not always `K0`, so `bk // K0` floored to 0 whenever `n_spks != 5` and the reshape crashed, aborting the whole forward pass the hook was attached to. Fixed by using the batch-size-1 invariant directly (`k = bk`, `b = 1`) instead of assuming a fixed `K0`, with a try/except as defense in depth so a genuinely unexpected shape in the future degrades to skipping that stage rather than taking inference down.
+
 **Acceptance criteria.**
 - [x] `_inner_model` finds the real inner module for a two-level-nested fake object, with a regression test.
 - [x] The one-level shape keeps working too, with a regression test.
-- [ ] Rerun the gate diagnostic against the real checkpoint and confirm E(0) is now captured (tracked as a follow-up to I-003).
+- [ ] Rerun the gate diagnostic against the real checkpoint and confirm E(0) is now captured end to end. The `_inner_model` fix alone let the hooks register for the first time, which immediately surfaced the second bug above (fixed in the same commit); a clean run with both fixes in place has not yet been confirmed.
 
-**Validation.** `pytest tests/test_srcorrnet_wrapper.py -q`, 11 passed, including the two new regression tests. Confirming real E(0) capture on the GPU box is the immediate next step.
+**Validation.** `pytest tests/test_srcorrnet_wrapper.py -q`, 12 passed, including three new regression tests, covering both fixes in isolation. An end-to-end rerun on the GPU box is queued as the next step.
 
 **Dependencies.** Blocks a meaningful I-003/I-042 measurement: without this fix, the "Level-2 forced to zero" and "real Level-2" arms of that diagnostic could never have differed.
 
