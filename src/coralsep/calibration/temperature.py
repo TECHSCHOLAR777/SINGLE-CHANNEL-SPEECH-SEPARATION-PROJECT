@@ -15,6 +15,7 @@ Calibration fitting minimises negative log-likelihood on a held-out set.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import torch
@@ -82,11 +83,38 @@ class TemperatureScaler(nn.Module):
         return final_loss
 
     def save(self, path: str | Path) -> None:
-        torch.save({"temperature": self.temperature.item()}, str(path))
+        """Write exactly `path`, as JSON (I-038), for the same format as the
+        other three calibrators. A single scalar never needed torch.save's
+        pickle-based container format."""
+        payload = {
+            "format": "coralsep-temperature-scaler-v2",
+            "temperature": self.temperature.item(),
+        }
+        Path(path).write_text(json.dumps(payload), encoding="utf-8")
 
     @classmethod
     def load(cls, path: str | Path) -> TemperatureScaler:
-        state = torch.load(str(path), map_location="cpu")
-        obj = cls(init_temperature=float(state["temperature"]))
+        """Load a scaler saved by `save`.
+
+        Also reads the old torch.save format for one release (I-038's
+        deprecation window): {"temperature": float}.
+        """
+        p = Path(path)
+        try:
+            payload = json.loads(p.read_text(encoding="utf-8"))
+            temperature = float(payload["temperature"])
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            import warnings
+
+            warnings.warn(
+                f"{path} is in the deprecated torch.save TemperatureScaler format. "
+                "Re-save it with the current save() to get the JSON format.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            state = torch.load(str(p), map_location="cpu", weights_only=True)
+            temperature = float(state["temperature"])
+
+        obj = cls(init_temperature=temperature)
         obj.eval()
         return obj

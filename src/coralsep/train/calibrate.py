@@ -45,15 +45,12 @@ REQUIRED_ARRAYS: tuple[str, ...] = (
 )
 """Arrays a held-out bundle must contain. Named here so the error is specific."""
 
-# Each calibrator picks its own serialisation format: TemperatureScaler uses
-# torch.save, ConfidenceCalibrator and OODCalibrator use pickle, and
-# CompletenessCalibrator uses np.save, which appends .npy to whatever path it is
-# given. The extensions below match what each class actually writes, so the
-# manifest hashes real files. Unifying those formats is tracked separately.
-TEMPERATURE_FILE = "count_temperature.pt"
-CONFIDENCE_FILE = "stream_confidence.pkl"
-COMPLETENESS_FILE = "completeness.npy"
-OOD_FILE = "ood.pkl"
+# All four calibrators now write one explicit JSON format (I-038): no
+# pickle, no silently-rewritten paths. save(path) writes exactly path.
+TEMPERATURE_FILE = "count_temperature.json"
+CONFIDENCE_FILE = "stream_confidence.json"
+COMPLETENESS_FILE = "completeness.json"
+OOD_FILE = "ood.json"
 
 ARTIFACT_FILES: tuple[str, ...] = (
     TEMPERATURE_FILE,
@@ -133,8 +130,7 @@ def fit_all(
 
     completeness = CompletenessCalibrator()
     completeness.fit(held_out["comp_probs"], held_out["comp_labels"])
-    # CompletenessCalibrator uses np.save, which appends .npy to the path.
-    completeness.save(out / COMPLETENESS_FILE.replace(".npy", ""))
+    completeness.save(out / COMPLETENESS_FILE)
 
     ood = OODCalibrator()
     ood.fit(held_out["ood_features"])

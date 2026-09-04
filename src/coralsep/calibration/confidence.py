@@ -10,6 +10,7 @@ After calibration:
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -21,6 +22,16 @@ class ConfidenceCalibrator:
 
     Fit on a held-out set of (raw_score, correct) pairs where `correct=1`
     means the stream's SI-SDR improvement was positive.
+
+    Serialization (I-038): only the fitted step function's breakpoints
+    (X_thresholds_, y_thresholds_) are kept after fit, as plain float
+    arrays, not the fitted scikit-learn estimator object. calibrate()
+    reimplements the estimator's own transform via linear interpolation over
+    those breakpoints (numpy.interp clips to the boundary y-value outside the
+    range by default, matching IsotonicRegression's out_of_bounds="clip").
+    This means calibrate() never needs scikit-learn or a pickled object at
+    inference time, only at fit time, and a saved calibrator is a JSON file
+    of two float arrays instead of a pickled object graph.
     """
 
     def __init__(self) -> None:
@@ -42,9 +53,11 @@ class ConfidenceCalibrator:
         is_correct = np.asarray(is_correct, dtype=np.float64)
         ir = IsotonicRegression(out_of_bounds="clip", increasing=True)
         ir.fit(raw_scores, is_correct)
-        self._x_thresholds = raw_scores
-        self._y_calibrated = ir.transform(raw_scores)
-        self._ir = ir
+        # The deduplicated, sorted step-function breakpoints scikit-learn
+        # itself interpolates over, not the raw (possibly repeated,
+        # unsorted) input scores.
+        self._x_thresholds = np.asarray(ir.X_thresholds_, dtype=np.float64)
+        self._y_calibrated = np.asarray(ir.y_thresholds_, dtype=np.float64)
         self._fitted = True
 
     def calibrate(self, raw_scores: np.ndarray) -> np.ndarray:
@@ -59,7 +72,8 @@ class ConfidenceCalibrator:
         """
         if not self._fitted:
             return np.asarray(raw_scores, dtype=np.float32)
-        return self._ir.transform(np.asarray(raw_scores, dtype=np.float64)).astype(np.float32)
+        x = np.asarray(raw_scores, dtype=np.float64)
+        return np.interp(x, self._x_thresholds, self._y_calibrated).astype(np.float32)
 
     def expected_calibration_error(
         self, raw_scores: np.ndarray, is_correct: np.ndarray, n_bins: int = 10
@@ -79,18 +93,47 @@ class ConfidenceCalibrator:
         return float(ece)
 
     def save(self, path: str | Path) -> None:
-        import pickle
-
-        with open(str(path), "wb") as f:
-            pickle.dump({"ir": self._ir, "fitted": self._fitted}, f)
+        """Write exactly `path`, as JSON. No pickle: see the class docstring."""
+        payload = {
+            "format": "coralsep-confidence-calibrator-v2",
+            "fitted": self._fitted,
+            "x_thresholds": (self._x_thresholds.tolist() if self._x_thresholds is not None else []),
+            "y_calibrated": (self._y_calibrated.tolist() if self._y_calibrated is not None else []),
+        }
+        Path(path).write_text(json.dumps(payload), encoding="utf-8")
 
     @classmethod
     def load(cls, path: str | Path) -> ConfidenceCalibrator:
-        import pickle
+        """Load a calibrator saved by `save`.
 
-        with open(str(path), "rb") as f:
-            state = pickle.load(f)
+        Also reads the old pickled format for one release (I-038's
+        deprecation window): a file that fails to parse as JSON is retried
+        as a pickle of {"ir": <fitted IsotonicRegression>, "fitted": bool},
+        and its breakpoints are extracted the same way `fit` now does.
+        """
+        raw = Path(path).read_bytes()
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            import pickle
+            import warnings
+
+            warnings.warn(
+                f"{path} is in the deprecated pickled ConfidenceCalibrator format. "
+                "Re-save it with the current save() to get the JSON format.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            state = pickle.loads(raw)  # noqa: S301 - explicit, logged legacy-format fallback
+            obj = cls()
+            obj._fitted = state["fitted"]
+            ir = state["ir"]
+            obj._x_thresholds = np.asarray(ir.X_thresholds_, dtype=np.float64)
+            obj._y_calibrated = np.asarray(ir.y_thresholds_, dtype=np.float64)
+            return obj
+
         obj = cls()
-        obj._ir = state["ir"]
-        obj._fitted = state["fitted"]
+        obj._fitted = payload["fitted"]
+        obj._x_thresholds = np.asarray(payload["x_thresholds"], dtype=np.float64)
+        obj._y_calibrated = np.asarray(payload["y_calibrated"], dtype=np.float64)
         return obj

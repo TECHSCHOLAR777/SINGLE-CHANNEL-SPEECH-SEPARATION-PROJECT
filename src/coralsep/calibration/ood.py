@@ -12,6 +12,7 @@ and threshold calibration against a held-out ID/OOD set.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -104,25 +105,65 @@ class OODCalibrator:
         return -np.log(discounts)
 
     def save(self, path: str | Path) -> None:
-        import pickle
-
-        state = {
-            "detector": self._detector,
+        """Write exactly `path`, as JSON (I-038). MahalanobisOOD's own state
+        is a mean vector, a covariance matrix, and a scalar threshold, all
+        plain arrays, so nothing here needs to pickle the detector object."""
+        payload = {
+            "format": "coralsep-ood-calibrator-v2",
+            "fitted": self._fitted,
             "threshold": self._threshold,
             "fpr_target": self.fpr_target,
-            "fitted": self._fitted,
+            "detector_mean": (
+                self._detector.mean.tolist()
+                if self._detector is not None and self._detector.mean is not None
+                else None
+            ),
+            "detector_cov_inv": (
+                self._detector.cov_inv.tolist()
+                if self._detector is not None and self._detector.cov_inv is not None
+                else None
+            ),
         }
-        with open(str(path), "wb") as f:
-            pickle.dump(state, f)
+        Path(path).write_text(json.dumps(payload), encoding="utf-8")
 
     @classmethod
     def load(cls, path: str | Path) -> OODCalibrator:
-        import pickle
+        """Load a calibrator saved by `save`.
 
-        with open(str(path), "rb") as f:
-            state = pickle.load(f)
-        obj = cls(fpr_target=state["fpr_target"])
-        obj._detector = state["detector"]
-        obj._threshold = state["threshold"]
-        obj._fitted = state["fitted"]
+        Also reads the old pickled format for one release (I-038's
+        deprecation window): a file that fails to parse as JSON is retried
+        as a pickle of {"detector": <MahalanobisOOD>, "threshold": float,
+        "fpr_target": float, "fitted": bool}.
+        """
+        from coralsep.models.confidence import MahalanobisOOD
+
+        raw = Path(path).read_bytes()
+        try:
+            payload = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            import pickle
+            import warnings
+
+            warnings.warn(
+                f"{path} is in the deprecated pickled OODCalibrator format. "
+                "Re-save it with the current save() to get the JSON format.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            state = pickle.loads(raw)  # noqa: S301 - explicit, logged legacy-format fallback
+            obj = cls(fpr_target=state["fpr_target"])
+            obj._detector = state["detector"]
+            obj._threshold = state["threshold"]
+            obj._fitted = state["fitted"]
+            return obj
+
+        obj = cls(fpr_target=payload["fpr_target"])
+        obj._fitted = payload["fitted"]
+        obj._threshold = payload["threshold"]
+        if payload["detector_mean"] is not None:
+            obj._detector = MahalanobisOOD(
+                mean=np.asarray(payload["detector_mean"], dtype=np.float64),
+                cov_inv=np.asarray(payload["detector_cov_inv"], dtype=np.float64),
+                threshold=payload["threshold"],
+            )
         return obj

@@ -10,6 +10,7 @@ when to escalate to a more expensive expert or flag for human review.
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 import numpy as np
@@ -96,13 +97,45 @@ class CompletenessCalibrator:
         return (1.0 / (1.0 + np.exp(-cal_logits))).astype(np.float32)
 
     def save(self, path: str | Path) -> None:
-        np.save(str(path), np.array([self._a, self._b]))
+        """Write exactly `path`, as JSON (I-038). The old np.save(str(path),
+        ...) silently appended .npy to whatever path was given, so the file
+        actually written was never the one the caller asked for."""
+        payload = {
+            "format": "coralsep-completeness-calibrator-v2",
+            "a": self._a,
+            "b": self._b,
+            "fitted": self._fitted,
+        }
+        Path(path).write_text(json.dumps(payload), encoding="utf-8")
 
     @classmethod
     def load(cls, path: str | Path) -> CompletenessCalibrator:
-        ab = np.load(str(path))
+        """Load a calibrator saved by `save`.
+
+        Also reads the old .npy array format for one release (I-038's
+        deprecation window): [a, b], with fitted implied True.
+        """
+        p = Path(path)
+        try:
+            payload = json.loads(p.read_text(encoding="utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            import warnings
+
+            warnings.warn(
+                f"{path} is in the deprecated .npy CompletenessCalibrator format. "
+                "Re-save it with the current save() to get the JSON format.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            ab = np.load(str(p))
+            obj = cls()
+            obj._a = float(ab[0])
+            obj._b = float(ab[1])
+            obj._fitted = True
+            return obj
+
         obj = cls()
-        obj._a = float(ab[0])
-        obj._b = float(ab[1])
-        obj._fitted = True
+        obj._a = float(payload["a"])
+        obj._b = float(payload["b"])
+        obj._fitted = payload["fitted"]
         return obj
