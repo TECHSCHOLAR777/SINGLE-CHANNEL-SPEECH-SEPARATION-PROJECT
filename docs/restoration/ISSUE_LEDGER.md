@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 54 tickets. 37 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 55 tickets. 38 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -88,6 +88,7 @@
 | I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
 | I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
 | I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | [#92](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/92) |
+| I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, rerun pending | pending |
 
 ---
 
@@ -1553,6 +1554,31 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Validation.** `pytest tests/test_codec_augmentation.py -q`, 31 passed, including 4 new tests. Full suite: 604 passed, 11 skipped. ruff and black clean.
 
 **Dependencies.** Found while validating the fixed evaluation matrix generator's first real run (I-052, I-053).
+
+---
+
+### I-055 `[BUG]` P1 `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw, so `--seed` does not make the diagnostic reproducible
+
+**State:** CLOSED, commit pending
+
+**Problem.** `eval/eval_reverb_adapter.py::main` builds a seeded `np.random.default_rng(args.seed)` and threads it into `build_test_mixture` and the SI-SNR passes, but constructs `RirBank(rir_dir)` with no `rng` argument at all, even though `RirBank.__init__` accepts one specifically for this purpose ("Seeded generator for reproducible draws"). Left unset, `RirBank` falls back to its own unseeded `np.random.default_rng()`, drawing from OS entropy.
+
+**Evidence.** Three runs of this script this session, all with the default `--seed 42`, against the I-025 baseline checkpoint (rank 8, 500 samples/epoch) and the two rank32 and samples2000 ablation checkpoints. The `reverb_mild` base-model SI-SNR (the frozen backbone, identical code path across all three runs) came back as 4.15 dB, -0.02 dB and 4.76 dB respectively. Since the backbone and its weights are the same in all three runs, this spread can only come from the mixture and RIR draw differing between runs. `build_test_mixture` reuses the seeded `rng`, so it was the unseeded `RirBank` draw that varied.
+
+**Impact.** Every cross-run comparison this diagnostic has ever produced, including the I-025 rank/sample-count ablation comparison in progress this session, was implicitly comparing different T60 conditions rather than holding reverb severity fixed. A within-run base-vs-adapted delta on the same generated mixture is still valid, since both models see the same RIR in a single run. A cross-run comparison of two deltas, or of two absolute SI-SNR numbers, is not, because "reverb_mild" can mean a materially different actual T60 from one invocation to the next.
+
+**Suspected cause.** `RirBank` was written to support a seeded `rng` argument, but the one call site in this script's `main()` was never updated to pass it, likely because the bug is invisible unless two runs are compared side by side; a single run looks completely deterministic and reproducible from its own output.
+
+**Scope.** One-line fix: `RirBank(rir_dir, rng=rng)` at the existing call site.
+
+**Acceptance criteria.**
+- [x] `RirBank` is constructed with the same seeded `rng` the rest of `main()` uses.
+- [ ] Two full runs of the script with the same `--seed` and the same checkpoint produce identical `reverb_mild`/`reverb_strong` base-model SI-SNR values, confirmed on the GPU box.
+- [ ] The I-025 rank/sample-count ablation is rerun with this fix in place before its result is treated as final.
+
+**Validation.** Fix applied locally; rerun against all three checkpoints (baseline rank8/500, rank32, samples2000) pending on the GPU box.
+
+**Dependencies.** Discovered while comparing I-025's two ablation runs. Blocks a trustworthy final answer to I-025's rank-vs-sample-count question until the reruns land.
 
 ---
 

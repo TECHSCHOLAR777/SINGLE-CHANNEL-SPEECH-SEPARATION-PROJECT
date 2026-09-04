@@ -579,7 +579,7 @@ def main() -> None:
 
     # Load RIR bank
     print(f"[SETUP] Loading RIR bank from {rir_dir} ...")
-    rir_bank = RirBank(rir_dir)
+    rir_bank = RirBank(rir_dir, rng=rng)
 
     # Build one test mixture from dev-clean (held-out speakers)
     print(f"[SETUP] Building test mixture from {libri_dir} ...")
