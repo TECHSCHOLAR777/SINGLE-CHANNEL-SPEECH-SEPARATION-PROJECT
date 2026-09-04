@@ -218,12 +218,22 @@ def build_test_mixture(
 
 
 def load_one_noise_file(noise_dir: Path, rng: np.random.Generator) -> np.ndarray:
+    """Pick a random 8 kHz noise file.
+
+    The staged WHAM directory mixes 8 kHz and 16 kHz recordings in the same
+    tree (filename suffix, not a subfolder split), so a plain random pick
+    would crash on the 16 kHz files roughly half the time. Filters by real
+    sample rate via sf.info rather than trusting the filename.
+    """
     files = sorted(noise_dir.rglob("*.wav"))
     assert files, f"No .wav noise files found under {noise_dir}"
-    idx = int(rng.integers(0, len(files)))
-    audio, sr = sf.read(str(files[idx]), dtype="float32")
-    assert sr == 8000, f"Expected 8kHz noise, got {sr} Hz in {files[idx]}"
-    return audio.flatten()
+    rng.shuffle(files)
+    for candidate in files:
+        info = sf.info(str(candidate))
+        if info.samplerate == 8000:
+            audio, sr = sf.read(str(candidate), dtype="float32")
+            return audio.flatten()
+    raise AssertionError(f"No 8kHz .wav noise files found under {noise_dir}")
 
 
 def _make_mixture(refs: list[np.ndarray], n_spks: int) -> CoralSepMixture:
