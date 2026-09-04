@@ -223,3 +223,33 @@ Ran a dedicated cleanup pass in parallel: five commits removing genuinely dead m
 Checked the account's full dataset list on Kaggle (`kaggle datasets list --user rishig777`, no filter) for the Stage 4 joint checkpoint carrying the fitted gate temperature 4.9872. It is not there. Only four CoRAL-Sep datasets exist under this account: the 8kHz training slice, the backbone/model bundle, the Stage 1 adapters, and the Stage 3 gate. If the Stage 4 joint checkpoint survives anywhere, it is inside a Kaggle notebook's own session output rather than a published dataset, which the Datasets API this session used cannot see; finding it would mean browsing that account's notebooks directly.
 
 **Next action.** The remaining reverb-adapter candidates (LoRA rank, sample count) both need a retraining run, now genuinely possible with the GPU box. I-047 (does LibriMix `mix_both` carry the reverb adapter's harm into every headline number) needs the actual LibriMix test set, which is not on Kaggle under this account and would need to be generated from the full LibriSpeech and WHAM corpora, a much larger data-acquisition task than anything done this entry. I-003's remaining two candidates (the Stage 4c temperature, the L1 sparsity penalty) stay untested until the Stage 4 joint checkpoint is found in the account's notebook outputs or the owner supplies it directly.
+
+---
+
+## 2026-09-04, entry 8
+
+**Phase:** 8 continued, real compute, second half.
+
+**Objective.** Owner confirmed the GPU box was idle and available; continued the same session with two real training ablations for I-025, a code-only fix for I-038, a code-only fix for I-044, a methodology review the owner prompted directly, and a dataset access review the owner asked to be kept current.
+
+**Actions.**
+
+Made LoRA rank overridable (`_target_paths`, `LoRALibrary.__init__`, and `eval_reverb_adapter.py::load_adapted` all take `attn_rank`/`filter_rank` now, defaulting to the original BLUEPRINT values) and added `--rank` to `stage1_single.py`'s CLI. Launched two real training runs on the GPU box, matching the original run's 40 epochs and 500 samples/epoch except for exactly one changed variable each: rank 32 instead of 8, and 2000 samples/epoch instead of 500. Both running concurrently; rank32 on track for roughly 90 minutes, samples2000 for roughly 5 hours given 4x the data per epoch.
+
+Fixed I-038: all four calibrators (`TemperatureScaler`, `ConfidenceCalibrator`, `CompletenessCalibrator`, `OODCalibrator`) now read and write one explicit JSON format. The two that pickled a fitted object (`ConfidenceCalibrator`'s scikit-learn `IsotonicRegression`, `OODCalibrator`'s `MahalanobisOOD` detector) no longer do: their state serializes as plain arrays (isotonic step-function breakpoints; mean vector and covariance matrix), and `calibrate()` reimplements the estimator's own transform via interpolation rather than needing the object back. Every `load()` still reads its old format for one release, with a warning, per the ticket's compatibility constraint.
+
+Fixed I-044: `noise_staging.py` now records which WHAM split (or "unfiltered") every staged clip came from, and a new `check_noise_provenance` function refuses to let `stage1_single.py` or `stage3_gate.py` train on a noise directory whose manifest does not show every WHAM entry as `tr`, including a manifest that predates this field. Skippable only via an explicit flag.
+
+The owner raised a real methodological question directly: is the baseline-vs-CoRAL-Sep comparison fair, given the frozen backbone was trained on different (WSJ0, LDC-licensed) data than the adapters were fine-tuned on. The backbone-provenance half of the concern is already resolved structurally (the backbone is consumed as a public, off-the-shelf, never-retrained download, so no part of this project's own reproduction needs WSJ0 access). The sharper half is real and previously undernamed: the baseline gets zero exposure to LibriMix-like data while CoRAL-Sep's adapters get fine-tuned on it, so the reported delta cannot currently distinguish "any target-domain adaptation helps" from "condition-routed adaptation helps," which is the actual claim. Strengthened I-024 (the never-run Stage 2 universal-adapter ablation) to name this explicitly as the experiment that separates the two effects, and added the caveat directly to `RESULTS.md` and `README.md` where the headline numbers are stated, not only in the ticket.
+
+The owner separately asked for an ongoing review of dataset access and authorized using new datasets found along the way. Searched Kaggle broadly, not just the project's own account, for two gaps. Found a WHAM! mirror with the correct `tr`/`cv`/`tt` split layout (`ngcthun/wham-noise`, 19.5 GB) and started downloading it, since I-044's new guard needs real split-labeled data to mean anything beyond a unit test. Found no usable LibriMix substitute: the two public candidates checked (`trngttrng12/librimix-eval`, `garvs777/libri3mix`) are both `mix_clean`-only and single-N, missing `mix_both` entirely, which is what this project's evaluation harness actually reads. DATA-004 (the real LibriMix test set) still needs generating from the official pipeline over LibriSpeech `test-clean` and WHAM's `tt` split; there is no shortcut through a pre-made Kaggle copy. Refreshed `DATA_AND_MODEL_INVENTORY.md` end to end against what is actually present now, including a correction: the Kaggle dataset named `calmsep-stage3-gate` holds Stage 3 checkpoints, not training data, despite its name.
+
+**Findings.** The confound the owner named is a better articulation of a gap this restoration's own tickets had already partially captured (I-024, I-046) but never stated as sharply as "the current comparison cannot tell these two effects apart." Worth recording as its own lesson: a domain expert's plain-language challenge to a result can sharpen an existing ticket more than another round of code reading does.
+
+**Decisions recorded.** None new; I-024's scope was widened, not redefined.
+
+**Issues advanced.** I-024 (impact section rewritten to name the confound explicitly), I-038 (closed), I-044 (closed, code half; historical leakage still unconfirmed).
+
+**Validation.** Full suite locally after I-038 and I-044: 595 passed, 11 skipped. ruff and black clean throughout.
+
+**Next action.** Once the rank32 and samples2000 ablations finish, rerun the corrected reverb diagnostic against each and compare to the confirmed baseline numbers in I-025. Once the WHAM download finishes, exercise `check_noise_provenance` against it for real and consider a real noise-adapter retraining run. Generating the actual LibriMix test set remains the highest-value data-acquisition task not yet started.
