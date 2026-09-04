@@ -86,7 +86,7 @@
 | I-050 | `[BUG]` | 🟠 P1 | The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU | 🟢 CLOSED | [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88) |
 | I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | [#89](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/89) |
 | I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
-| I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED, bank regeneration pending | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
+| I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
 
 ---
 
@@ -1522,9 +1522,9 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 - [x] `_find_rir_wavs` excludes `silence/` recordings.
 - [x] The documented flat manual-fallback layout still works.
 - [x] A regression test constructs both directory shapes and asserts the correct one is filtered.
-- [ ] The staged bank on the GPU box is regenerated with the fix and its T60 summary statistics confirmed sane (roughly 0.1 to a few seconds), not yet done as of this commit.
+- [x] The staged bank on the GPU box is regenerated with the fix and its T60 summary statistics confirmed sane: `t60_mean_s` 1.17, range 0.44 to 3.38, all physically plausible for real rooms. `n_rirs` dropped from 12,307 to 2,325, the true impulse-response count once the roughly 10,000 misclassified silence recordings are excluded.
 
-**Validation.** `pytest tests/test_but_reverbdb.py -q`, 5 passed. Full suite: 600 passed, 11 skipped. Regenerating the real staged bank and confirming sane statistics is the immediate next step.
+**Validation.** `pytest tests/test_but_reverbdb.py -q`, 5 passed. Full suite: 600 passed, 11 skipped. Regenerated the real bank on the GPU box against the actual downloaded archive, confirmed the statistics above directly from the resulting `but_bank.json`.
 
 **Dependencies.** Found while executing the fix for I-052; blocks trusting any number derived from the `but_reverb` evaluation tier until the bank is regenerated.
 
