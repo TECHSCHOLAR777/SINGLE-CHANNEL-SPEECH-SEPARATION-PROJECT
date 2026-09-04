@@ -2,10 +2,10 @@
 
 # What is wrong, and what it would take to fix it
 
-**39 issues found · 27 closed · 12 open**
+**47 issues found · 29 closed · 18 open**
 
-[![Open](https://img.shields.io/badge/open-12-e36209?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aopen)
-[![Closed](https://img.shields.io/badge/closed-27-2ea043?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aclosed)
+[![Open](https://img.shields.io/badge/open-18-e36209?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aopen)
+[![Closed](https://img.shields.io/badge/closed-29-2ea043?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aclosed)
 
 </div>
 
@@ -19,9 +19,29 @@ The ledger tells you *what* each ticket says. This file tells you *why the remai
 
 ## The short version
 
-The code is in better shape than its own documentation suggested. Of the 39 problems found, 27 are already fixed, and most of those were connective tissue rather than design faults: symbols renamed in one place and not updated in another, all of which survived because the CI workflow was watching a branch that does not exist.
+The code is in better shape than its own documentation suggested. Of the 47 problems found, 29 are already fixed. The first restoration pass found mostly connective tissue: symbols renamed in one place and not updated in another, all of which survived because the CI workflow was watching a branch that does not exist. A second, deeper pass attacking the research approach itself, not just the code, found two severe bugs in the load-bearing paths (below) and six open questions about whether the architecture's central design choices are supported by evidence at all.
 
-What remains is **mostly not fixable by writing code**. Nine of the twelve open issues need either a GPU, access to the Kaggle account holding the checkpoints, or a decision from the project owner. Three can be done on a laptop this afternoon.
+What remains is **mostly not fixable by writing code**. Most of the open issues need either a GPU, access to the Kaggle account holding the checkpoints, or a decision from the project owner. A handful can be done on a laptop.
+
+---
+
+## 🟢 Two severe bugs found and fixed this session, before touching anything else
+
+The instruction going into this pass was to attack the approach and the codebase hard before doing anything else. These two were the payoff.
+
+### The condition-routed gate could not run
+
+**[I-041](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/79) · `BUG` · P0 · fixed**
+
+`GateNetwork` is built to take a 10-number input, four DSP features plus six learned condition features. The actual inference pipeline built only the four DSP numbers and handed that straight to the gate. That is the deployed, condition-routed inference path the whole project is named for, and it would crash the instant a real trained gate was attached to it. Every result in the repository that involves the gate came from separate scripts that build their own input tensor correctly; the pipeline class itself had, as far as anyone can tell, never been run end to end with a real gate.
+
+Fixed by padding the missing six numbers with zero, which matches a convention the architecture doc already describes for the first chunk of audio. A test now builds a real pipeline with a real gate and proves it runs.
+
+### The reverb adapter's "harmful" verdict was measured wrong
+
+**[I-040](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78) · `BUG` · P1 · fixed**
+
+The diagnostic script behind the table in the next section scores the model's output against the wrong reference signal for two of its three conditions. See below, this rewrites what I-025 currently means.
 
 ---
 
@@ -63,9 +83,11 @@ Stage 4c fitted the gate temperature to **T = 4.9872** by golden-section search.
 
 **What it takes.** Diagnose before touching anything. Load the Stage 4 checkpoint, push a set of mixtures with known conditions through it, and record the actual distribution of gate values. That single measurement distinguishes three hypotheses that currently look alike: the L1 sparsity penalty at 1e-3 pushing the gate to its uninformative mid-point, Stage 3 having too few epochs to separate the conditions, or the calibration objective having nothing to reward because one of the three adapters is harmful (see below). Needs the checkpoint from Kaggle. The measurement itself runs on CPU.
 
-### One of the three adapters makes things worse
+### Whether the reverb adapter makes things worse is now an open question again, for a better reason than before
 
-**[I-025](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) · `MODEL` · P1**
+**[I-025](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) · `MODEL` · P1 · investigating**
+
+The original table here read:
 
 | Condition | Base | With reverb adapter | Change |
 |---|---:|---:|---:|
@@ -73,13 +95,15 @@ Stage 4c fitted the gate temperature to **T = 4.9872** by golden-section search.
 | Reverb, mild | -30.89 dB | -30.96 dB | -0.07 dB |
 | Reverb, strong | -32.83 dB | -35.64 dB | 🔴 -2.81 dB |
 
-The reverb adapter degrades quality in every tested condition, including the clean one it should leave alone.
+and this file's previous edition said the likely cause was that Stage 1 training used the wet reverberant reference instead of the dry one. That hypothesis is now refuted, by reading the code it named. `data/degradations.py` shows the wet reference is a deliberate, carefully justified design choice: the system is meant to separate speakers without also dereverberating them, so scoring it against the dry source would grade it on a task it was never asked to do. That part of the design is sound.
 
-The measurement is trustworthy because the same diagnostic ran two controls and both passed. With the gate at zero the adapted model reproduced the base model to a maximum difference of `0.000000`, so the injection mechanism is correct. The LoRA A matrices had a mean norm of 1.5813 and the B matrices were non-zero, so weights were genuinely learned. The adapter learned something, and what it learned is harmful.
+What was actually wrong is the diagnostic script that produced the table above ([I-040](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78), now fixed). It scored the reverb conditions against the dry reference anyway, the exact mistake the design docs warn against. Its own second pass proves this on its own numbers: scored against the correct wet target, the same audio measures near 0 dB; scored against the dry one, it measures -32 to -35 dB. That is a 31.65 dB gap on identical audio, and the script's own sanity check missed it because of a sign error.
 
-**What it takes.** The most likely cause is that Stage 1 reverb training used the *wet* reverberant signal as its reference target rather than the anechoic one, which would teach the adapter to reproduce reverberation instead of removing it. That hypothesis ranks above the alternatives because it explains the *sign* of the result and not merely its size.
+**What this means.** The -2.81 dB "harm" figure cannot be trusted; it may still be true, or the adapter may be fine, or actively good, once measured correctly. The one number from that table that is *not* affected by this bug is the clean-audio delta (-0.44 dB), since there is no wet/dry distinction without reverb, and it stands as a small real regression from switching the adapter on when it has nothing to do.
 
-Confirming it needs no compute at all: read the reference signal through `train/stage1_single.py` and `data/degradations.py`. If the target is wrong, fix it and retrain, which does need a GPU. **Start here.** It is the cheapest of the three findings to diagnose and it may explain I-003 as well.
+A separate, independent finding from this pass gives a second reason the adapter could be struggling even once scored correctly: it was trained with the other two adapters barely switched on (0 to 20 percent), but the deployed gate runs all three near 50 percent (see the gate finding just below). It has never been tested under the load it actually runs in.
+
+**What it takes.** The diagnostic script is fixed and ready to rerun. Rerunning it needs the Stage 1 checkpoint, which is on Kaggle. **Start here once compute is available**, since it is the single measurement that would tell us the most, and everything else about the reverb adapter is downstream of it.
 
 ### The three-adapter design has no evidence behind it
 
@@ -90,6 +114,54 @@ Why three condition-specific adapters rather than one universal one? The intende
 The interesting detail is that it was clearly *prepared for*: the evaluation harness recovered from the archive contains `_load_universal_ckpt`, a loader that reads a Stage 2 checkpoint from either a file or a PyTorch zip directory. Somebody wrote the loader and never got to the run.
 
 **What it takes.** Train Stage 2 and run the ablation. Roughly two weeks of GPU time by the original estimate. Until then the central design choice of the system is a preference, not a finding.
+
+### The gate never actually receives the features it was trained to route on
+
+**[I-042](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/80) · `ARCH` · P1**
+
+Half the gate's input is supposed to come from the audio itself: pooled encoder output from the previous chunk, six numbers describing reverb severity, count evidence and the like. The architecture docs describe this as a deliberate one-chunk lag, zero on the first chunk of audio, real after that. The actual inference code computes the gate exactly once for an entire utterance, before any audio has been processed at all, so those six numbers are always zero, not just on the first chunk. The fix for the crash above (I-041) papers over this correctly for now by zero-padding, but the deeper question, should the gate run per chunk with real features, is still open.
+
+**What it takes.** A decision: either restructure the pipeline to run the gate per chunk the way the docs describe, or correct the docs to say the gate is once-per-utterance and always blind to reverb and count evidence. This is a real design change either way, not a quick patch. It may also be a second explanation for why the gate output is flat (I-003): a gate that is structurally blind to half its intended input cannot route on that half.
+
+### The three adapters were trained for a blend they never actually run in
+
+**[I-043](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) · `MODEL` · P2**
+
+Stage 1 trains one adapter at a time with the other two barely switched on, 0 to 20 percent. The gate that actually runs at inference blends all three near 50 percent. No adapter has ever seen, in training, anything close to the composition regime it is deployed under.
+
+**What it takes.** A diagnostic that runs each trained adapter under a fixed 50/50/50 blend and compares it against its own trained regime. Needs the Stage 1 checkpoints from Kaggle; the diagnostic script itself is a laptop task.
+
+### The noise adapter's training data was never checked against the test set it is graded on
+
+**[I-044](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82) · `DATA` · P2**
+
+The official test mixtures include WHAM background noise. The code that stages noise for training is aware that WHAM has separate train and test splits, but nothing downstream of it actually enforces which split gets used, unlike speaker isolation, which is checked explicitly for LibriSpeech. If whoever ran noise staging pointed it at the wrong folder, the noise adapter could have trained on noise related to the exact clips it is later scored against.
+
+**What it takes.** A guard that records and checks the split at load time, so a future run cannot make this mistake silently, which is a laptop task. Confirming whether past runs actually did this needs the staged data on Kaggle.
+
+### Reconstructing the missing high frequencies leans on information the deployed system will never have
+
+**[I-045](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/83) · `MODEL` · P2**
+
+The step that reconstructs 4 to 8 kHz content works by masking the shared, unseparated mixture, because separation itself only happens up to 4 kHz. In practice this means every speaker's reconstructed high band is a mask over the same signal, distinguished only by how each mask is shaped, so true separation above 4 kHz cannot happen by construction, only attenuation can. Separately, the code that decides whether to trust the reconstruction can consult the answer key during evaluation, an option a deployed system never has.
+
+**What it takes.** Report any future band-recovery number honestly labelled by which guard produced it, the oracle one or the deployable one, and be plain in the docs that this step extends bandwidth rather than separates it.
+
+### The decision to never touch the frozen backbone was never itself tested
+
+**[I-046](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/84) · `RESEARCH` · P3**
+
+The rule against ever fine-tuning the backbone comes from an earlier experiment that stacked new layers on *top of* its output and made things worse. That is real evidence against one specific approach. It was generalised into a much broader rule, never touch the backbone at all, only ever intervene through LoRA, without a direct test of the more moderate middle ground, such as lightly fine-tuning the last layer or two. Given that one of the three adapters needs to be re-verified (I-025) and the universal-adapter ablation was never run (I-024), the project currently has no direct evidence that its central bet beats that untested alternative.
+
+**What it takes.** Nothing urgent. Just say plainly in the docs that this is an extrapolation, not a measurement, until compute allows testing it directly.
+
+### The headline results may include a known-harmful adapter that was never supposed to be graded there
+
+**[I-047](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/85) · `EXP` · P1 · blocked**
+
+The standard LibriMix test mixtures used to produce the headline improvement numbers do not include reverberation at all, only noise. If that is also true of the actual data copy used here, every one of those headline numbers was produced with the gate still blending in the reverb adapter at roughly 50 percent (I-003), on audio that adapter is separately measured to hurt even when perfectly clean. The reported improvement would then understate what the noise and codec adapters contribute on their own, and the true story may be that two adapters help while the third quietly drags the total down.
+
+**What it takes.** First, a five-minute check of which LibriMix generation path was actually used, doable without a GPU. Second, if confirmed, a cheap rerun with the reverb adapter's gate pinned to zero, compared side by side with the current numbers.
 
 ---
 
@@ -139,36 +211,38 @@ A related open question: `MEASUREMENTS.md` records the Stage 1 noise adapter at 
 
 ```mermaid
 flowchart TD
-    A["Read the reverb training target<br/>I-025 · no compute needed"] --> B{"Wet reference?"}
-    B -->|yes| C["Fix and retrain Stage 1<br/>may also explain I-003"]
-    B -->|no| D["Measure the gate distribution<br/>I-003 · needs the checkpoint"]
+    A["Rerun the fixed reverb diagnostic<br/>I-040/I-025 · needs the checkpoint"] --> D["Decide the gate's design<br/>I-042 · needed before trusting I-003"]
+    Z["Check LibriMix mix_both for reverb<br/>I-047 · no compute needed"] --> A2["Rerun eval, reverb gate pinned to 0<br/>I-047 · needs the checkpoint"]
+    D --> C["Measure the gate distribution<br/>I-003 · needs the checkpoint"]
 
     E["Remove oracle N from eval<br/>I-002 · code testable here"] --> F["Retain per-sample scores<br/>I-026 · code testable here"]
     F --> G["Rerun at n≥300, all 4 splits<br/>I-023 · needs a GPU"]
+    A --> G
     C --> G
-    D --> G
+    A2 --> G
     G --> H["Confidence intervals<br/>+ calibration ECE"]
 
-    style A fill:#2ea043,stroke:#2ea043,color:#fff
+    style Z fill:#2ea043,stroke:#2ea043,color:#fff
     style E fill:#2ea043,stroke:#2ea043,color:#fff
     style F fill:#2ea043,stroke:#2ea043,color:#fff
 ```
 
 🟩 needs nothing but a laptop.
 
-The two green paths are independent and can run in parallel. Both should finish before any GPU time is spent, because a rerun that still supplies the oracle count would produce another set of numbers that answer the wrong question.
+The green paths are independent and can run in parallel, and should finish before spending GPU time on anything else. I-042 is new: it is a design decision, not a measurement, and I-003's diagnosis depends on which way it is decided, since a gate that structurally never sees half its intended input cannot be diagnosed the same way as one that sees real features and ignores them.
 
 ---
 
 ## What was already fixed
 
-Twenty-seven issues, all closed with validation evidence rather than on the code change alone. Each closure comment on GitHub names its commit.
+Twenty-nine issues, all closed with validation evidence rather than on the code change alone. Each closure comment on GitHub names its commit.
 
 | Group | What was wrong | Now |
 |---|---|---|
 | **Rename drift** (I-004 to I-008) | Symbols renamed in the module that defines them, consumers never updated. `CALMSEP_SR`, `si_snr`, `CalmSepEngine`, plus two whole modules dropped in a branch merge. | 🟢 All import |
 | **v1 residue** (I-009, I-033, I-035) | Four files serving the abandoned cascade, one script calling deleted classes, another hard-coding paths on a banned platform. | 🟢 Classified, removed or repaired |
 | **Silent bugs** (I-010, I-036, I-037) | A script that copied files on import. Inference randomising every adapter gate while reporting the correct one. A speaker-count readout that crashed on its own documented type and counted two slots that are not speakers. | 🟢 Fixed with regression tests |
+| **Load-bearing bugs found on the second, harder pass** (I-040, I-041) | A diagnostic script scoring reverberant audio against the wrong reference, and the production gate crashing whenever a real gate network was attached to it. | 🟢 Fixed with regression tests, see above |
 | **Reproducibility** (I-019, I-020, I-021) | The frozen backbone loader was unobtainable, five runtime imports were undeclared, and three documents gave three different parameter counts. | 🟢 Backbone pinned by commit, dependencies enforced by a test, parameters measured |
 | **Recovery** (I-012 to I-015) | Six weeks of work existed only inside an archive: three source files and one raw result that appear in no commit. | 🟢 Recovered verbatim |
 | **The reason none of it was caught** (I-011) | CI watched `main` while the default branch was `master`. It had never run once in 158 commits. | 🟢 Runs on `master`, three jobs, import sweep, credential scan |

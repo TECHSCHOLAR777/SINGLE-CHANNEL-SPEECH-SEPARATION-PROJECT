@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 39 tickets. 27 closed, 12 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 47 tickets. 29 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -73,6 +73,14 @@
 | I-037 | `[BUG]` | 🟠 P1 | The attractor count readout crashed on numpy and counted non-speaker slots | 🟢 CLOSED | [#74](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/74) |
 | I-038 | `[ARCH]` | 🟡 P2 | The four calibrators use three serialisation formats, two of them bare pickle | 🟠 READY | [#75](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/75) |
 | I-039 | `[DOC]` | 🟡 P2 | BLUEPRINT records 17 LoRA attachment points; the measured count is 37 | 🟠 READY | [#77](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/77) |
+| I-040 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` scored reverberant conditions against the wrong reference | 🟢 CLOSED | [#78](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78) |
+| I-041 | `[BUG]` | 🔴 P0 | The deployed gate crashed on every call once a real gate network was attached | 🟢 CLOSED | [#79](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/79) |
+| I-042 | `[ARCH]` | 🟠 P1 | The gate runs once per utterance from Level-1 only; the documented per-chunk Level-2 lag was never implemented | ⚪ OPEN | [#80](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/80) |
+| I-043 | `[MODEL]` | 🟡 P2 | Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference | 🟠 READY | [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) |
+| I-044 | `[DATA]` | 🟡 P2 | The noise adapter's WHAM split is never checked against the LibriMix test split, a leakage risk | 🟠 READY | [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82) |
+| I-045 | `[MODEL]` | 🟡 P2 | Band recovery masks the shared 16 kHz mixture, not a separated signal, and its evaluation guard can see ground truth deployment never has | 🟠 READY | [#83](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/83) |
+| I-046 | `[RESEARCH]` | ⚪ P3 | Freezing the backbone entirely rests on an analogy from a different experiment, not a direct ablation | ⚪ OPEN | [#84](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/84) |
+| I-047 | `[EXP]` | 🟠 P1 | If LibriMix `mix_both` carries no reverberation, every headline result still carries the reverb adapter at roughly 0.5 gate | 🔴 BLOCKED on compute | [#85](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/85) |
 
 ---
 
@@ -81,12 +89,12 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 27
-    "READY" : 3
-    "BLOCKED" : 6
+    "CLOSED" : 29
+    "READY" : 6
+    "BLOCKED" : 7
     "IN_PROGRESS" : 0
     "INVESTIGATING" : 2
-    "OPEN" : 1
+    "OPEN" : 3
 ```
 
 ---
@@ -777,11 +785,11 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 ### I-025 [MODEL] [P1] The Stage 1 reverb adapter degrades SI-SNR in every tested condition
 
-**State:** 🔴 BLOCKED · GitHub [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62)
+**State:** 🟡 INVESTIGATING, wet-reference hypothesis refuted, root cause still open · GitHub [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62)
 
-**Problem.** The reverb adapter, trained for 40 epochs, makes output worse than the frozen backbone in all three tested conditions.
+**Problem.** The reverb adapter, trained for 40 epochs, was reported worse than the frozen backbone in all three tested conditions.
 
-**Evidence.** `eval/eval_outputs/eval.log`, 2026-07-17, one 2-speaker clip at T60 0.46 s:
+**Evidence.** `results/eval_outputs/eval.log`, 2026-07-17, one 2-speaker clip at T60 0.46 s:
 
 | Condition | Base SI-SNR | Adapted SI-SNR | Delta |
 |---|---:|---:|---:|
@@ -789,22 +797,31 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 | Reverb mild | -30.89 dB | -30.96 dB | -0.07 dB |
 | Reverb strong | -32.83 dB | -35.64 dB | -2.81 dB |
 
-The same log confirms two useful negatives: with the gate at zero the adapted model matches the base model to a maximum difference of 0.000000, so the injection mechanism is correct, and the LoRA A matrices have a mean norm of 1.5813, so weights were genuinely learned. The defect is in the training objective, not in the plumbing.
+The same log confirms two useful negatives: with the gate at zero the adapted model matches the base model to a maximum difference of 0.000000, so the injection mechanism is correct, and the LoRA A matrices have a mean norm of 1.5813, so weights were genuinely learned. The defect is not in the plumbing.
 
-**Impact.** One of three adapters is actively harmful. Since I-003 shows the gate blends all three near 0.5, this adapter is contributing its degradation to every output.
+**Impact.** One of three adapters was reported as actively harmful. Since I-003 shows the gate blends all three near 0.5, this adapter would be contributing its degradation to every output, if the degradation is real.
 
-**Suspected cause.** Three candidates recorded by the author, in the order the evidence supports them: the training target used the wet reverberant reference rather than the anechoic reference, so the adapter was taught to reproduce reverberation rather than remove it; rank 8 may be too small; 500 samples per epoch may be too few.
+**2026-09-04 update, read `train/stage1_single.py` and `data/degradations.py` end to end as this ticket's own scope required.**
 
-The wet-reference hypothesis is the strongest, because it explains the sign of the result rather than only its magnitude.
+The wet-reference hypothesis is refuted. `data/degradations.py` lines 1-20 and `apply_reverb` document and implement a deliberate design: the reverb adapter's training target is the wet reference (the dry source convolved with the RIR, truncated at `n_peak + 512` samples so the direct path and early reflections survive but the late tail does not). This is BLUEPRINT 7.6, matches the source paper's convention, and the module docstring gives the reasoning explicitly: scoring a reverberant condition against the dry source would conflate separation with dereverberation and reward a separator that leaves reverb intact. Training used the correct target on purpose. This part of the design is sound and the hypothesis in the original ticket was wrong.
 
-**Scope.** Confirm the reference signal used by the Stage 1 reverb training path by reading `train/stage1_single.py` and `data/degradations.py` end to end. This part needs no compute and can be done here. Retraining does need compute.
+The real defect is in the diagnostic that produced the table above. `eval/eval_reverb_adapter.py` PASS 3 (`diag_sisnr`, lines 335-404) scores both the base and adapted models against `refs_clean`, the anechoic reference, in every condition including `reverb_mild` and `reverb_strong`. That is exactly the measurement the project's own design doc calls invalid for a reverberant condition. The same script's PASS 4 (`diag_target`) proves the mismatch on its own output: scored against the wet target, SI-SNR is -0.41 dB (base) and -1.99 dB (adapted); scored against anechoic, the same outputs score -32.06 dB and -35.00 dB. That is a 31.65 dB gap between the two references on the same audio. `diag_target`'s own threshold check, `if gap_base > 2`, does not handle a negative gap (`snr_base_anec - snr_base_wet` is negative here because anechoic scores lower, not higher), so the script prints "Small gap: the loss values reflect real separation quality" when the true gap magnitude is 31.65 dB, the opposite of small. This is a second, distinct bug in the diagnostic script beyond the sign check: the PASS 3 headline delta (used by the ticket-opening evidence table above, and by the script's own final verdict block) uses the anechoic score as its pass/fail criterion, while PASS 4 shows the anechoic score answers a different question than the one the adapter was trained to answer.
+
+**Consequence.** The specific -2.81 dB "harm" figure for `reverb_strong` cannot be trusted as evidence the adapter is harmful, because it was produced by scoring the model's intentionally-wet output against a dry reference it was never asked to match. The adapter may still be harmful, may be neutral, or may be a genuine improvement once scored correctly; this diagnostic cannot distinguish those cases. The `clean` condition delta (-0.44 dB) is not affected by this bug, since there is no wet/dry distinction when there is no reverb, and stands as the one number from this script that is directly interpretable: a small, real regression from co-activating the reverb adapter on clean audio.
+
+**Suspected cause.** `eval_reverb_adapter.py` was written to explain an unexpectedly high training loss (PASS 4's stated purpose) and reused the same anechoic-scoring PASS 3 already had, without revisiting whether PASS 3's own conclusion needed the same correction PASS 4 was built to supply.
+
+**Scope.** Two separable pieces of work remain. First, zero-compute and now unblocked: fix `eval_reverb_adapter.py` so PASS 3 scores reverberant conditions against the wet reference `apply_reverb` already returns, and fix the sign handling in PASS 4's gap check (`abs(gap_base) > 2`, not `gap_base > 2`). Tracked as I-040. Second, still blocked on the Kaggle checkpoint: rerun the corrected diagnostic against `best_reverb.pt` to get a trustworthy verdict on whether the adapter actually helps or hurts.
 
 **Acceptance criteria.**
-- [ ] The reference signal used for reverb training is identified in code and written down.
-- [ ] A decision record states whether the target was wrong.
-- [ ] If it was wrong, a fix is implemented and a retraining ticket is opened.
+- [x] The reference signal used for reverb training is identified in code and written down: the wet reference, deliberately, per BLUEPRINT 7.6.
+- [x] A decision record states whether the target was wrong: it was not; the diagnostic script's scoring was.
+- [ ] `eval/eval_reverb_adapter.py` is fixed to score reverberant conditions against the wet reference (I-040).
+- [ ] The fixed diagnostic is rerun against the Stage 1 reverb checkpoint and a trustworthy verdict is recorded.
 
-**Validation.** Code reading for the diagnosis. Retraining validation is out of scope for this machine.
+**Validation.** Code reading for the diagnosis, complete. Rerunning the corrected script needs the Kaggle checkpoint and is out of scope for this machine.
+
+**Dependencies.** I-040 (diagnostic script fix) blocks the rerun in this ticket's remaining acceptance criteria.
 
 **Dependencies.** Feeds I-003.
 
@@ -1121,6 +1138,198 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 **Validation.** Attach `LoRALibrary` to the loaded backbone and assert `n_attached == 37` in a test that skips when the backbone is unavailable.
 
+
+### I-040 `[BUG]` P1 `eval_reverb_adapter.py` scored reverberant conditions against the wrong reference
+
+**State:** CLOSED, commit `82a6ca8` · GitHub [#78](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78)
+
+**Problem.** `eval/eval_reverb_adapter.py` PASS 3 (`diag_sisnr`) scored both the base and adapted models against the anechoic reference in every condition, including `reverb_mild` and `reverb_strong`. The reverb adapter is deliberately trained to separate but not dereverberate, against a wet reference (`data/degradations.py`, BLUEPRINT 7.6). Scoring its output against the dry source grades it on a task it was never asked to do.
+
+**Evidence.** The script's own PASS 4 (`diag_target`) proves the mismatch: on the same audio, SI-SNR against the wet target is -0.41 dB (base) and -1.99 dB (adapted); against anechoic it is -32.06 dB and -35.00 dB, a 31.65 dB gap. PASS 4's threshold check, `if gap_base > 2`, does not handle the negative sign here and printed "Small gap" for a 31.65 dB gap. Full detail in I-025.
+
+**Impact.** The -2.81 dB "reverb adapter is harmful in strong reverb" figure that opened I-025 cannot be trusted; it may still be true, but this diagnostic could not tell.
+
+**Suspected cause.** The script was extended (PASS 4) to explain a high training loss without revisiting whether PASS 3's own conclusion needed the same correction.
+
+**Scope.** Score `reverb_mild` and `reverb_strong` against the wet reference `apply_reverb` already returns; leave `clean` as is, since there is no wet/dry distinction without reverb.
+
+**Acceptance criteria.**
+- [x] PASS 3 scores reverberant conditions against the wet reference.
+- [x] The mixture-baseline SI-SNR used for SI-SNRi is computed against the same reference the model is scored against.
+
+**Validation.** Code fix only; this script needs the Kaggle checkpoint to run, so its numeric output cannot be re-verified on this machine. The fix is a direct application of the same reference logic `data/degradations.py::apply_reverb` and `eval/matrix.py`'s production path already use correctly.
+
+**Dependencies.** I-025, I-033 (same file, different defect).
+
+---
+
+### I-041 `[BUG]` P0 The deployed gate crashed on every call once a real gate network was attached
+
+**State:** CLOSED, commit `82a6ca8` · GitHub [#79](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/79)
+
+**Problem.** `GateNetwork` expects a 10-D input, `cat(level1[4], level2[6])` (`models/gate.py`). `pipeline/infer.py::_condition_dict_to_tensor` built only the 4 Level-1 features and passed that directly to `self.gate.gate_dict(cond_tensor)`. `nn.Linear(10, 256)` on a 4-wide input raises a shape-mismatch `RuntimeError`.
+
+**Evidence.** `pipeline/infer.py::_compute_gate` (previously line 291) and `_condition_dict_to_tensor` (previously line 407-411) versus `models/gate.py::GateNetwork.__init__`, `in_features: int = 10`.
+
+**Impact.** This is the production, condition-routed inference path, the one the project is named for. It could not run to completion with a trained `gate_net` attached; every real invocation with a gate present would crash inside the first chunk. Every result in the repository that involved the gate was produced by scripts (`train/stage3_gate.py`, `eval/run_eval.py`, `train/stage4c_calib.py`) that build their own condition tensors directly, never through this pipeline class.
+
+**Suspected cause.** `_condition_dict_to_tensor` was written before Level-2 features existed in the design, or was written to match a Level-1-only stub gate and never updated when `GateNetwork` grew to accept `in_features=10`.
+
+**Scope.** Zero-pad the missing 6 Level-2 slots so the pipeline runs, matching the documented first-chunk convention in `ARCHITECTURE.md` ("a real one-chunk lag in the design... on the first chunk these are zeros"). This does not implement the lag itself, since this pipeline computes one gate vector per utterance rather than per chunk; that larger gap is I-042.
+
+**Acceptance criteria.**
+- [x] `_condition_dict_to_tensor` returns a `(10,)` tensor.
+- [x] A regression test constructs a real `CoralSepPipeline` with a real `GateNetwork` and calls `_compute_gate` without a crash.
+- [x] Full suite still passes: 565 passed, 11 skipped.
+
+**Validation.** `pytest tests/test_pipeline_gate.py tests/ -q`.
+
+**Dependencies.** I-042 (the deeper design gap this fix works around, not fixes).
+
+---
+
+### I-042 `[ARCH]` P1 The gate runs once per utterance from Level-1 only; the documented per-chunk Level-2 lag was never implemented
+
+**State:** OPEN · GitHub [#80](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/80)
+
+**Problem.** `ARCHITECTURE.md` describes Level-2 features as coming from the pooled `E(0)` of the previous chunk, zero on the first chunk, real thereafter, "a real one-chunk lag in the design, not a defect." `pipeline/infer.py::run()` computes `gate_vec` exactly once, before the chunk loop even starts (step 3, before step 4's `for chunk in chunker`), from Level-1 features alone. There is no mechanism anywhere in the class that carries a previous chunk's pooled `E(0)` into a Level-2 feature vector for a later chunk's gate call, because there is only one gate call per utterance.
+
+**Evidence.** `pipeline/infer.py::run()`, steps 2-4: `condition_l1` then `gate_vec = self._compute_gate(condition_l1)` then the chunk loop begins. `e0_list` is populated inside the loop and only consumed afterward, for Level-2-based speaker counting (step 5) and quality flags, never fed back into a gate call.
+
+**Impact.** The gate can never route on reverb severity, SNR trend, or count evidence gathered from the audio itself; every adapter selection for an entire utterance rests on four DSP scalars computed once at the start. This is a plausible independent contributor to the near-uniform 0.5 blend already measured in I-003: a gate given the same input width but an always-zero half of it cannot express condition-dependent routing on that half by construction.
+
+**Suspected cause.** The single-pass, whole-utterance pipeline design and the per-chunk, lagged-feature gate design in `ARCHITECTURE.md` appear to have been specified independently and never reconciled into one implementation.
+
+**Scope.** Decide and record whether the gate should run per chunk (matching the documented lag) or whether the documentation should be corrected to describe the once-per-utterance reality. Either is a legitimate design; leaving them contradictory is not. Implementing per-chunk gating is a real code change, not a one-line fix, since it changes the loop structure and the meaning of `gate_vector` in `PipelineResult`.
+
+**Acceptance criteria.**
+- [ ] A decision record states which design is correct going forward.
+- [ ] If per-chunk gating is chosen, `run()` is restructured and `PipelineResult.gate_vector` becomes a per-chunk sequence or its semantics are documented as "gate at chunk N."
+- [ ] If once-per-utterance is chosen, `ARCHITECTURE.md` is corrected to remove the per-chunk lag description.
+
+**Validation.** Whichever design is chosen, `tests/test_pipeline_gate.py` should grow a case that exercises multi-chunk audio and asserts the gate actually changes between chunks with different conditions (if per-chunk) or documents why it does not (if once-per-utterance).
+
+**Dependencies.** I-041 (the crash this ticket's root cause explains), I-003 (the flat-gate finding this may partly explain).
+
+---
+
+### I-043 `[MODEL]` P2 Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference
+
+**State:** READY · GitHub [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81)
+
+**Problem.** `train/stage1_single.py` trains one adapter at gate 1.0 with the other two co-activated at `U(0.0, 0.2)` (module docstring: "Co-activation warm-up is always on: other adapters are active at U(0.0, 0.2)"). I-003 measures the deployed gate applying roughly 0.5 to all three adapters simultaneously, regardless of condition. No adapter was ever trained under a co-activation load anywhere near what it runs under.
+
+**Evidence.** `train/stage1_single.py:9-10` versus the gate output distribution recorded in I-003.
+
+**Impact.** Each adapter's residual correction was optimised against a forward pass where the other branches are nearly off. At inference they run in a regime none of them has seen in training. This is a plausible independent contributor to the reverb adapter appearing harmful even on clean audio (I-025), separate from the eval-script defect fixed in I-040: the adapter may be reacting badly to co-activation load, not just to its own training target.
+
+**Suspected cause.** The 0.0-0.2 range was chosen for Stage 1 before Stage 3 or Stage 4c had run, so the gate's actual output distribution was not yet known when this range was picked.
+
+**Scope.** Once I-003's own root cause is settled (I-042 is now the leading candidate), either widen the Stage 1 co-activation range to bracket the gate's real output distribution, or add an explicit diagnostic that runs each Stage 1 checkpoint under 0.5/0.5/0.5 co-activation and reports the delta versus its trained regime.
+
+**Acceptance criteria.**
+- [ ] A diagnostic records each adapter's SI-SNR delta under its trained co-activation range versus a fixed 0.5/0.5/0.5 blend.
+- [ ] A decision record states whether the training range needs to change.
+
+**Validation.** Needs the Stage 1 checkpoints, which live on Kaggle. The diagnostic script itself can be written and unit-tested here.
+
+**Dependencies.** I-003, I-025, I-042.
+
+---
+
+### I-044 `[DATA]` P2 The noise adapter's WHAM split is never checked against the LibriMix test split, a leakage risk
+
+**State:** READY · GitHub [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82)
+
+**Problem.** `data/prepare/wham.py` is aware of WHAM's `tr`/`cv`/`tt` splits. The code that actually populates the directory the noise adapter trains from, `data/prepare/noise_staging.py::stage_source`, globs `src_dir.rglob("*")` over whatever `--wham-dir` is passed with no split filtering. The consumers, `train/stage1_single.py::_build_dataset` and `train/stage3_gate.py`, glob that flat staged directory with no split awareness either. There is no equivalent of `CoralSepMixer.assert_speaker_isolation()` for noise.
+
+**Evidence.** `data/prepare/noise_staging.py:102-107` (flat rglob), `train/stage1_single.py:266-279`, `train/stage3_gate.py:130-137` (flat glob of `noise_dir / "wham"`), contrasted with `data/prepare/wham.py`'s explicit, unenforced split awareness.
+
+**Impact.** LibriMix's `mix_both` test audio is built from WHAM noise. If whichever run populated the staged noise directory pointed at WHAM's `tt` split, or the full corpus, rather than strictly `tr`, the noise adapter and gate could have trained on noise clips acoustically related to the ones in the official test mixtures, inflating the headline SI-SDRi numbers for the noise and combined conditions.
+
+**Suspected cause.** `wham.py` and `noise_staging.py` were written independently and never reconciled; there is no code path that would fail loudly if the wrong split were used.
+
+**Scope.** Zero-compute now: confirm the code gap exists as described (done) and add a manifest-recorded split provenance, checked at load time, so a wrong split fails fast instead of silently. Confirming whether leakage actually occurred requires inspecting the staged data or manifest, which lives on Kaggle.
+
+**Acceptance criteria.**
+- [ ] `noise_staging.py` records which WHAM split it staged from, in a manifest.
+- [ ] `stage1_single.py` and `stage3_gate.py` refuse to load noise files without a recorded `tr`-split provenance.
+- [ ] The split actually used for the existing Stage 1 noise checkpoint is confirmed from Kaggle and recorded.
+
+**Validation.** The provenance guard is unit-testable here. Confirming historical leakage needs Kaggle access.
+
+**Dependencies.** None.
+
+---
+
+### I-045 `[MODEL]` P2 Band recovery masks the shared 16 kHz mixture, not a separated signal, and its evaluation guard can see ground truth deployment never has
+
+**State:** READY · GitHub [#83](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/83)
+
+**Problem.** `BandRecoveryHead.predict_highband_stft` builds each stream's 4-8 kHz content by masking the shared, un-separated 16 kHz mixture's high-band STFT, not a per-speaker separated signal, since separation only happens at 8 kHz. Every stream's reconstructed high band is a masked copy of the same common spectrum. In simultaneous-speech regions, true separation above 4 kHz is architecturally impossible; the head can only attenuate, not separate. Separately, `apply_band_recovery_guarded` uses ground-truth `references_8k` to pick, per chunk, between recovered and zero-padded audio, whenever references are supplied, which is only true in evaluation, never in deployment.
+
+**Evidence.** `models/band_recovery.py:93-125` (shared-mixture high-band input), `models/band_recovery.py:238-244` (SI-SDRi guard active only when `references_8k is not None`).
+
+**Impact.** `RESULTS.md` already flags band recovery's 16 kHz contribution as never measured, with no ticket until now. Whenever it is measured, a number produced with references present is an oracle-selected upper bound, not a deployable result, and the architecture caps how good a genuinely non-oracle result could be regardless.
+
+**Suspected cause.** Band recovery was designed as an 8 kHz to 16 kHz bandwidth extension applied after separation, which by construction has no per-speaker high-band signal to draw on.
+
+**Scope.** Before reporting any band-recovery number, state explicitly whether the SI-SDRi guard (oracle) or the DNSMOS-only guard (deployable) was used, and report both. Consider whether a genuinely separated high-band estimate is achievable at all under this design, or whether the honest framing is "bandwidth extension," not "high-band separation."
+
+**Acceptance criteria.**
+- [ ] `RESULTS.md` reports band recovery numbers under both guard modes, labelled.
+- [ ] The architecture documentation states plainly that high-band content is shared across streams, not separated.
+
+**Validation.** The guard-mode distinction is testable here with synthetic audio. The actual numbers need the Stage 4b checkpoint and evaluation data, both on Kaggle.
+
+**Dependencies.** None.
+
+---
+
+### I-046 `[RESEARCH]` P3 Freezing the backbone entirely rests on an analogy from a different experiment, not a direct ablation
+
+**State:** OPEN · GitHub [#84](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/84)
+
+**Problem.** `APPROACH_EVOLUTION.md` grounds "never fine-tune the backbone, only ever intervene via LoRA" in one measurement: stacking learned layers on the frozen expert's output made results worse by 0.4 to 3.7 dB (Phase 1, CA-MoSE). That measurement is evidence against output-stacked learned layers. It says nothing directly about internal weight-space intervention such as LoRA versus, for example, lightly fine-tuning the backbone's last layer or two, or full fine-tuning with strong regularisation. The step from "don't stack layers on the output" to "never touch the backbone, only ever use LoRA" is a reasonable bet, presented in the docs as settled, but was never itself measured.
+
+**Evidence.** `docs/restoration/APPROACH_EVOLUTION.md`, Phase 1 and the "Rule one" framing in Phase 3; no corresponding backbone-fine-tuning ablation appears in `EXPERIMENT_REGISTRY.md` or `RESULTS.md`.
+
+**Impact.** Given that one of three LoRA adapters is independently measured to need re-evaluation (I-025, I-040) and the universal-adapter ablation was never run (I-024), the project has no direct evidence that weight-space LoRA intervention beats the untested middle ground of partial fine-tuning. The central "frozen backbone plus adapters" bet rests on an analogy, not a measurement, at exactly the point it matters most.
+
+**Suspected cause.** Not a defect; a documented design decision whose confidence level is overstated relative to the evidence actually behind it.
+
+**Scope.** Not urgent given current compute constraints. State the assumption explicitly as untested in `APPROACH_EVOLUTION.md` rather than implying it is settled. Revisit if and when compute allows a partial-fine-tuning ablation.
+
+**Acceptance criteria.**
+- [ ] `APPROACH_EVOLUTION.md` labels the frozen-backbone decision as an untested extrapolation from the Phase 1 result, not a directly measured one.
+
+**Validation.** Documentation change only; no code path to verify.
+
+**Dependencies.** None.
+
+---
+
+### I-047 `[EXP]` P1 If LibriMix `mix_both` carries no reverberation, every headline result still carries the reverb adapter at roughly 0.5 gate
+
+**State:** BLOCKED on compute and data access · GitHub [#85](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/85)
+
+**Problem.** LibriMix's standard `mix_both` split mixes clean speech with WHAM background noise; reverberation is a WHAMR extension, not part of `mix_both`. `eval/run_eval.py` reads `wav8k/min/test/mix_both` directly with no reverb-application step. If the local LibriMix copy used to produce `RESULTS.md`'s headline SI-SDRi deltas (+1.76, +1.73, +0.62 dB) is standard `mix_both`, then every one of those numbers was produced with the gate applying the reverb adapter at roughly 0.5 strength (I-003) on audio the reverb adapter is separately measured to actively harm even when clean (I-025: -0.44 dB on clean audio, this part not affected by the I-040 reference-scoring bug).
+
+**Evidence.** `eval/run_eval.py::_iter_test_samples` reads `mix_both` with no `apply_reverb` call; `RESULTS.md` section 3's clean-condition delta for the reverb adapter.
+
+**Impact.** If confirmed, the reported deltas understate what the noise and codec adapters alone would contribute with the reverb branch correctly gated off. The claim `RESULTS.md` currently supports, "the adapter stack improves SI-SDRi," would be weaker and more confounded than presented: noise and codec may help while reverb actively drags the total down, with the net still positive only because the other two outweigh it.
+
+**Scope.** First, zero-compute: confirm from the manifest or generation script that actually built the local LibriMix copy whether any reverb was applied, since some regeneration pipelines use WHAMR-style mixing under the `mix_both` name. Second, cheap compute: rerun evaluation with the reverb gate pinned to zero and compare against the reported deltas.
+
+**Acceptance criteria.**
+- [ ] The LibriMix generation path actually used is confirmed to be reverb-free or not, and recorded.
+- [ ] If reverb-free, an ablation with the reverb gate forced to 0 is run and reported next to the current numbers.
+
+**Validation.** The manifest check is possible with the LibriMix data present; the ablation needs the Stage 4 checkpoint and evaluation data, both on Kaggle.
+
+**Dependencies.** I-025, I-040, I-003.
+
+---
 
 ## Ticket protocol
 
