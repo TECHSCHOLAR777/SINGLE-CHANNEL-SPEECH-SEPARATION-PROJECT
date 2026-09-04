@@ -253,3 +253,29 @@ The owner separately asked for an ongoing review of dataset access and authorize
 **Validation.** Full suite locally after I-038 and I-044: 595 passed, 11 skipped. ruff and black clean throughout.
 
 **Next action.** Once the rank32 and samples2000 ablations finish, rerun the corrected reverb diagnostic against each and compare to the confirmed baseline numbers in I-025. Once the WHAM download finishes, exercise `check_noise_provenance` against it for real and consider a real noise-adapter retraining run. Generating the actual LibriMix test set remains the highest-value data-acquisition task not yet started.
+
+---
+
+## 2026-09-04, entry 9
+
+**Phase:** 8 continued, deep dataset search and a third real bug found through it.
+
+**Objective.** Owner asked for a deep internet search on whether Libri4Mix/5Mix/10Mix exist as downloadable datasets, since evaluation needs N up to 5 and beyond. Separately asked for datasets to be kept in one clearly labeled place so nothing gets deleted by accident on the shared GPU box.
+
+**Actions.**
+
+Searched the web directly rather than only Kaggle. Confirmed against the official repository and the literature: no public Libri5Mix or Libri10Mix download exists anywhere. `JorisCos/LibriMix` only generates N=2,3 by default. The one paper found that explicitly built Libri5Mix and Libri10Mix (PMC12389590) modified that script's speaker-count loop privately and states "data is contained within the article," releasing neither code nor data. Every use of those names in the literature is a private, per-paper extension of the same official script, never redistributed.
+
+Found the actual answer already inside this project: `fixed_eval_generator.py` generates N∈{2,3,4,5} across 8 real conditions, and one of its 25 committed manifests is literally titled "Libri4Mix / Libri5Mix test, count break-point curve." Every source path in the committed manifests reads `PLACEHOLDER/librispeech/test-clean/...` with an explicit `"source_status": "placeholder"` field, confirming it was built once as a template without real data and never resolved. Nothing in the generator itself produces placeholders, so this was authored, not generated.
+
+Executed the real pipeline to close that gap. Downloaded LibriSpeech `test-clean` from OpenSLR, verified its SHA-256 against the published checksum, resampled to 8kHz (2620 files, 40 speakers). Downloaded the public WHAM! mirror found last entry (`ngcthun/wham-noise`, correct `tr`/`cv`/`tt` splits, 36GB) and staged its `tt` split for evaluation use through the now-provenance-checked `noise_staging.py`, deliberately in a directory separate from any future `tr`-split staging for training, so eval and train noise can never share a path. Attempted the fourth input `fixed_eval_generator.py` requires, BUT ReverbDB, and it failed immediately: `data/prepare/but_reverbdb.py` had the dataset's OpenSLR resource number wrong (it pointed at SLR17, which is MUSAN, an unrelated corpus) and the archive filename wrong (missing an `-Only` suffix). This had 404'd for the project's entire life; nothing had ever run this script successfully before. Found the real host and filename by checking a working reference implementation (`lhotse.recipes.but_reverb_db`), fixed the module (renamed every OpenSLR-17 reference to the truth), added a regression test, and reran the download for real; it is fetching real bytes now (I-052).
+
+Wrote a `README_DO_NOT_DELETE.txt` at the root of the GPU box's working directory, naming every dataset directory, its source, whether it is re-downloadable if lost, and flagging the two in-progress ablation checkpoint directories as the least recoverable thing there, since those can only be replaced by rerunning a multi-hour training job.
+
+**Findings.** Three real, previously-undiscovered bugs surfaced tonight purely by trying to actually run scripts that had apparently never been run successfully by anyone: the E(0) capture bug (I-051), the decoder-hook stream-count bug (I-051), and now the BUT ReverbDB host (I-052). All three share the same shape: no test coverage, and a script that looked complete because it existed and had plausible-looking code, not because anyone had confirmed it worked.
+
+**Issues opened and closed this entry.** I-052.
+
+**Validation.** Full suite locally: 598 passed, 11 skipped. `tests/test_but_reverbdb.py`, 3 new tests, pass without needing the network (they assert the constant, not a live download).
+
+**Next action.** Once BUT ReverbDB finishes downloading, run `fixed_eval_generator.py` for real against all four now-real inputs (LibriSpeech test-clean, staged WHAM tt noise, the small diagnostic RIR bank, BUT ReverbDB), producing the project's first genuine N=2..5, 8-condition evaluation set. Then extend the generator's condition matrix past N=5 if the owner still wants N=6 and beyond once N≤5 is confirmed working.
