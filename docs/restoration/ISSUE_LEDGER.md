@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 55 tickets. 39 closed, 16 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 56 tickets. 39 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -88,7 +88,8 @@
 | I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
 | I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
 | I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | [#92](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/92) |
-| I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, confirmed on three reruns | pending |
+| I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, confirmed on three reruns | [#93](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/93) |
+| I-056 | `[BUG]` | 🔴 P0 | CI has never once passed on this repository | 🟡 fix landed, next run unconfirmed | [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94) |
 
 ---
 
@@ -821,6 +822,10 @@ The two candidates this ticket left open, LoRA rank 8 too small and 500 samples/
 | Rank 8 (2000 samples/epoch) | +6.23 dB | +9.36 dB | +7.06 dB |
 
 Both changes independently turn the adapter from harmful to helpful, and 2000 samples/epoch alone outperforms rank 32 alone on every condition. This does not prove which factor matters more in general, since only one ablation per factor was run and they were not combined, but it does answer this ticket's open question: the original configuration was undertrained on both axes at once, not architecturally broken. A follow-up ticket should decide whether to retrain the shipped checkpoint at the better of these two settings (or both together) before this adapter is used in the assembled pipeline; that is deliberately left open here rather than assumed, since neither ablation checkpoint has been evaluated against the fuller condition matrix I-025 originally used (only clean and two reverb severities), and neither has been checked for co-activation with the noise and codec adapters together (I-043 covers only the original checkpoint).
+
+**2026-09-04, fourth update: a fourth run combining both factors.**
+
+Ran a fourth checkpoint, rank 32 and 2000 samples/epoch together, 40 epochs, same seed. Scored on the same mixture and RIR as the three above (base model again 14.60 / 1.11 / -1.89 dB, confirming the comparison is still apples to apples): clean +5.54 dB, reverb mild +9.93 dB, reverb strong +7.05 dB. Combining both factors gives the best reverb mild number of the four configurations, but only marginally ahead of 2000 samples/epoch alone (+9.36 dB), and behind it on clean (+6.23 dB alone vs +5.54 dB combined). Four single-seed configurations are not enough to fit a real interaction effect between rank and sample count; this settles that the adapter is fixable, not what the single best setting is, and the difference between the three fixed configurations here is small enough that it may not matter much within this range. The retraining decision for the shipped checkpoint, named above, is still open.
 
 **2026-09-04, second update: reran the corrected diagnostic against the real Stage 1 checkpoint, on a GPU, for the first time.**
 
@@ -1571,7 +1576,7 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-055 `[BUG]` P1 `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw, so `--seed` does not make the diagnostic reproducible
 
-**State:** CLOSED, commit pending
+**State:** CLOSED, commit `45dd8ed` · GitHub [#93](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/93)
 
 **Problem.** `eval/eval_reverb_adapter.py::main` builds a seeded `np.random.default_rng(args.seed)` and threads it into `build_test_mixture` and the SI-SNR passes, but constructs `RirBank(rir_dir)` with no `rng` argument at all, even though `RirBank.__init__` accepts one specifically for this purpose ("Seeded generator for reproducible draws"). Left unset, `RirBank` falls back to its own unseeded `np.random.default_rng()`, drawing from OS entropy.
 
@@ -1591,6 +1596,31 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Validation.** `python src/coralsep/eval/eval_reverb_adapter.py --seed 42 ...` rerun on the GPU box against three different checkpoints (original rank8/500, rank32, samples2000); all three now agree on the base model's score and the drawn T60, confirming the fix. `pytest tests/ -q`, 604 passed, 11 skipped, unaffected by this change.
 
 **Dependencies.** Discovered while comparing I-025's two ablation runs. Blocks a trustworthy final answer to I-025's rank-vs-sample-count question until the reruns land.
+
+---
+
+### I-056 `[BUG]` P0 CI has never once passed on this repository; the `Test` job fails on every commit reachable in the visible run history
+
+**State:** 🟡 fix landed, next CI run unconfirmed · commit pending · GitHub [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94)
+
+**Problem.** `.github/workflows/ci.yml`'s `Test` job installs `pip install -e ".[dev]"`, but `src/coralsep/demo/gradio_app.py` imports `gradio`, which is declared only under the separate `demo` extra in `pyproject.toml`, never installed by the `test` job. The workflow's own "Import sweep" step imports every module in the package and fails loudly on this, so every push to `master` and every pull request has failed CI since the workflow was added.
+
+**Evidence.** `gh run list --limit 100` shows 34 of the last 44 runs on this repository failed; the oldest run in that window is from 2026-07-10, three days after `.github/workflows/ci.yml` was first added (`3974db0f`, 2026-07-09) and after `gradio_app.py` and its `demo` extra were introduced in the same commit range. `gh run view --job <id> --log` on the most recent failure shows the exact line: `FAIL coralsep.demo.gradio_app: ModuleNotFoundError: No module named 'gradio'`. No other module in the sweep fails in the real CI environment; a local check that also reported `sr_corrnet` missing was an artifact of this restoration machine's own lighter dev venv, not of CI, confirmed by grepping the actual CI log for every `FAIL` line and finding only the one.
+
+**Impact.** Every commit in this project's visible history, including all of this restoration session's own commits, has been landing on `master` without ever having passed CI. The lint job (ruff, black) is a separate job and unaffected, but the test matrix (Python 3.10, 3.11, 3.12) has never given a real pass/fail signal on this repository. `docs/restoration/ISSUE_LEDGER.md` I-011 already documented that CI silently watched the wrong branch for 158 commits; this is a second, independent reason the same signal has never been trustworthy, this time after the branch was fixed.
+
+**Suspected cause.** The `demo` extra and the CI install step were added in adjacent but not identical changes, and nobody looked at the resulting Actions run before the branch-name issue (I-011) was separately found and fixed; once the branch was watched correctly, this pre-existing failure became visible for the first time, and nothing since has actually blocked on it.
+
+**Scope.** `.github/workflows/ci.yml`'s `test` job installs `.[dev,demo]` instead of `.[dev]`, so the import sweep verifies the demo module for real rather than skip it.
+
+**Acceptance criteria.**
+- [x] The install step in `.github/workflows/ci.yml` includes the `demo` extra.
+- [x] The import sweep script, rerun locally with `gradio` installed and CI's own path-normalization behavior simulated, reports zero failures against the real dependency set CI installs.
+- [ ] A CI run on `master` after this fix lands is confirmed green, not just predicted green.
+
+**Validation.** Confirmed the fix will address the actual observed failure by re-running the exact import-sweep script from the workflow file locally with `gradio` installed and POSIX-style module-path construction (this restoration machine is Windows, so `path.as_posix()` was needed to match CI's Linux behavior); zero failures. Did not fabricate a "CI passed" claim without a real subsequent run; the last acceptance criterion stays open until the next push's Actions run is checked.
+
+**Dependencies.** Independent of I-011 (wrong branch watched) but compounds it: fixing I-011 only made this ticket's failure visible, it did not cause it.
 
 ---
 
