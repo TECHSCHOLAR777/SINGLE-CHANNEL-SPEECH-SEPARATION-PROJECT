@@ -31,7 +31,7 @@ import numpy as np
 import soundfile as sf
 import torch
 
-from coralsep.eval.metrics import pit_si_sdr
+from coralsep.eval.metrics import count_accuracy, pit_si_sdr
 
 logging.basicConfig(
     level=logging.INFO,
@@ -103,11 +103,21 @@ def _load_base_model(device: torch.device):
     return ss
 
 
-def _run_baseline(ss_model, mix_wav: np.ndarray, n_spks: int, device: torch.device) -> np.ndarray:
-    """Run base SR-CorrNet (no adapters). Returns (K, T) float32."""
+def _run_baseline(
+    ss_model, mix_wav: np.ndarray, n_spks: int | None, device: torch.device
+) -> np.ndarray:
+    """Run base SR-CorrNet (no adapters). Returns (K, T) float32.
+
+    n_spks=None uses the model's own attractor path (models/experts/srcorrnet.py
+    Patch A documents the same call shape): the number of streams the model
+    returns is its own count estimate, not a supplied answer. See I-002.
+    """
     wav_t = torch.from_numpy(mix_wav).float().to(device).unsqueeze(0)
     with torch.no_grad():
-        out = ss_model.process_waveform(wav_t, n_spks=torch.tensor(n_spks))
+        if n_spks is None:
+            out = ss_model.process_waveform(wav_t)
+        else:
+            out = ss_model.process_waveform(wav_t, n_spks=torch.tensor(n_spks))
     waves = out.get("waveforms", [])
     if not waves:
         return mix_wav[np.newaxis]
@@ -231,10 +241,14 @@ def _run_calmsep(
     level1_tensor,
     ADAPTER_NAMES,
     mix_wav: np.ndarray,
-    n_spks: int,
+    n_spks: int | None,
     device: torch.device,
 ) -> np.ndarray:
-    """Run full CoRAL-Sep pipeline. Returns (K, T) float32 at 8 kHz."""
+    """Run full CoRAL-Sep pipeline. Returns (K, T) float32 at 8 kHz.
+
+    n_spks=None uses the model's own attractor path instead of a supplied
+    count. See I-002 and _run_baseline's docstring.
+    """
     from coralsep.models.lora import LoRALinear  # noqa: F401
 
     wav_t = torch.from_numpy(mix_wav).float().to(device)
@@ -254,7 +268,10 @@ def _run_calmsep(
 
     wav_in = wav_t.unsqueeze(0)
     with torch.no_grad():
-        out = ss_model.process_waveform(wav_in, n_spks=torch.tensor(n_spks))
+        if n_spks is None:
+            out = ss_model.process_waveform(wav_in)
+        else:
+            out = ss_model.process_waveform(wav_in, n_spks=torch.tensor(n_spks))
 
     lib.set_gates({n: 0.0 for n in ADAPTER_NAMES})
     lib.inject_gates()
@@ -288,10 +305,22 @@ def _score_split(
     l1fn,
     ADAPTER_NAMES,
     device: torch.device,
+    oracle_count: bool = False,
 ) -> dict:
+    """Score one LibriMix split.
+
+    oracle_count=False (the default, see I-002) never tells either model how
+    many speakers are in the mixture; each model's own attractor path decides,
+    and N_hat is compared against the true count read from the split name.
+    oracle_count=True reproduces the original behaviour, supplying the true
+    count directly, kept only so old numbers stay reproducible for comparison.
+    """
     base_sisdrs, base_sisdris = [], []
     calm_sisdrs, calm_sisdris = [], []
-    n_spks = int(split.replace("Libri", "").replace("Mix", ""))
+    base_n_true, base_n_hat = [], []
+    calm_n_true, calm_n_hat = [], []
+    n_true = int(split.replace("Libri", "").replace("Mix", ""))
+    n_spks_arg = n_true if oracle_count else None
 
     for i, (mix, refs, uid) in enumerate(_iter_test_samples(librimix_root, split, n)):
 
@@ -302,7 +331,9 @@ def _score_split(
 
         # Baseline
         try:
-            est_b = _run_baseline(ss_base, mix, n_spks, device)
+            est_b = _run_baseline(ss_base, mix, n_spks_arg, device)
+            base_n_true.append(n_true)
+            base_n_hat.append(est_b.shape[0])
             est_b, refs_a, mix_a = _align(est_b, refs, mix)
             r_b = pit_si_sdr(est_b, refs_a, mix_a)
             base_sisdrs.append(r_b.mean_si_sdr)
@@ -313,8 +344,19 @@ def _score_split(
         # CoRAL-Sep
         try:
             est_c = _run_calmsep(
-                ss_calm, inner, lib, gate_net, temperature, l1fn, ADAPTER_NAMES, mix, n_spks, device
+                ss_calm,
+                inner,
+                lib,
+                gate_net,
+                temperature,
+                l1fn,
+                ADAPTER_NAMES,
+                mix,
+                n_spks_arg,
+                device,
             )
+            calm_n_true.append(n_true)
+            calm_n_hat.append(est_c.shape[0])
             est_c, refs_a, mix_a = _align(est_c, refs, mix)
             r_c = pit_si_sdr(est_c, refs_a, mix_a)
             calm_sisdrs.append(r_c.mean_si_sdr)
@@ -335,13 +377,16 @@ def _score_split(
     return {
         "split": split,
         "n_samples": len(base_sisdrs),
+        "oracle_count": oracle_count,
         "baseline": {
             "si_sdr": float(np.mean(base_sisdrs)) if base_sisdrs else None,
             "si_sdri": float(np.mean(base_sisdris)) if base_sisdris else None,
+            "count_accuracy": (count_accuracy(base_n_true, base_n_hat) if base_n_true else None),
         },
         "coralsep": {
             "si_sdr": float(np.mean(calm_sisdrs)) if calm_sisdrs else None,
             "si_sdri": float(np.mean(calm_sisdris)) if calm_sisdris else None,
+            "count_accuracy": (count_accuracy(calm_n_true, calm_n_hat) if calm_n_true else None),
         },
         "delta_si_sdri": (
             float(np.mean(calm_sisdris)) - float(np.mean(base_sisdris))
@@ -357,23 +402,30 @@ def _score_split(
 
 
 def _print_table(results: list[dict]) -> None:
-    print("\n" + "=" * 68)
+    oracle = results[0].get("oracle_count", True) if results else True
+    print("\n" + "=" * 90)
+    if oracle:
+        print("  WARNING: --oracle-count was used. Count accuracy is not meaningful, see I-002.")
     print(
-        f"{'Split':<12} {'N':>5}  {'Base SI-SDR':>11} {'Base SI-SDRi':>12} "
-        f"{'Calm SI-SDR':>11} {'Calm SI-SDRi':>12} {'Δ SI-SDRi':>10}"
+        f"{'Split':<12} {'N':>5}  {'Base SI-SDR':>11} {'Base SI-SDRi':>12} {'Base N-acc':>10} "
+        f"{'Calm SI-SDR':>11} {'Calm SI-SDRi':>12} {'Calm N-acc':>10} {'Δ SI-SDRi':>10}"
     )
-    print("-" * 68)
+    print("-" * 90)
     for r in results:
         b = r["baseline"]
         c = r["coralsep"]
         d = r["delta_si_sdri"]
+        b_acc = b.get("count_accuracy")
+        c_acc = c.get("count_accuracy")
         print(
             f"{r['split']:<12} {r['n_samples']:>5}  "
             f"{b['si_sdr']:>10.2f}  {b['si_sdri']:>11.2f}  "
+            f"{b_acc if b_acc is None else f'{b_acc:.2f}':>10} "
             f"{c['si_sdr']:>10.2f}  {c['si_sdri']:>11.2f}  "
+            f"{c_acc if c_acc is None else f'{c_acc:.2f}':>10} "
             f"{d:>+9.2f}"
         )
-    print("=" * 68 + "\n")
+    print("=" * 90 + "\n")
 
 
 # ---------------------------------------------------------------------------
@@ -408,6 +460,17 @@ def _parse_args() -> argparse.Namespace:
     )
     p.add_argument("--device", default="cpu")
     p.add_argument("--output", default="results/eval_outputs/calmsep_eval.json")
+    p.add_argument(
+        "--oracle-count",
+        action="store_true",
+        default=False,
+        help=(
+            "Supply the true speaker count to both models (the original, invalid "
+            "behaviour, kept only to reproduce old numbers for comparison). "
+            "Default: neither model is told the count; each estimates it from "
+            "its own attractor path. See I-002."
+        ),
+    )
     return p.parse_args()
 
 
@@ -457,6 +520,7 @@ def main() -> None:
             l1fn,
             ADAPTER_NAMES,
             device,
+            oracle_count=args.oracle_count,
         )
         r["wall_time_s"] = round(time.time() - t0, 1)
         results.append(r)
