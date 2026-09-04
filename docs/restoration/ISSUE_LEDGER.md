@@ -86,7 +86,7 @@
 | I-050 | `[BUG]` | 🟠 P1 | The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU | 🟢 CLOSED | [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88) |
 | I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | [#89](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/89) |
 | I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
-| I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED, bank regeneration pending | pending |
+| I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED, bank regeneration pending | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
 
 ---
 
@@ -1506,7 +1506,7 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-053 `[BUG]` P1 `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses
 
-**State:** CLOSED, commit pending · GitHub pending
+**State:** CLOSED, commit `b9564c3` · GitHub [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91)
 
 **Problem.** Once I-052's URL fix let the download actually succeed for the first time, the resulting `but_bank.json` reported `t60_mean_s` around 66 and `t60_max_s` around 900, both physically impossible for a real room (real rooms, even cathedrals, top out around 5 to 10 seconds). `_find_rir_wavs` collected every `.wav` file under the extracted archive with `root.rglob("*.wav")` and no filtering. The real archive lays each recording session out as sibling `RIR/` and `silence/` directories: `RIR/` holds a genuine, short (confirmed 1.0 second at 16 kHz) already-deconvolved impulse response, despite a filename that describes the sweep method used to capture it (`IR_sweep_15s_45Hzto22kHz_FS16kHz.v00.wav`, which names the acquisition method, not the delivered file's own length); `silence/` holds a 60-second background noise recording (confirmed RMS 0.0037, no impulse at all) used for SNR estimation elsewhere in BUT's own pipeline, never intended to be treated as an RIR. The unfiltered glob fed both to `measure_t60` identically.
 
