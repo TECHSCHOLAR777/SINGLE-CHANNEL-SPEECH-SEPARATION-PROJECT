@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 47 tickets. 29 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 49 tickets. 31 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -35,7 +35,7 @@
 | ID | Type | Pri | Title | State | Commit |
 |---|---|:---:|---|---|---|
 | I-001 | `[SEC]` | 🔴 P0 | Live API credentials present in the supplied archive | 🔴 BLOCKED on owner | [#39](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/39) |
-| I-002 | `[EXP]` | 🔴 P0 | Evaluation supplies the oracle speaker count, so count accuracy is never measured | 🟠 READY | [#40](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/40) |
+| I-002 | `[EXP]` | 🔴 P0 | Evaluation supplies the oracle speaker count, so count accuracy is never measured | 🟡 INVESTIGATING, code fixed | [#40](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/40) |
 | I-003 | `[MODEL]` | 🟠 P1 | Gate temperature 4.9872 flattens the sigmoid and disables condition routing | 🔴 BLOCKED on compute | [#41](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/41) |
 | I-004 | `[BUG]` | 🟠 P1 | `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE` | 🟢 CLOSED | [#42](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/42) |
 | I-005 | `[BUG]` | 🟠 P1 | `eval/matrix.py` imports `si_snr`; the function is `si_sdr` | 🟢 CLOSED | [#43](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/43) |
@@ -81,6 +81,8 @@
 | I-045 | `[MODEL]` | 🟡 P2 | Band recovery masks the shared 16 kHz mixture, not a separated signal, and its evaluation guard can see ground truth deployment never has | 🟠 READY | [#83](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/83) |
 | I-046 | `[RESEARCH]` | ⚪ P3 | Freezing the backbone entirely rests on an analogy from a different experiment, not a direct ablation | ⚪ OPEN | [#84](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/84) |
 | I-047 | `[EXP]` | 🟠 P1 | If LibriMix `mix_both` carries no reverberation, every headline result still carries the reverb adapter at roughly 0.5 gate | 🔴 BLOCKED on compute | [#85](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/85) |
+| I-048 | `[TEST]` | 🟡 P2 | Three RirBank tests double the bank path and one asserts a key generate_rir never returns, invisible because pyroomacoustics was never installed anywhere this ran | 🟢 CLOSED | [#86](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/86) |
+| I-049 | `[TEST]` | 🟡 P2 | Two tests only passed by environmental accident: an onnxruntime-dependent test with no skip guard, and a stale sr_corrnet availability assumption predating I-019 | 🟢 CLOSED | [#87](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/87) |
 
 ---
 
@@ -89,11 +91,11 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 29
-    "READY" : 6
+    "CLOSED" : 31
+    "READY" : 5
     "BLOCKED" : 7
     "IN_PROGRESS" : 0
-    "INVESTIGATING" : 2
+    "INVESTIGATING" : 3
     "OPEN" : 3
 ```
 
@@ -160,7 +162,9 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 
 ### I-002 [EXP] [P0] Evaluation supplies the oracle speaker count, so count accuracy is never measured
 
-**State:** 🟠 READY · GitHub [#40](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/40)
+**State:** 🟡 INVESTIGATING, code fixed and tested, real run not yet executed · commit `4ab7e5c` · GitHub [#40](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/40)
+
+**2026-09-04 update.** `_run_baseline` and `_run_calmsep` now accept `n_spks=None`, in which case `process_waveform` is called without a count argument, so the model's own attractor path decides how many streams to return, matching `SRCorrNetExpert.separate(n_spks=None)`'s already-documented behaviour. `_score_split` defaults to this and records `count_accuracy` for both models against the true count. The original oracle behaviour survives behind an explicit `--oracle-count` flag. Not yet done: `count_confusion_matrix` is not wired in, and no real run has been executed, code was only exercised against a fake model in `tests/test_run_eval.py`. The Kaggle credentials and a GPU are now genuinely reachable from this restoration (see WORKLOG), so a real run is a remaining step, not a blocked one.
 
 **Problem.** `eval/run_eval.py` derives the speaker count from the LibriMix directory name and passes it to both the baseline and the full system. Speaker count accuracy is the primary graded axis of the project, and no run has ever measured it.
 
@@ -173,12 +177,13 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 **Scope.** Add a counting evaluation mode that lets the backbone attractor probabilities determine `N_hat`, record `N_hat` against `N_true`, and compute count accuracy and a confusion matrix using the existing `eval/metrics.py::count_accuracy` and `count_confusion_matrix`. Keep the oracle mode available behind a flag for the ablation.
 
 **Acceptance criteria.**
-- [ ] `run_eval.py` exposes an explicit oracle-count flag that defaults to off.
-- [ ] Count accuracy and a confusion matrix appear in the result JSON.
-- [ ] A unit test covers the non-oracle path with a stub backbone.
-- [ ] Existing oracle numbers stay reproducible under the flag.
+- [x] `run_eval.py` exposes an explicit oracle-count flag that defaults to off.
+- [ ] Count accuracy and a confusion matrix appear in the result JSON. Count accuracy does; the confusion matrix is not yet wired in.
+- [x] A unit test covers the non-oracle path with a stub backbone.
+- [x] Existing oracle numbers stay reproducible under the flag.
+- [ ] A real run, on real data, is recorded.
 
-**Validation.** Unit test with a stubbed wrapper. A full run requires the Kaggle environment and is out of scope for this machine.
+**Validation.** `pytest tests/test_run_eval.py -q`, 4 passed. A full run needs the Kaggle environment; that environment is now reachable (see WORKLOG 2026-09-04), so this is the next actionable step for I-002, not a hard blocker.
 
 **Dependencies.** Depends on I-012. Blocked for end-to-end validation by I-019.
 
@@ -1328,6 +1333,48 @@ The comment refers to a task assignment from the three-developer phase in early 
 **Validation.** The manifest check is possible with the LibriMix data present; the ablation needs the Stage 4 checkpoint and evaluation data, both on Kaggle.
 
 **Dependencies.** I-025, I-040, I-003.
+
+---
+
+### I-048 `[TEST]` P2 Three RirBank tests double the bank path and one asserts a key generate_rir never returns, invisible because pyroomacoustics was never installed anywhere this ran
+
+**State:** CLOSED, commit `f85dd2a` · GitHub [#86](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/86)
+
+**Problem.** `tests/test_rir_bank.py` guards its pyroomacoustics-dependent tests with a module-level `pytest.importorskip("pyroomacoustics")`. Because pyroomacoustics was never installed in any environment this project's tests ran in until this session's GPU box, the entire file was silently skipped on every run, including tests that do not touch pyroomacoustics at all. Setting up a real environment for the first time (see WORKLOG 2026-09-04) surfaced two real defects: `test_rir_bank_load_and_sample`, `test_rir_bank_load_shape`, and `test_rir_bank_sample_out_of_range_raises` all constructed `RirBank(bank_dir / "bank.json")`, but `RirBank.__init__` already appends `bank.json` to whatever directory it receives, and the tests' own `_write_bank` helper already returns the bank directory, not the file, so the doubled path never existed. `test_generate_rir_returns_record` asserted `meta["sample_rate"] == 8_000`, but `generate_rir` deliberately does not echo `sample_rate` back in its returned `meta`, since the caller already has it and `build_rir_bank` supplies it to `RirRecord` directly.
+
+**Evidence.** `FileNotFoundError` and `KeyError` on first run with pyroomacoustics installed.
+
+**Impact.** None to production code, both defects are test-only. The real cost is that this file provided zero actual coverage of `RirBank` for the life of the project.
+
+**Scope.** Pass the directory, not the file, to `RirBank` in the three call sites. Replace the stale assertion with one against a key `generate_rir` actually returns.
+
+**Acceptance criteria.**
+- [x] `pytest tests/test_rir_bank.py -q` passes with pyroomacoustics installed.
+
+**Validation.** 9 passed on the GPU box.
+
+**Dependencies.** None.
+
+---
+
+### I-049 `[TEST]` P2 Two tests only passed by environmental accident
+
+**State:** CLOSED, commit `bad6022` · GitHub [#87](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/87)
+
+**Problem.** Two more tests surfaced by running the suite in a genuinely fresh environment for the first time. `test_wrong_sample_rate_rejected_when_available` asserts `DnsmosScorer.is_available` is `True` given a placeholder `.onnx` file, which also requires `onnxruntime` to be importable. `onnxruntime` is a deliberately optional dependency (`tests/test_dependency_coverage.py`'s `OPTIONAL_WITH_FALLBACK`, since `dnsmos.py` degrades gracefully without it), but the test had no `importorskip` guard, so it happened to pass on a machine that had `onnxruntime` installed for unrelated reasons and failed outright on a clean one. `test_srcorrnet_not_available_without_repo` asserted `SRCorrNetExpert(repo_path=None).is_available` is `False`, which predates I-019: `sr_corrnet` is now a real pinned pip dependency, and `is_available` correctly falls back to checking whether the package is importable when no `repo_path` is given, so the test's premise stopped matching the code it tests the moment I-019 was fixed, and nothing caught it because nothing ran this test in an environment where the difference would show.
+
+**Evidence.** Both failed on first run on the GPU box; both passed locally by accident of what happened to be importable there.
+
+**Impact.** None to production code. The pattern is the concerning part: a test whose correctness depends on what else happens to be installed is not really testing the contract it claims to.
+
+**Scope.** Add the missing `importorskip` guard. Replace the stale srcorrnet test with two that mock `importlib.util.find_spec` directly, so they assert the real contract instead of an environment-specific accident.
+
+**Acceptance criteria.**
+- [x] Both tests pass on an environment with the real dependency set and on one without onnxruntime.
+
+**Validation.** 15 passed across `tests/test_dnsmos.py` and `tests/test_srcorrnet_wrapper.py` on both machines.
+
+**Dependencies.** I-019 (the fix that made the srcorrnet test's premise stale).
 
 ---
 
