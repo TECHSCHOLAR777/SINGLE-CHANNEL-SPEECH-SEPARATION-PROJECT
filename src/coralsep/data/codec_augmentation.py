@@ -191,11 +191,14 @@ def _ffmpeg_roundtrip_standalone(
         if subprocess.run(enc_cmd, capture_output=True, check=False).returncode != 0:
             return None
 
-        dec_cmd = ["ffmpeg", "-y", "-i", str(encoded)]
-        if required_sr is not None:
-            # Resample back to original rate after decoding.
-            dec_cmd += ["-ar", str(sr)]
-        dec_cmd.append(str(decoded))
+        # Always resample the decode back to the original rate, regardless of
+        # whether the encode step needed a forced rate. Opus's container always
+        # reports its fixed internal clock (48 kHz) on decode even when the
+        # encoder was fed 8 kHz input; without this, sf.read below returns
+        # audio at 48 kHz while _fit_length crops it as if it were the
+        # original length at the original rate, silently keeping only the
+        # first 1/6th of the real decoded audio. See I-058.
+        dec_cmd = ["ffmpeg", "-y", "-i", str(encoded), "-ar", str(sr), str(decoded)]
 
         if subprocess.run(dec_cmd, capture_output=True, check=False).returncode != 0:
             return None
