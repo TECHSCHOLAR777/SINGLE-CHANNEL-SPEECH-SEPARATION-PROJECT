@@ -93,8 +93,27 @@ def _extract(archive: Path, dest_dir: Path) -> None:
 
 
 def _find_rir_wavs(root: Path) -> list[Path]:
-    """Collect all WAV files under root, sorted by path for determinism."""
+    """Collect impulse-response WAV files under root, sorted for determinism.
+
+    I-053: the real archive lays each recording session out as sibling
+    RIR/ and silence/ directories. RIR/ holds a short (about 1 second,
+    confirmed against a real download) already-deconvolved impulse
+    response despite its filename describing the sweep method used to
+    capture it (IR_sweep_15s_...). silence/ holds a 60-second background
+    noise recording with no impulse at all. An unfiltered rglob("*.wav")
+    picks up both and calls measure_t60 on the noise files exactly as it
+    would a real RIR, which is meaningless: a stationary noise recording's
+    Schroeder decay curve is nearly flat, so the -5 to -35 dB fit spans
+    most of the 60-second file and extrapolates to a "T60" of tens to
+    hundreds of seconds, physically impossible for a real room. This was
+    the actual cause of a staged bank reporting t60_mean_s around 66 and
+    t60_max_s around 900. Excluding any path with "silence" as a
+    component removes every offending file; it does not require "RIR" as
+    a component, so a manually-populated flat directory (the documented
+    fallback when the automatic download fails) still works.
+    """
     wavs = sorted(root.rglob("*.wav")) + sorted(root.rglob("*.WAV"))
+    wavs = [w for w in wavs if "silence" not in w.relative_to(root).parts]
     # Deduplicate (rglob patterns are case-sensitive on Linux)
     seen: set[Path] = set()
     unique: list[Path] = []

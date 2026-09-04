@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 52 tickets. 35 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 53 tickets. 36 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -86,6 +86,7 @@
 | I-050 | `[BUG]` | 🟠 P1 | The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU | 🟢 CLOSED | [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88) |
 | I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | [#89](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/89) |
 | I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
+| I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED, bank regeneration pending | pending |
 
 ---
 
@@ -94,7 +95,7 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 35
+    "CLOSED" : 36
     "READY" : 2
     "BLOCKED" : 6
     "IN_PROGRESS" : 0
@@ -1500,6 +1501,32 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Validation.** `pytest tests/test_but_reverbdb.py -q`, 3 passed. Running the corrected download for real on the GPU box is the immediate next step; see WORKLOG for the outcome.
 
 **Dependencies.** Blocks generating the fixed evaluation matrix (`fixed_eval_generator.py`), which in turn is the concrete answer to needing evaluation at N up to 5 without a public LibriMix substitute (none exists, see the same WORKLOG entry).
+
+---
+
+### I-053 `[BUG]` P1 `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses
+
+**State:** CLOSED, commit pending · GitHub pending
+
+**Problem.** Once I-052's URL fix let the download actually succeed for the first time, the resulting `but_bank.json` reported `t60_mean_s` around 66 and `t60_max_s` around 900, both physically impossible for a real room (real rooms, even cathedrals, top out around 5 to 10 seconds). `_find_rir_wavs` collected every `.wav` file under the extracted archive with `root.rglob("*.wav")` and no filtering. The real archive lays each recording session out as sibling `RIR/` and `silence/` directories: `RIR/` holds a genuine, short (confirmed 1.0 second at 16 kHz) already-deconvolved impulse response, despite a filename that describes the sweep method used to capture it (`IR_sweep_15s_45Hzto22kHz_FS16kHz.v00.wav`, which names the acquisition method, not the delivered file's own length); `silence/` holds a 60-second background noise recording (confirmed RMS 0.0037, no impulse at all) used for SNR estimation elsewhere in BUT's own pipeline, never intended to be treated as an RIR. The unfiltered glob fed both to `measure_t60` identically.
+
+**Evidence.** A stationary noise recording's Schroeder backward-integration decay curve is nearly flat rather than exponentially decaying, so the `-5` to `-35` dB crossing points this project's `measure_t60` fits a line between can span most of a 60-second file, and extrapolating that shallow slope to `-60` dB produces a "T60" of tens to hundreds of seconds. Confirmed directly: reading the real `RIR/` file shows a clean direct-path peak at sample 712 of 16000 (44.5 ms in, a normal position for a real room); reading the real `silence/` file confirms it is 60.0 seconds of near-silent noise with no comparable structure.
+
+**Impact.** Every one of the 12,307 records in the staged bank this session is suspect until regenerated, since the bank mixes genuine RIRs with mislabeled noise-as-RIR entries indiscriminately. `RirBank.sample()` selects by achieved T60, so the noise entries' fabricated multi-hundred-second T60 values would never be selected for any realistic query, but they inflate `n_rirs` and would corrupt any statistic computed over the whole bank (mean, distribution plots) without a human noticing unless someone happened to look at the summary numbers, which is exactly how this was caught.
+
+**Suspected cause.** The archive's own internal layout (RIR and silence as siblings) was never inspected before writing `_find_rir_wavs`; the function was written to the assumption that every `.wav` under the extraction root is an impulse response, true for a simulated bank but not for this real one.
+
+**Scope.** Exclude any path with `silence` as a path component. Chosen over requiring `RIR` as a component so the documented manual-placement fallback (files dropped flat under `extracted/` when the automatic download fails) keeps working; it does not depend on either directory name being present.
+
+**Acceptance criteria.**
+- [x] `_find_rir_wavs` excludes `silence/` recordings.
+- [x] The documented flat manual-fallback layout still works.
+- [x] A regression test constructs both directory shapes and asserts the correct one is filtered.
+- [ ] The staged bank on the GPU box is regenerated with the fix and its T60 summary statistics confirmed sane (roughly 0.1 to a few seconds), not yet done as of this commit.
+
+**Validation.** `pytest tests/test_but_reverbdb.py -q`, 5 passed. Full suite: 600 passed, 11 skipped. Regenerating the real staged bank and confirming sane statistics is the immediate next step.
+
+**Dependencies.** Found while executing the fix for I-052; blocks trusting any number derived from the `but_reverb` evaluation tier until the bank is regenerated.
 
 ---
 
