@@ -67,12 +67,12 @@ fi
 
 # ── stage 1: source corpora ───────────────────────────────────────────────────
 stage librispeech_and_wham \
-  python -m data.prepare_wham --output-dir "$ROOT"
+  python -m coralsep.data.prepare.wham --output-dir "$ROOT"
 
 # prepare_librimix downloads LibriSpeech itself and generates Libri3Mix.
 # Run it with --include-train so the train split lands in the same pass.
 stage libri3mix \
-  python -m data.prepare_librimix \
+  python -m coralsep.data.prepare.librimix \
     --output-dir "$ROOT" \
     --librispeech-dir "$LS_DIR" \
     --include-train \
@@ -91,7 +91,7 @@ fi
 # ── stage 2: high-N mixtures for L3 and the stop classifier ───────────────────
 if [[ $SKIP_HIGHN -eq 0 ]]; then
   stage libri45mix \
-    python -m data.prepare_librimix_highn \
+    python -m coralsep.data.prepare.librimix_highn \
       --output-dir "$ROOT" \
       --librispeech-dir "$LS_DIR" \
       --n-src 4,5
@@ -99,9 +99,9 @@ fi
 
 # ── stage 3: reverberant eval set (the only P4 work unblocked today) ──────────
 stage reverb_eval \
-  python -m data.make_reverb_eval \
+  python -m coralsep.data.make_reverb_eval \
     --librimix-root "$ROOT/Libri3Mix" \
-    --output-dir "$ROOT/Libri3Mix-reverb" \
+    --out-root "$ROOT/Libri3Mix-reverb" \
     --subset test
 
 say "done"

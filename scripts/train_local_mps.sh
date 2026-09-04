@@ -52,7 +52,7 @@ log() { echo "[$(date '+%H:%M:%S')] $*"; }
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$ADAPTER_FILTER" == "all" || "$ADAPTER_FILTER" == "reverb" ]]; then
     log "=== [1/3] REVERB adapter, $EPOCHS epochs (~9h) ==="
-    PYTHONUNBUFFERED=1 "$PYTHON" -u -m train.stage1_single \
+    PYTHONUNBUFFERED=1 "$PYTHON" -u -m coralsep.train.stage1_single \
         --adapter reverb \
         --librispeech-8k "$LIBRI" \
         --rir-bank       "$RIR" \
@@ -73,7 +73,7 @@ fi
 # ─────────────────────────────────────────────────────────────────────────────
 if [[ "$ADAPTER_FILTER" == "all" || "$ADAPTER_FILTER" == "noise" ]]; then
     log "=== [2/3] NOISE adapter, $EPOCHS epochs (~9h) ==="
-    PYTHONUNBUFFERED=1 "$PYTHON" -u -m train.stage1_single \
+    PYTHONUNBUFFERED=1 "$PYTHON" -u -m coralsep.train.stage1_single \
         --adapter noise \
         --librispeech-8k "$LIBRI" \
         --rir-bank       "$RIR" \
@@ -96,7 +96,7 @@ fi
 if [[ "$ADAPTER_FILTER" == "all" || "$ADAPTER_FILTER" == "codec" ]]; then
     log "=== [3/3] CODEC adapter, $EPOCHS epochs (~9h) ==="
     which ffmpeg && log "ffmpeg: $(ffmpeg -version 2>&1 | head -1)"
-    PYTHONUNBUFFERED=1 "$PYTHON" -u -m train.stage1_single \
+    PYTHONUNBUFFERED=1 "$PYTHON" -u -m coralsep.train.stage1_single \
         --adapter codec \
         --librispeech-8k "$LIBRI" \
         --rir-bank       "$RIR" \
