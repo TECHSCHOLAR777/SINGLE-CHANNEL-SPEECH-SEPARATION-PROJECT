@@ -2,10 +2,10 @@
 
 # What is wrong, and what it would take to fix it
 
-**50 issues found · 32 closed · 18 open**
+**50 issues found · 33 closed · 17 open**
 
-[![Open](https://img.shields.io/badge/open-18-e36209?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aopen)
-[![Closed](https://img.shields.io/badge/closed-32-2ea043?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aclosed)
+[![Open](https://img.shields.io/badge/open-17-e36209?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aopen)
+[![Closed](https://img.shields.io/badge/closed-33-2ea043?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aclosed)
 
 </div>
 
@@ -129,13 +129,13 @@ Half the gate's input is supposed to come from the audio itself: pooled encoder 
 
 **What it takes.** A decision: either restructure the pipeline to run the gate per chunk the way the docs describe, or correct the docs to say the gate is once-per-utterance and always blind to reverb and count evidence. This is a real design change either way, not a quick patch. It may also be a second explanation for why the gate output is flat (I-003): a gate that is structurally blind to half its intended input cannot route on that half.
 
-### The three adapters were trained for a blend they never actually run in
+### A plausible-sounding worry that turned out not to be true: co-activation regime
 
-**[I-043](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) · `MODEL` · P2**
+**[I-043](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) · `MODEL` · P2 · closed, ruled out**
 
-Stage 1 trains one adapter at a time with the other two barely switched on, 0 to 20 percent. The gate that actually runs at inference blends all three near 50 percent. No adapter has ever seen, in training, anything close to the composition regime it is deployed under.
+Stage 1 trains one adapter at a time with the other two barely switched on, 0 to 20 percent. The gate that actually runs at inference blends all three near 50 percent. This looked like a strong second candidate for why the reverb adapter measures harmful (I-025): maybe it just had never been tested under the load it actually runs in.
 
-**What it takes.** A diagnostic that runs each trained adapter under a fixed 50/50/50 blend and compares it against its own trained regime. Needs the Stage 1 checkpoints from Kaggle; the diagnostic script itself is a laptop task.
+With a GPU and all three Stage 1 checkpoints reachable this session, the diagnostic ran. Cost of the deployed 0.5/0.5/0.5 blend versus the adapter's own trained regime, on the same reverberant mixture: **-0.03 dB.** Not meaningful. This is not the explanation. Worth keeping in the record as a case where a mechanistically reasonable hypothesis was cheap enough to actually test, and testing it was the right call instead of assuming.
 
 ### The noise adapter's training data was never checked against the test set it is graded on
 

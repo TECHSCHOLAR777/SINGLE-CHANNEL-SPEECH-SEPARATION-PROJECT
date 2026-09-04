@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 50 tickets. 32 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 50 tickets. 33 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -76,7 +76,7 @@
 | I-040 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` scored reverberant conditions against the wrong reference | 🟢 CLOSED | [#78](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78) |
 | I-041 | `[BUG]` | 🔴 P0 | The deployed gate crashed on every call once a real gate network was attached | 🟢 CLOSED | [#79](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/79) |
 | I-042 | `[ARCH]` | 🟠 P1 | The gate runs once per utterance from Level-1 only; the documented per-chunk Level-2 lag was never implemented | ⚪ OPEN | [#80](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/80) |
-| I-043 | `[MODEL]` | 🟡 P2 | Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference | 🟠 READY | [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) |
+| I-043 | `[MODEL]` | 🟡 P2 | Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference | 🟢 CLOSED, ruled out | [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) |
 | I-044 | `[DATA]` | 🟡 P2 | The noise adapter's WHAM split is never checked against the LibriMix test split, a leakage risk | 🟠 READY | [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82) |
 | I-045 | `[MODEL]` | 🟡 P2 | Band recovery masks the shared 16 kHz mixture, not a separated signal, and its evaluation guard can see ground truth deployment never has | 🟠 READY | [#83](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/83) |
 | I-046 | `[RESEARCH]` | ⚪ P3 | Freezing the backbone entirely rests on an analogy from a different experiment, not a direct ablation | ⚪ OPEN | [#84](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/84) |
@@ -92,8 +92,8 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 32
-    "READY" : 4
+    "CLOSED" : 33
+    "READY" : 3
     "BLOCKED" : 7
     "IN_PROGRESS" : 0
     "INVESTIGATING" : 3
@@ -840,7 +840,7 @@ The real defect is in the diagnostic that produced the table above. `eval/eval_r
 
 **Validation.** `python src/coralsep/eval/eval_reverb_adapter.py --checkpoint best_reverb.pt --librispeech-8k <slice> --rir-bank <bank> --device cuda`, run on the university GPU box against the real `rishig777/calmsep-stage1-adapters` Kaggle checkpoint, 2026-09-04.
 
-**Dependencies.** I-043 (co-activation mismatch) is now the most likely remaining explanation and the recommended next diagnostic.
+**Dependencies.** I-043 (co-activation mismatch) has since been tested and ruled out, cost measured at -0.03 dB. The remaining candidates are the two this ticket already named: LoRA rank 8 too small, or 500 samples per epoch too few. Both need a retraining run.
 
 **Dependencies.** Feeds I-003.
 
@@ -1237,7 +1237,17 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-043 `[MODEL]` P2 Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference
 
-**State:** READY · GitHub [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81)
+**State:** CLOSED, ruled out as a cause · commit `776ac3a` · GitHub [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81)
+
+**2026-09-04 update.** Ran the diagnostic this ticket's own scope called for (`coralsep.eval.diagnose_coactivation`), against the real Stage 1 checkpoints for all three adapters, on the university GPU box, at T60 0.54s:
+
+| Regime | SI-SNR | vs off |
+|---|---:|---:|
+| All gates off (frozen backbone) | -0.97 dB | |
+| Trained regime (1.0, 0.0, 0.0) | -2.19 dB | -1.22 dB |
+| Deployed regime (0.5, 0.5, 0.5) | -2.22 dB | -1.25 dB |
+
+Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not a meaningful difference. The hypothesis is ruled out: whatever makes the reverb adapter harmful (I-025, confirmed independently the same session), it is not primarily a mismatch between the co-activation load it trained under and the load it runs under. The remaining candidates are the two I-025 already named, LoRA rank 8 too small or 500 samples per epoch too few, both of which need a retraining run to test.
 
 **Problem.** `train/stage1_single.py` trains one adapter at gate 1.0 with the other two co-activated at `U(0.0, 0.2)` (module docstring: "Co-activation warm-up is always on: other adapters are active at U(0.0, 0.2)"). I-003 measures the deployed gate applying roughly 0.5 to all three adapters simultaneously, regardless of condition. No adapter was ever trained under a co-activation load anywhere near what it runs under.
 
@@ -1250,10 +1260,10 @@ The comment refers to a task assignment from the three-developer phase in early 
 **Scope.** Once I-003's own root cause is settled (I-042 is now the leading candidate), either widen the Stage 1 co-activation range to bracket the gate's real output distribution, or add an explicit diagnostic that runs each Stage 1 checkpoint under 0.5/0.5/0.5 co-activation and reports the delta versus its trained regime.
 
 **Acceptance criteria.**
-- [ ] A diagnostic records each adapter's SI-SNR delta under its trained co-activation range versus a fixed 0.5/0.5/0.5 blend.
-- [ ] A decision record states whether the training range needs to change.
+- [x] A diagnostic records each adapter's SI-SNR delta under its trained co-activation range versus a fixed 0.5/0.5/0.5 blend.
+- [x] A decision record states whether the training range needs to change: no, this was not the cause, so the co-activation range does not need widening on this evidence.
 
-**Validation.** Needs the Stage 1 checkpoints, which live on Kaggle. The diagnostic script itself can be written and unit-tested here.
+**Validation.** `python -m coralsep.eval.diagnose_coactivation`, run against the real Stage 1 checkpoints on the university GPU box, 2026-09-04.
 
 **Dependencies.** I-003, I-025, I-042.
 
