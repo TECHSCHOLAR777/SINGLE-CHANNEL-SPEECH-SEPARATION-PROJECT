@@ -2,10 +2,10 @@
 
 # What is wrong, and what it would take to fix it
 
-**47 issues found · 29 closed · 18 open**
+**50 issues found · 32 closed · 18 open**
 
 [![Open](https://img.shields.io/badge/open-18-e36209?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aopen)
-[![Closed](https://img.shields.io/badge/closed-29-2ea043?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aclosed)
+[![Closed](https://img.shields.io/badge/closed-32-2ea043?style=for-the-badge)](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues?q=is%3Aclosed)
 
 </div>
 
@@ -21,7 +21,7 @@ The ledger tells you *what* each ticket says. This file tells you *why the remai
 
 The code is in better shape than its own documentation suggested. Of the 47 problems found, 29 are already fixed. The first restoration pass found mostly connective tissue: symbols renamed in one place and not updated in another, all of which survived because the CI workflow was watching a branch that does not exist. A second, deeper pass attacking the research approach itself, not just the code, found two severe bugs in the load-bearing paths (below) and six open questions about whether the architecture's central design choices are supported by evidence at all.
 
-What remains is **mostly not fixable by writing code**. Most of the open issues need either a GPU, access to the Kaggle account holding the checkpoints, or a decision from the project owner. A handful can be done on a laptop.
+What remains is **mostly not fixable by writing code**. Most of the open issues need either a GPU, access to the Kaggle account holding the checkpoints, or a decision from the project owner. A handful can be done on a laptop. Partway through this session, a GPU and the real Kaggle credentials both became reachable, which is how the reverb adapter question below moved from "diagnosed but unverified" to "confirmed with real numbers": several of the remaining checkpoint-blocked items are worth revisiting for the same reason.
 
 ---
 
@@ -83,9 +83,9 @@ Stage 4c fitted the gate temperature to **T = 4.9872** by golden-section search.
 
 **What it takes.** Diagnose before touching anything. Load the Stage 4 checkpoint, push a set of mixtures with known conditions through it, and record the actual distribution of gate values. That single measurement distinguishes three hypotheses that currently look alike: the L1 sparsity penalty at 1e-3 pushing the gate to its uninformative mid-point, Stage 3 having too few epochs to separate the conditions, or the calibration objective having nothing to reward because one of the three adapters is harmful (see below). Needs the checkpoint from Kaggle. The measurement itself runs on CPU.
 
-### Whether the reverb adapter makes things worse is now an open question again, for a better reason than before
+### The reverb adapter is confirmed harmful. The eval bug that clouded the evidence was real, but it was not the reason
 
-**[I-025](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) · `MODEL` · P1 · investigating**
+**[I-025](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) · `MODEL` · P0**
 
 The original table here read:
 
@@ -95,15 +95,21 @@ The original table here read:
 | Reverb, mild | -30.89 dB | -30.96 dB | -0.07 dB |
 | Reverb, strong | -32.83 dB | -35.64 dB | 🔴 -2.81 dB |
 
-and this file's previous edition said the likely cause was that Stage 1 training used the wet reverberant reference instead of the dry one. That hypothesis is now refuted, by reading the code it named. `data/degradations.py` shows the wet reference is a deliberate, carefully justified design choice: the system is meant to separate speakers without also dereverberating them, so scoring it against the dry source would grade it on a task it was never asked to do. That part of the design is sound.
+and this file's previous edition said the likely cause was that Stage 1 training used the wet reverberant reference instead of the dry one. That hypothesis is refuted by reading the code it named. `data/degradations.py` shows the wet reference is a deliberate, carefully justified design choice: the system is meant to separate speakers without also dereverberating them, so scoring it against the dry source would grade it on a task it was never asked to do. That part of the design is sound.
 
-What was actually wrong is the diagnostic script that produced the table above ([I-040](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78), now fixed). It scored the reverb conditions against the dry reference anyway, the exact mistake the design docs warn against. Its own second pass proves this on its own numbers: scored against the correct wet target, the same audio measures near 0 dB; scored against the dry one, it measures -32 to -35 dB. That is a 31.65 dB gap on identical audio, and the script's own sanity check missed it because of a sign error.
+What was actually wrong is the diagnostic script that produced the table above ([I-040](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78)). It scored the reverb conditions against the dry reference anyway, the exact mistake the design docs warn against. Its own second pass proved this on its own numbers: scored against the correct wet target, the same audio measured near 0 dB; scored against the dry one, it measured -32 to -35 dB.
 
-**What this means.** The -2.81 dB "harm" figure cannot be trusted; it may still be true, or the adapter may be fine, or actively good, once measured correctly. The one number from that table that is *not* affected by this bug is the clean-audio delta (-0.44 dB), since there is no wet/dry distinction without reverb, and it stands as a small real regression from switching the adapter on when it has nothing to do.
+A university GPU became reachable partway through this session, along with the real Kaggle checkpoint for this adapter. Fixing the reference bug and two more device bugs that only showed up on the first-ever GPU run of this script ([I-050](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88)), the diagnostic was rerun for real:
 
-A separate, independent finding from this pass gives a second reason the adapter could be struggling even once scored correctly: it was trained with the other two adapters barely switched on (0 to 20 percent), but the deployed gate runs all three near 50 percent (see the gate finding just below). It has never been tested under the load it actually runs in.
+| Condition | Base | With reverb adapter | Change |
+|---|---:|---:|---:|
+| Clean | 14.60 dB | 13.69 dB | 🔴 -0.90 dB |
+| Reverb, mild (T60 0.4s) | 4.15 dB | 1.51 dB | 🔴 -2.63 dB |
+| Reverb, strong (T60 0.8s) | 2.42 dB | 1.53 dB | 🔴 -0.88 dB |
 
-**What it takes.** The diagnostic script is fixed and ready to rerun. Rerunning it needs the Stage 1 checkpoint, which is on Kaggle. **Start here once compute is available**, since it is the single measurement that would tell us the most, and everything else about the reverb adapter is downstream of it.
+This time every reverb condition is scored against the correct, wet reference. The verdict does not change. The adapter is worse than the frozen backbone in all three conditions, including clean, where there was never any wet/dry ambiguity to hide behind. **The eval bug was real and worth fixing, but it was not the reason the adapter looks harmful. The adapter is harmful.**
+
+**What it takes now.** The question is why, not whether. Two candidates remain from the original ticket (LoRA rank 8 too small, 500 samples per epoch too few), plus a new one found this session: Stage 1 trains this adapter with the other two barely switched on, 0 to 20 percent, but the deployed gate runs all three near 50 percent. It has never been tested under the load it actually runs in. With the GPU and checkpoints now reachable, the next step is a training-time ablation, not another code fix.
 
 ### The three-adapter design has no evidence behind it
 

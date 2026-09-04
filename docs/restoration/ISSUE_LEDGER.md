@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 49 tickets. 31 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 50 tickets. 32 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -58,7 +58,7 @@
 | I-022 | `[DATA]` | 🟡 P2 | Two sources give different Stage 1 noise adapter epoch counts | 🔴 BLOCKED on Kaggle | [#59](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/59) |
 | I-023 | `[EXP]` | 🟠 P1 | Libri4Mix was never evaluated and every split used only 30 samples | 🔴 BLOCKED on compute | [#60](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/60) |
 | I-024 | `[EXP]` | 🟠 P1 | The Stage 2 universal adapter was never trained | 🔴 BLOCKED on compute | [#61](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/61) |
-| I-025 | `[MODEL]` | 🟠 P1 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition | 🟡 INVESTIGATING | [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) |
+| I-025 | `[MODEL]` | 🔴 P0 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition, confirmed on a corrected GPU run | 🔴 P0, cause still open | [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) |
 | I-026 | `[TEST]` | 🟡 P2 | No confidence interval or significance test has been run on any result | 🟠 READY | [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63) |
 | I-027 | `[CLEANUP]` | ⚪ P3 | `.gitignore` repeats `outputs/` and `pretrained_models/` | 🟢 CLOSED | [#64](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/64) |
 | I-028 | `[ARCH]` | 🟡 P2 | Flat top-level packages shadow standard library and third-party names | 🟢 CLOSED | [#65](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/65) |
@@ -83,6 +83,7 @@
 | I-047 | `[EXP]` | 🟠 P1 | If LibriMix `mix_both` carries no reverberation, every headline result still carries the reverb adapter at roughly 0.5 gate | 🔴 BLOCKED on compute | [#85](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/85) |
 | I-048 | `[TEST]` | 🟡 P2 | Three RirBank tests double the bank path and one asserts a key generate_rir never returns, invisible because pyroomacoustics was never installed anywhere this ran | 🟢 CLOSED | [#86](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/86) |
 | I-049 | `[TEST]` | 🟡 P2 | Two tests only passed by environmental accident: an onnxruntime-dependent test with no skip guard, and a stale sr_corrnet availability assumption predating I-019 | 🟢 CLOSED | [#87](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/87) |
+| I-050 | `[BUG]` | 🟠 P1 | The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU | 🟢 CLOSED | [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88) |
 
 ---
 
@@ -91,12 +92,12 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 31
+    "CLOSED" : 32
     "READY" : 5
     "BLOCKED" : 7
     "IN_PROGRESS" : 0
-    "INVESTIGATING" : 3
-    "OPEN" : 3
+    "INVESTIGATING" : 2
+    "OPEN" : 4
 ```
 
 ---
@@ -790,7 +791,19 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 ### I-025 [MODEL] [P1] The Stage 1 reverb adapter degrades SI-SNR in every tested condition
 
-**State:** 🟡 INVESTIGATING, wet-reference hypothesis refuted, root cause still open · GitHub [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62)
+**State:** 🔴 P0, confirmed harmful on a corrected measurement · commit `8f0c5ca` · GitHub [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62)
+
+**2026-09-04, second update: reran the corrected diagnostic against the real Stage 1 checkpoint, on a GPU, for the first time.**
+
+The environment described in this file's earlier update as unreachable became reachable partway through this session (a university GPU box, real Kaggle credentials, see WORKLOG). Two more bugs surfaced purely because this was the first time the diagnostic ever ran on anything but CPU: `SSInference.from_pretrained(device=...)` does not move `engine.stft` / `engine.istft` (a plain buffer, not part of the checkpoint, unaffected by the device argument), and three call sites never moved their input tensor to the model's device at all. Both are now fixed (commit `48ab9d8`). With those fixes and the I-040 reference fix both in place, the diagnostic ran to completion on CUDA against `best_reverb.pt`:
+
+| Condition | Base SI-SNR | Adapted SI-SNR | Delta |
+|---|---:|---:|---:|
+| Clean | 14.60 dB | 13.69 dB | -0.90 dB |
+| Reverb mild (T60 0.4s) | 4.15 dB | 1.51 dB | -2.63 dB |
+| Reverb strong (T60 0.8s) | 2.42 dB | 1.53 dB | -0.88 dB |
+
+This time every reverb condition is scored against the wet reference, the correct target. The verdict does not change. The reverb adapter is worse than the frozen backbone in all three conditions, including clean, where there is no wet/dry ambiguity to hide behind. The I-040 diagnostic bug was real and worth fixing, and it did make the previous evidence table untrustworthy in its specific numbers, but it was not the reason the adapter looks harmful. The adapter is harmful. The open question is now purely about why, among the three candidates this ticket and I-043 already name: LoRA rank 8 may be too small, 500 samples per epoch may be too few, or the adapter has never been exercised under anything close to the roughly 0.5 co-activation load the deployed gate actually applies (I-043), since Stage 1 trains it with the other two adapters at 0 to 20 percent.
 
 **Problem.** The reverb adapter, trained for 40 epochs, was reported worse than the frozen backbone in all three tested conditions.
 
@@ -821,12 +834,13 @@ The real defect is in the diagnostic that produced the table above. `eval/eval_r
 **Acceptance criteria.**
 - [x] The reference signal used for reverb training is identified in code and written down: the wet reference, deliberately, per BLUEPRINT 7.6.
 - [x] A decision record states whether the target was wrong: it was not; the diagnostic script's scoring was.
-- [ ] `eval/eval_reverb_adapter.py` is fixed to score reverberant conditions against the wet reference (I-040).
-- [ ] The fixed diagnostic is rerun against the Stage 1 reverb checkpoint and a trustworthy verdict is recorded.
+- [x] `eval/eval_reverb_adapter.py` is fixed to score reverberant conditions against the wet reference (I-040).
+- [x] The fixed diagnostic is rerun against the Stage 1 reverb checkpoint and a trustworthy verdict is recorded: harmful in all three conditions, table above.
+- [ ] The remaining why (rank, sample count, or co-activation mismatch, I-043) is diagnosed and, if fixable, a retraining ticket is opened.
 
-**Validation.** Code reading for the diagnosis, complete. Rerunning the corrected script needs the Kaggle checkpoint and is out of scope for this machine.
+**Validation.** `python src/coralsep/eval/eval_reverb_adapter.py --checkpoint best_reverb.pt --librispeech-8k <slice> --rir-bank <bank> --device cuda`, run on the university GPU box against the real `rishig777/calmsep-stage1-adapters` Kaggle checkpoint, 2026-09-04.
 
-**Dependencies.** I-040 (diagnostic script fix) blocks the rerun in this ticket's remaining acceptance criteria.
+**Dependencies.** I-043 (co-activation mismatch) is now the most likely remaining explanation and the recommended next diagnostic.
 
 **Dependencies.** Feeds I-003.
 
@@ -1375,6 +1389,29 @@ The comment refers to a task assignment from the three-developer phase in early 
 **Validation.** 15 passed across `tests/test_dnsmos.py` and `tests/test_srcorrnet_wrapper.py` on both machines.
 
 **Dependencies.** I-019 (the fix that made the srcorrnet test's premise stale).
+
+---
+
+### I-050 `[BUG]` P1 The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU
+
+**State:** CLOSED, commits `48ab9d8`, `8f0c5ca` · GitHub [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88)
+
+**Problem.** `eval/eval_reverb_adapter.py` crashed with a device-mismatch `RuntimeError` in `engine.stft`'s `conv1d` on its first CUDA run, ever. `SSInference.from_pretrained(device=...)` does not move `engine.stft` / `engine.istft`, since the STFT kernel is a plain buffer created at construction time, not part of the checkpoint state dict, so it stays on whatever device it was built on regardless of the argument. `train/stage1_single.py` already knew this and moves both modules explicitly after loading. This script never learned the same lesson, and `run_base_model`, `run_adapted_model`, and two call sites in `diag_sanity` separately never moved their input tensor to the model's device at all.
+
+**Evidence.** `RuntimeError: Input type (torch.FloatTensor) and weight type (torch.cuda.FloatTensor) should be the same`, on the first attempt to run this diagnostic on the GPU box set up this session. Every previous run of this script, going back to the original I-025 finding, ran on CPU.
+
+**Impact.** None to the eventual verdict, once fixed the diagnostic ran and gave the result recorded in I-025. The impact is entirely about coverage: this script existed for weeks and had never once been exercised on the hardware the project actually trains on.
+
+**Suspected cause.** Nobody had a GPU to run it on until this session.
+
+**Scope.** Add `_move_stft_to_device`, called after loading both models. Add `_model_device`, and use it to move every input tensor before a forward pass.
+
+**Acceptance criteria.**
+- [x] The diagnostic completes all 5 passes on CUDA against a real checkpoint.
+
+**Validation.** Ran end to end on the university GPU box against `rishig777/calmsep-stage1-adapters`, 2026-09-04.
+
+**Dependencies.** None.
 
 ---
 
