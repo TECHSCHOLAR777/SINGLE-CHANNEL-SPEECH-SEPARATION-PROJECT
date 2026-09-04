@@ -84,6 +84,7 @@
 | I-048 | `[TEST]` | 🟡 P2 | Three RirBank tests double the bank path and one asserts a key generate_rir never returns, invisible because pyroomacoustics was never installed anywhere this ran | 🟢 CLOSED | [#86](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/86) |
 | I-049 | `[TEST]` | 🟡 P2 | Two tests only passed by environmental accident: an onnxruntime-dependent test with no skip guard, and a stale sr_corrnet availability assumption predating I-019 | 🟢 CLOSED | [#87](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/87) |
 | I-050 | `[BUG]` | 🟠 P1 | The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU | 🟢 CLOSED | [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88) |
+| I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | pending |
 
 ---
 
@@ -1425,6 +1426,31 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Validation.** Ran end to end on the university GPU box against `rishig777/calmsep-stage1-adapters`, 2026-09-04.
 
 **Dependencies.** None.
+
+---
+
+### I-051 `[BUG]` P0 `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it
+
+**State:** CLOSED, commit pending · GitHub pending
+
+**Problem.** `pipeline/infer.py`'s own docstring names `SRCorrNetExpert` as the required `expert` argument type. `SRCorrNetExpert._register_hooks` only installs its E(0) hook (Patch B) and decoder-feature hooks (Patch C) if `hasattr(model, "encoder")`, where `model = self._inner_model()`. `_inner_model()` only checked one level of nesting (`self._model.model` / `.net` / `.separator` / `._model` directly). The real `SSInference` object nests two levels deep: `SSInference.engine.model`, where `engine` is a plain orchestration object, not itself an `nn.Module`. `train/stage1_single.py::_get_inner_module` already handles this correctly, with an explicit second, nested loop. `SRCorrNetExpert._inner_model` never had that second loop, so for a real `SSInference` object it always returned `None`, `_register_hooks` always returned early, and `self._e0` stayed `None` on every call, forever.
+
+**Evidence.** Discovered running the I-003/I-042 gate diagnostic (`coralsep.eval.diagnose_gate_flatness`) against a real backbone on the GPU box: every condition reported "(no E(0) captured, skipping)". The only existing test coverage for E(0) capture, `tests/e0_hook_test.py`, tests a different class, `coralsep.models.srcorrnet.SRCorrNetWrapper`, not `models.experts.srcorrnet.SRCorrNetExpert`, so this defect had zero test coverage in the class actually named in the pipeline's own docstring.
+
+**Impact.** This is more fundamental than I-042. Even if I-042 were fixed so the gate ran per chunk with a real prior E(0), it still could not work through `SRCorrNetExpert`, because that class can never produce a non-`None` `encoder_e0` from a real backbone. Every `Level2Analyzer` call anywhere downstream of this expert class, and every `completeness_head` / `ood_detector` call in `pipeline/infer.py::_quality_flags` (both gated on `if e0_list`), has been silently skipped for the life of the project, and nothing surfaced it because nothing checked whether `encoder_e0` came back real.
+
+**Suspected cause.** Two parallel SR-CorrNet wrapper implementations exist (`models/experts/srcorrnet.py::SRCorrNetExpert` and `models/srcorrnet/__init__.py::SRCorrNetWrapper`, noted in `ARCHITECTURE.md`). The two-level nesting fix was made once, in `stage1_single.py::_get_inner_module`, and in whichever of the two wrapper classes the tests cover, but never propagated to `SRCorrNetExpert`, the one the pipeline actually documents using.
+
+**Scope.** Widen `_inner_model` to check the same two-level nesting `_get_inner_module` already handles.
+
+**Acceptance criteria.**
+- [x] `_inner_model` finds the real inner module for a two-level-nested fake object, with a regression test.
+- [x] The one-level shape keeps working too, with a regression test.
+- [ ] Rerun the gate diagnostic against the real checkpoint and confirm E(0) is now captured (tracked as a follow-up to I-003).
+
+**Validation.** `pytest tests/test_srcorrnet_wrapper.py -q`, 11 passed, including the two new regression tests. Confirming real E(0) capture on the GPU box is the immediate next step.
+
+**Dependencies.** Blocks a meaningful I-003/I-042 measurement: without this fix, the "Level-2 forced to zero" and "real Level-2" arms of that diagnostic could never have differed.
 
 ---
 

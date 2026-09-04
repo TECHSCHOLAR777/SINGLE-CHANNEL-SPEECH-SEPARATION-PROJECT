@@ -103,3 +103,45 @@ def test_srcorrnet_loads_hf_model_via_checkpoint_path_not_config(monkeypatch) ->
     mock_inference.from_pretrained.assert_called_once_with(
         checkpoint_path="shinuh/fake-model", device="cpu"
     )
+
+
+def test_inner_model_finds_the_real_two_level_nesting() -> None:
+    """
+    Regression for I-051: SSInference nests the separator two levels deep,
+    SSInference -> engine (a plain object, not an nn.Module) -> model. The
+    old _inner_model only checked one level (self._model.model / .net /
+    .separator / ._model directly), which never matches this shape, so
+    hasattr(model, "encoder") in _register_hooks always saw None and Patch B
+    (E(0)) and Patch C (decoder features) never actually registered their
+    hooks against a real SSInference object. Mirrors
+    train/stage1_single.py::_get_inner_module, which already handles this.
+    """
+    real_inner = torch.nn.Linear(4, 4)
+
+    class FakeEngine:
+        def __init__(self, inner: torch.nn.Module) -> None:
+            self.model = inner
+
+    class FakeSSInference:
+        def __init__(self, inner: torch.nn.Module) -> None:
+            self.engine = FakeEngine(inner)
+
+    expert = SRCorrNetExpert(device="cpu")
+    expert._model = FakeSSInference(real_inner)  # type: ignore[assignment]
+
+    assert expert._inner_model() is real_inner
+
+
+def test_inner_model_still_finds_one_level_nesting() -> None:
+    """The old one-level shape (self._model.model directly an nn.Module)
+    must keep working, in case some SSInference build uses it."""
+    real_inner = torch.nn.Linear(4, 4)
+
+    class FakeSSInference:
+        def __init__(self, inner: torch.nn.Module) -> None:
+            self.model = inner
+
+    expert = SRCorrNetExpert(device="cpu")
+    expert._model = FakeSSInference(real_inner)  # type: ignore[assignment]
+
+    assert expert._inner_model() is real_inner

@@ -166,15 +166,36 @@ class SRCorrNetExpert:
                 self._hooks.append(h)
 
     def _inner_model(self) -> torch.nn.Module | None:
-        """Extract the raw nn.Module from the SSInference wrapper."""
+        """Extract the raw nn.Module from the SSInference wrapper.
+
+        SSInference nests the separator two levels deep: SSInference -> engine
+        (EngineInfer, not itself an nn.Module) -> model. Checking only one
+        level (self._model.model / .net / .separator / ._model) never matches
+        the real object shape, so Patch B and Patch C's hooks were never
+        actually registered: _register_hooks's hasattr(model, "encoder")
+        check always saw model=None and returned early. Nothing surfaced this
+        because nothing had exercised SRCorrNetExpert against a real backbone
+        and then checked whether encoder_e0 came back non-None, until the
+        I-003/I-042 gate diagnostic did. Mirrors
+        train/stage1_single.py::_get_inner_module, which already handles this
+        correctly. See I-051.
+        """
         if self._model is None:
             return None
-        for attr in ("model", "net", "separator", "_model"):
+        if isinstance(self._model, torch.nn.Module):
+            return self._model  # type: ignore[return-value]
+        for attr in ("model", "engine", "net", "separator", "_model"):
             m = getattr(self._model, attr, None)
             if isinstance(m, torch.nn.Module):
                 return m
-        if isinstance(self._model, torch.nn.Module):
-            return self._model  # type: ignore[return-value]
+        for attr1 in ("engine", "model", "net", "separator", "_model"):
+            wrapper = getattr(self._model, attr1, None)
+            if wrapper is None:
+                continue
+            for attr2 in ("model", "net", "separator", "_model", "engine"):
+                m = getattr(wrapper, attr2, None)
+                if isinstance(m, torch.nn.Module):
+                    return m
         return None
 
     def _clear_hooks_storage(self) -> None:
