@@ -10,6 +10,7 @@ from coralsep.models.lora import (
     ADAPTER_NAMES,
     LoRALibrary,
     LoRALinear,
+    _target_paths,
     lora_summary,
     olora_penalty,
 )
@@ -163,3 +164,65 @@ def test_injected_gates_reach_every_wrapped_linear():
     with lib.forward_context():
         assert m.lin._injected_gates == routed
     assert m.lin._injected_gates == {}
+
+
+# ---------------------------------------------------------------------------
+# Rank override, for the I-025 rank ablation
+# ---------------------------------------------------------------------------
+
+
+def test_target_paths_default_matches_blueprint_schedule():
+    paths = _target_paths(nn.Module())
+    ranks = {rank for _, rank in paths}
+    # Attention targets use rank 8, filter heads use rank 4, per BLUEPRINT
+    # 5.3. Both must appear, since a broken override could collapse them
+    # to a single value without any test noticing.
+    assert 8 in ranks
+    assert 4 in ranks
+
+
+def test_target_paths_attn_rank_override_applies_uniformly():
+    paths = _target_paths(nn.Module(), attn_rank=32, filter_rank=4)
+    attn_paths = [r for p, r in paths if "filter_estim" not in p]
+    filter_paths = [r for p, r in paths if "filter_estim" in p]
+    assert attn_paths and all(r == 32 for r in attn_paths)
+    assert filter_paths and all(r == 4 for r in filter_paths)
+
+
+def test_lora_library_threads_rank_override_into_attach():
+    """
+    Regression for the I-025 rank ablation: LoRALibrary must actually use
+    the rank it was given, not the BLUEPRINT default, when it attaches.
+    """
+    base = nn.Linear(128, 384)
+
+    class M(nn.Module):
+        def __init__(self):
+            super().__init__()
+            self.enc_block = nn.ModuleList(
+                [
+                    nn.ModuleDict(
+                        {
+                            "freq_block": nn.ModuleDict(
+                                {
+                                    "block": nn.ModuleDict(
+                                        {
+                                            "sa": nn.ModuleDict(
+                                                {"block": nn.ModuleDict({"qkv": base})}
+                                            )
+                                        }
+                                    )
+                                }
+                            )
+                        }
+                    )
+                    for _ in range(2)
+                ]
+            )
+
+    m = M()
+    lib = LoRALibrary(m, adapter_names=list(ADAPTER_NAMES), attn_rank=32)
+    assert lib.n_attached >= 1
+    wrapped = m.enc_block[0]["freq_block"]["block"]["sa"]["block"]["qkv"]
+    assert isinstance(wrapped, LoRALinear)
+    assert wrapped.branches["reverb"].rank == 32

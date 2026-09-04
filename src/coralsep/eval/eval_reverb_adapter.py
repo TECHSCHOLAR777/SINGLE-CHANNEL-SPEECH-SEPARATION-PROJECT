@@ -135,12 +135,19 @@ def load_base(device: str) -> SSInference:
     return ss
 
 
-def load_adapted(checkpoint: Path, device: str) -> tuple[SSInference, LoRALibrary]:
-    """Load SR-CorrNet with LoRA reverb adapter from checkpoint."""
+def load_adapted(checkpoint: Path, device: str, rank: int = 8) -> tuple[SSInference, LoRALibrary]:
+    """Load SR-CorrNet with LoRA reverb adapter from checkpoint.
+
+    rank must match the rank the checkpoint was trained at (default 8, the
+    BLUEPRINT value); a mismatch raises a shape error from load_state_dict,
+    since LoRA A/B tensor sizes depend on it. Needed for the I-025 rank
+    ablation, where a checkpoint trained at a non-default rank is evaluated
+    with this same script.
+    """
     print(f"  Loading adapted model from {checkpoint} ...")
     ss = SSInference.from_pretrained(checkpoint_path=HF_CKPT, device=device)
     inner = _get_inner_module(ss)
-    lib = LoRALibrary(inner)
+    lib = LoRALibrary(inner, attn_rank=rank)
     lib.freeze_base()
     inner.to(device)
     _move_stft_to_device(ss, device)
@@ -544,6 +551,12 @@ def main() -> None:
     p.add_argument("--output-dir", default="eval_outputs")
     p.add_argument("--device", default="cpu", help="cpu / cuda / mps")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--rank",
+        type=int,
+        default=8,
+        help="LoRA rank the checkpoint was trained at (must match, see load_adapted).",
+    )
     args = p.parse_args()
 
     ckpt_path = Path(args.checkpoint)
@@ -562,7 +575,7 @@ def main() -> None:
     # Load models
     print("\n[SETUP] Loading models...")
     ss_base = load_base(device)
-    ss_adapted, lib = load_adapted(ckpt_path, device)
+    ss_adapted, lib = load_adapted(ckpt_path, device, rank=args.rank)
 
     # Load RIR bank
     print(f"[SETUP] Loading RIR bank from {rir_dir} ...")

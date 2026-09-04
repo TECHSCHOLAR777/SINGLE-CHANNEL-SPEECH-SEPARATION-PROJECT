@@ -345,7 +345,7 @@ def train_single_adapter(args: argparse.Namespace) -> None:
     ss_model = _load_model(hf_model, device)
     inner = _get_inner_module(ss_model)
 
-    lib = LoRALibrary(inner)
+    lib = LoRALibrary(inner, attn_rank=getattr(args, "rank", 8))
     lib.freeze_base()
     inner.to(device)  # move after LoRA attachment so branches land on device too
 
@@ -686,6 +686,16 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--batch-size", type=int, default=4)
     p.add_argument("--lr", type=float, default=1e-4)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument(
+        "--rank",
+        type=int,
+        default=8,
+        help=(
+            "LoRA attention rank (default 8, the original BLUEPRINT value). "
+            "For the I-025 rank ablation: does a higher rank fix the reverb "
+            "adapter's measured harm."
+        ),
+    )
     p.add_argument("--samples-per-epoch", type=int, default=2000)
     p.add_argument("--num-workers", type=int, default=2)
     p.add_argument(

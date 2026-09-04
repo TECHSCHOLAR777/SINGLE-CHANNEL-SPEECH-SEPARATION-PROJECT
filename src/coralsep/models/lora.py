@@ -171,12 +171,23 @@ def _set_module(root: nn.Module, path: str, new_module: nn.Module) -> bool:
     return True
 
 
-def _target_paths(model: nn.Module) -> list[tuple[str, int]]:
+def _target_paths(
+    model: nn.Module,
+    attn_rank: int = _ATTN_RANK,
+    filter_rank: int = _FILTER_RANK,
+) -> list[tuple[str, int]]:
     """
     Return (dot-path, rank) for every LoRA target in `model`.
 
     Paths follow BLUEPRINT §5.3 exactly. Missing paths are skipped gracefully
     so the function works even on partially-initialised models.
+
+    attn_rank and filter_rank default to the BLUEPRINT schedule (8 and 4) and
+    exist as parameters, not just module constants, so a rank ablation
+    (I-025's "rank 8 may be too small" candidate) can attach a library at a
+    different rank without editing this file. Both apply uniformly; the
+    original schedule using two different fixed ranks for attention versus
+    filter heads is preserved, only their absolute values are overridable.
     """
     paths: list[tuple[str, int]] = []
 
@@ -184,26 +195,26 @@ def _target_paths(model: nn.Module) -> list[tuple[str, int]]:
     for i in range(2):
         for branch in ("freq_block", "time_block"):
             base = f"enc_block.{i}.{branch}.block.sa.block"
-            paths.append((f"{base}.qkv", _ATTN_RANK))
-            paths.append((f"{base}.aggregate_heads.0", _ATTN_RANK))
+            paths.append((f"{base}.qkv", attn_rank))
+            paths.append((f"{base}.aggregate_heads.0", attn_rank))
 
     # Decoder blocks (N_Dec = 4)
     for i in range(4):
         for branch in ("freq_block", "time_block"):
             base = f"dec_block.{i}.{branch}.block.sa.block"
-            paths.append((f"{base}.qkv", _ATTN_RANK))
-            paths.append((f"{base}.aggregate_heads.0", _ATTN_RANK))
+            paths.append((f"{base}.qkv", attn_rank))
+            paths.append((f"{base}.aggregate_heads.0", attn_rank))
 
     # Decoder cross-attention blocks (N_Dec = 4, ModuleDict key 'sa')
     for i in range(4):
         base = f"dec_cs.{i}.block.block.sa.block"
-        paths.append((f"{base}.qkv", _ATTN_RANK))
-        paths.append((f"{base}.aggregate_heads.0", _ATTN_RANK))
+        paths.append((f"{base}.qkv", attn_rank))
+        paths.append((f"{base}.aggregate_heads.0", attn_rank))
 
     # Filter estimation heads
-    paths.append(("filter_estim.mask.net", _FILTER_RANK))
+    paths.append(("filter_estim.mask.net", filter_rank))
     for i in range(4):
-        paths.append((f"filter_estim_aux.{i}.mask.net", _FILTER_RANK))
+        paths.append((f"filter_estim_aux.{i}.mask.net", filter_rank))
 
     return paths
 
@@ -232,11 +243,15 @@ class LoRALibrary:
         adapter_names: Sequence[str] = ADAPTER_NAMES,
         co_activation_range: tuple[float, float] = (0.0, 0.2),
         rng: torch.Generator | None = None,
+        attn_rank: int = _ATTN_RANK,
+        filter_rank: int = _FILTER_RANK,
     ) -> None:
         self.model = model
         self.adapter_names = list(adapter_names)
         self.co_lo, self.co_hi = co_activation_range
         self.rng = rng
+        self.attn_rank = attn_rank
+        self.filter_rank = filter_rank
 
         # Gate values for the current forward pass.
         self._gates: dict[str, float] = {n: 0.0 for n in self.adapter_names}
@@ -251,7 +266,7 @@ class LoRALibrary:
 
     def _attach(self) -> None:
         """Replace every target Linear with a LoRALinear in-place."""
-        targets = _target_paths(self.model)
+        targets = _target_paths(self.model, self.attn_rank, self.filter_rank)
         attached = 0
         for path, rank in targets:
             mod = _resolve_module(self.model, path)
