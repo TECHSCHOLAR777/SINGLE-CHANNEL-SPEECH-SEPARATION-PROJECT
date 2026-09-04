@@ -30,6 +30,11 @@ def test_score_or_none_is_silent_and_honest() -> None:
 
 
 def test_wrong_sample_rate_rejected_when_available(tmp_path) -> None:
+    # onnxruntime is a deliberately optional dependency (dnsmos.py degrades
+    # without it, see tests/test_dependency_coverage.py OPTIONAL_WITH_FALLBACK),
+    # so this test, which only makes sense when it is importable, must skip
+    # rather than fail on an environment that correctly lacks it.
+    pytest.importorskip("onnxruntime")
     model = tmp_path / "fake.onnx"
     model.write_bytes(b"placeholder")
     scorer = DnsmosScorer(model_path=model)

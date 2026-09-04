@@ -11,9 +11,26 @@ import torch
 from coralsep.models.experts.srcorrnet import SRCorrNetExpert, _extract_waveforms, _fix_length
 
 
-def test_srcorrnet_not_available_without_repo() -> None:
+def test_srcorrnet_not_available_without_repo_or_package(monkeypatch) -> None:
+    # is_available falls back to importlib.util.find_spec("sr_corrnet") when no
+    # repo_path is given, so this only exercises "not available" when the
+    # package genuinely is not importable. Since I-019, sr_corrnet is a real
+    # pinned pip dependency, so a plain repo_path=None expert is available
+    # whenever the environment has it installed; simulate the uninstalled
+    # case instead of asserting on whatever happens to be on this machine.
+    import coralsep.models.experts.srcorrnet as mod
+
+    monkeypatch.setattr(mod.importlib.util, "find_spec", lambda name: None)
     expert = SRCorrNetExpert(device="cpu", repo_path=None)
     assert not expert.is_available
+
+
+def test_srcorrnet_available_without_repo_when_package_installed(monkeypatch) -> None:
+    import coralsep.models.experts.srcorrnet as mod
+
+    monkeypatch.setattr(mod.importlib.util, "find_spec", lambda name: object())
+    expert = SRCorrNetExpert(device="cpu", repo_path=None)
+    assert expert.is_available
 
 
 def test_srcorrnet_not_available_missing_checkpoint(tmp_path: Path) -> None:
