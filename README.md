@@ -163,7 +163,7 @@ Backbone `shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk`. CPU inference, Apple M5 Pro,
 
 **What this supports.** The adapter stack improves SI-SDRi over the same frozen backbone on the same clips, by 0.62 to 1.76 dB, when the speaker count is known.
 
-**What it does not support.** Anything about speaker counting, statistical significance, Libri4Mix, or which of the three adapters contributed the gain.
+**What it does not support.** Anything about speaker counting, statistical significance, Libri4Mix, or which of the three adapters contributed the gain. It also does not, on its own, support a claim about condition-aware *routing* specifically: the baseline never saw LibriMix-like data at all, while the adapters were fine-tuned on it, so this table cannot separate "any fine-tuning on target-like data helps" from "condition-routed fine-tuning helps." The Stage 2 universal-adapter ablation (I-024), never run, is what would separate them.
 
 **On the absolute level.** These baseline numbers sit far below published LibriMix results such as SepFormer at 22.3 dB. That is expected: the backbone was trained on WSJ0-mix and transfers poorly to LibriMix. The delta is the contribution; the absolute level is a property of the backbone choice.
 
@@ -184,10 +184,10 @@ Tesla T4, BF16, roughly 2,930 s per epoch. **14 of 20 configured epochs complete
 
 | | Finding | Evidence |
 |:--:|---|---|
-| 🔴 | **Speaker count accuracy has never been measured.** Every run passed the oracle count. | [I-002](docs/restoration/ISSUE_LEDGER.md) |
-| 🔴 | **The gate does not route.** Stage 4c fitted temperature T = 4.9872, which flattens the sigmoid so all three gates sit near 0.5. The system is currently a fixed uniform blend, not a condition-aware router. | [I-003](docs/restoration/ISSUE_LEDGER.md) |
-| 🔴 | **The reverb adapter makes things worse**, by 0.44 dB on clean audio and 2.81 dB on strong reverberation. Both controls pass, so the fault is in the training objective, most likely a wet reference target. | [eval.log](results/eval_outputs/eval.log), [I-025](docs/restoration/ISSUE_LEDGER.md) |
-| 🟠 | **The Stage 2 universal adapter was never trained**, so the ablation justifying three adapters over one does not exist. | [I-024](docs/restoration/ISSUE_LEDGER.md) |
+| 🟡 | **Speaker count accuracy still needs a real run.** Every archived run passed the oracle count; the code no longer does by default (I-002), but no evaluation has been run under the fixed harness yet. | [I-002](docs/restoration/ISSUE_LEDGER.md) |
+| 🟡 | **The gate does not route, and why is still open.** Stage 4c fitted temperature T = 4.9872, which flattens the sigmoid so all three gates sit near 0.5. One candidate cause (zero Level-2 features reaching the gate in production) was measured against the real Stage 3 checkpoint and not supported; the temperature and an L1 sparsity penalty remain untested. | [I-003](docs/restoration/ISSUE_LEDGER.md) |
+| 🔴 | **The reverb adapter makes things worse, confirmed on a corrected GPU measurement.** 0.90 dB worse on clean audio, 2.63 dB worse in mild reverb, 0.88 dB worse in strong reverb. A co-activation-regime mismatch was tested as a cause and ruled out; LoRA rank and training sample count remain open. | [I-025](docs/restoration/ISSUE_LEDGER.md) |
+| 🟠 | **The Stage 2 universal adapter was never trained**, so neither "three adapters beat one" nor "condition-routed adaptation beats plain adaptation" is evidenced yet. | [I-024](docs/restoration/ISSUE_LEDGER.md) |
 | 🟠 | **No confidence intervals on any result.** `eval/stats.py` implements bootstrap BCa and Wilcoxon and has never been run on a result. | [I-026](docs/restoration/ISSUE_LEDGER.md) |
 | 🟠 | **Calibration error was never measured**, so the confidence values the system emits have unknown reliability. | [I-034](docs/restoration/ISSUE_LEDGER.md) |
 | ⚪ | **No checkpoint has a recorded hash**, so no result can be tied to the weights that produced it. | [DATA_AND_MODEL_INVENTORY](docs/restoration/DATA_AND_MODEL_INVENTORY.md) |

@@ -49,6 +49,8 @@ Second caveat: n = 30 per split, out of roughly 3,000 available test clips. No c
 
 **What this does and does not support.** It supports the statement that the adapter stack improves SI-SDRi over the same frozen backbone on the same clips, by between 0.62 and 1.76 dB, when the speaker count is known. It does not support any statement about speaker counting, about statistical significance, about Libri4Mix, or about which of the three adapters contributed the gain.
 
+**A confound this comparison does not resolve.** The baseline here is the frozen backbone with zero exposure to LibriMix-like data; the system is the same backbone plus adapters that were fine-tuned on LibriSpeech/RIR/noise-derived data. The delta above is therefore evidence that some form of target-domain adaptation helps, not specifically that condition-routed adaptation helps, which is this project's actual claim. Separating those two requires the Stage 2 universal adapter (one adapter, no per-condition routing, trained on the identical data), which was never trained (I-024). Until that ablation exists, "the adapter stack improves SI-SDRi" is the honest claim; "condition-aware routing improves SI-SDRi" is not yet supported by this table.
+
 **Note on absolute level.** These baseline numbers, 7.09 and 10.07 dB, sit far below published LibriMix results such as SepFormer at 22.3 dB. That is expected and is recorded in `NUMBERS.md`: the backbone was trained on WSJ0-mix and transfers poorly to LibriMix. The delta is the contribution; the absolute level is a property of the backbone choice, not of this work.
 
 ---

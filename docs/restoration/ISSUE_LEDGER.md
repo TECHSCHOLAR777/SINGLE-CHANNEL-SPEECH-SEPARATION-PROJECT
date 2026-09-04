@@ -788,15 +788,15 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 **Evidence.** `CONTEXT.md`: no `best_universal.pt` exists. `train/stage2_universal.py` exists and imports cleanly. The README results table has a Universal adapter row, unpopulated. The recovered `run_eval.py` from I-012 contains the loader for exactly this checkpoint, which indicates the run was intended and prepared for.
 
-**Impact.** The central design choice of the system is unjustified by evidence.
+**Impact.** The central design choice of the system is unjustified by evidence. There is a second, larger consequence beyond "three adapters versus one": every headline SI-SDRi number in `RESULTS.md` compares the frozen backbone (zero exposure to LibriMix-like data) against CoRAL-Sep (the same frozen backbone plus adapters that were fine-tuned on LibriSpeech/RIR/noise-derived data). That comparison mixes two effects that have never been separated: whether any fine-tuning on target-like data helps at all, and whether condition-routed fine-tuning specifically helps, which is the project's actual claim. The Stage 2 universal adapter, trained on the identical data with no per-condition routing, is the one experiment that answers both questions at once: frozen backbone vs universal adapter isolates "does any adaptation help," and universal adapter vs the three routed adapters isolates "does routing add anything on top of that." Neither comparison exists today. The frozen backbone's own pretraining data (the `wsj-var-2-5spk` model id implies WSJ0, LDC-licensed) is a separate, already-resolved concern: it is consumed as a public, off-the-shelf download and never retrained here, so no part of this project's own reproduction pipeline needs access to it.
 
-**Scope.** Train Stage 2 and run the ablation. Requires GPU compute.
+**Scope.** Train Stage 2 and run the ablation. Requires GPU compute, now reachable (see WORKLOG 2026-09-04). Report both isolations explicitly: frozen-vs-universal and universal-vs-routed, not just a single universal-adapter row.
 
 **Acceptance criteria.**
 - [ ] `best_universal.pt` exists with a recorded config, seed, and log.
 - [ ] The ablation row in the results table is populated from a raw artifact.
 
-**Validation.** Not possible on this machine.
+**Validation.** Was not possible on this machine; a GPU is now reachable (WORKLOG 2026-09-04) so this is a real next step, not a permanent blocker.
 
 **Dependencies.** Depends on I-012 for the loader.
 
