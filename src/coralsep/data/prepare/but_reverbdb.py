@@ -1,12 +1,16 @@
 """
-Download and stage the BUT ReverbDB (OpenSLR SLR17) for real-RIR evaluation (Dev A, P0-A5).
+Download and stage the BUT ReverbDB for real-RIR evaluation (Dev A, P0-A5).
 
 BLUEPRINT 7.4 mandates a sim-to-real evaluation tier using measured RIRs, not
-simulated ones. BUT ReverbDB (Brno University of Technology, OpenSLR resource
-17) is a set of measured room impulse responses from real rooms. They live at:
-  https://www.openslr.org/resources/17/
+simulated ones. BUT ReverbDB (Brno University of Technology, BUT Speech@FIT)
+is a set of measured room impulse responses from real rooms. It is hosted on
+BUT's own server, not OpenSLR (I-052: this module previously pointed at
+OpenSLR resource 17, which is MUSAN, an unrelated corpus; every URL 404'd):
+  http://merlin.fit.vutbr.cz/ReverbDB/BUT_ReverbDB_rel_19_06_RIR-Only.tgz
+Confirmed against the reference implementation in lhotse
+(lhotse.recipes.but_reverb_db.BUT_REVERB_DB_URL).
 
-The SLR17 archive contains WAV files of measured RIRs, which are resampled to
+The archive contains WAV files of measured RIRs, which are resampled to
 8 kHz and indexed in but_bank.json so that RirBank can load them directly with
 no code change: the schema matches bank.json written by rir_bank.py, except
 that t60_requested_s == t60_achieved_s (measured RIRs have no "requested" T60).
@@ -36,19 +40,21 @@ from tqdm import tqdm
 
 from coralsep.data.rir_bank import RirRecord, find_direct_path_peak, measure_t60
 
-# SLR17 ships as a set of named archives. The canonical index page is:
-#   https://www.openslr.org/17/
-# The actual files are WAV RIRs bundled in a zip or tarballs. We fetch the
-# single combined archive that holds all rooms.
-_SLR17_BASE_URL = "https://www.openslr.org/resources/17/"
+# Hosted on BUT's own server, not OpenSLR (I-052). This is the RIR-only
+# archive (8.7 GB); BUT also publishes a much larger retransmitted-LibriSpeech
+# archive (117 GB) this project has no use for.
+_SLR17_BASE_URL = "http://merlin.fit.vutbr.cz/ReverbDB/"
 _SLR17_ARCHIVES: list[tuple[str, str]] = [
     # (filename, download URL)
-    ("BUT_ReverbDB_rel_19_06_RIR.tgz", _SLR17_BASE_URL + "BUT_ReverbDB_rel_19_06_RIR.tgz"),
+    (
+        "BUT_ReverbDB_rel_19_06_RIR-Only.tgz",
+        _SLR17_BASE_URL + "BUT_ReverbDB_rel_19_06_RIR-Only.tgz",
+    ),
 ]
-# Fallback single-room zip files if the tarball isn't available
-_SLR17_ZIP_ARCHIVES: list[tuple[str, str]] = [
-    ("reverb_data_but.zip", _SLR17_BASE_URL + "reverb_data_but.zip"),
-]
+# No known fallback zip archive; kept as an empty list so
+# download_but_reverbdb's to_try = _SLR17_ARCHIVES + _SLR17_ZIP_ARCHIVES loop
+# needs no other change.
+_SLR17_ZIP_ARCHIVES: list[tuple[str, str]] = []
 
 
 def _report_progress(block: int, block_size: int, total: int) -> None:
@@ -100,9 +106,9 @@ def _find_rir_wavs(root: Path) -> list[Path]:
     return unique
 
 
-def download_slr17(output_dir: Path) -> list[Path]:
+def download_but_reverbdb(output_dir: Path) -> list[Path]:
     """
-    Download and extract SLR17 archives into output_dir.
+    Download and extract the BUT ReverbDB archive into output_dir.
 
     Returns the list of extracted WAV files. Skips archives that are already
     present on disk (idempotent).
@@ -147,7 +153,7 @@ def download_slr17(output_dir: Path) -> list[Path]:
 
     if not downloaded_any:
         raise RuntimeError(
-            "Could not download any SLR17 archive from openslr.org. "
+            "Could not download the BUT ReverbDB archive from merlin.fit.vutbr.cz. "
             "Check your internet connection or manually place RIR WAV files under:\n"
             f"  {extracted_dir}\n"
             "Then re-run this script, it will skip the download and stage whatever is there."
@@ -157,7 +163,7 @@ def download_slr17(output_dir: Path) -> list[Path]:
     if not wavs:
         raise RuntimeError(
             f"No WAV files found under {extracted_dir} after extraction. "
-            "The SLR17 archive layout may have changed. Manually inspect and re-run."
+            "The BUT ReverbDB archive layout may have changed. Manually inspect and re-run."
         )
     return wavs
 
@@ -226,7 +232,7 @@ def build_but_bank(
     sample_rate: int,
 ) -> list[RirRecord]:
     """
-    Download SLR17, resample RIRs to sample_rate, write but_bank.json.
+    Download BUT ReverbDB, resample RIRs to sample_rate, write but_bank.json.
 
     Idempotent: if but_bank.json already exists, skip entirely.
     """
@@ -236,8 +242,8 @@ def build_but_bank(
         existing = json.loads(bank_path.read_text(encoding="utf-8"))
         return [RirRecord(**r) for r in existing["records"]]
 
-    print("Step 1 / 3  Download SLR17 (BUT ReverbDB)")
-    wav_files = download_slr17(output_dir)
+    print("Step 1 / 3  Download BUT ReverbDB")
+    wav_files = download_but_reverbdb(output_dir)
     print(f"  Found {len(wav_files)} WAV files\n")
 
     staged_dir = output_dir / "rirs_8k"
@@ -258,7 +264,7 @@ def build_but_bank(
     print(f"\nStep 3 / 3  Write but_bank.json ({len(records)} RIRs)")
     t60s = [r.t60_achieved_s for r in records if r.t60_achieved_s > 0.0]
     index: dict = {
-        "source": "BUT_ReverbDB_SLR17",
+        "source": "BUT_ReverbDB",
         "sample_rate": sample_rate,
         "n_rirs": len(records),
         # t60 stats for quick inspection
@@ -274,7 +280,7 @@ def build_but_bank(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Download and stage BUT ReverbDB (OpenSLR SLR17) for CoRAL-Sep evaluation.",
+        description="Download and stage BUT ReverbDB for CoRAL-Sep evaluation.",
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     parser.add_argument(
@@ -297,7 +303,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     print("=" * 60)
-    print("CoRAL-Sep  |  BUT ReverbDB staging  |  OpenSLR SLR17")
+    print("CoRAL-Sep  |  BUT ReverbDB staging  |  merlin.fit.vutbr.cz")
     print("=" * 60)
     print(f"  output dir:   {output_dir}")
     print(f"  sample rate:  {args.sample_rate} Hz\n")

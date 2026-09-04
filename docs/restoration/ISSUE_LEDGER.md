@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 51 tickets. 34 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 52 tickets. 35 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -84,7 +84,8 @@
 | I-048 | `[TEST]` | 🟡 P2 | Three RirBank tests double the bank path and one asserts a key generate_rir never returns, invisible because pyroomacoustics was never installed anywhere this ran | 🟢 CLOSED | [#86](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/86) |
 | I-049 | `[TEST]` | 🟡 P2 | Two tests only passed by environmental accident: an onnxruntime-dependent test with no skip guard, and a stale sr_corrnet availability assumption predating I-019 | 🟢 CLOSED | [#87](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/87) |
 | I-050 | `[BUG]` | 🟠 P1 | The reverb diagnostic never moved its STFT modules or inputs to the target device, so it had only ever run on CPU | 🟢 CLOSED | [#88](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/88) |
-| I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | pending |
+| I-051 | `[BUG]` | 🔴 P0 | `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it | 🟢 CLOSED | [#89](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/89) |
+| I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | pending |
 
 ---
 
@@ -93,7 +94,7 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 34
+    "CLOSED" : 35
     "READY" : 2
     "BLOCKED" : 6
     "IN_PROGRESS" : 0
@@ -1451,7 +1452,7 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-051 `[BUG]` P0 `SRCorrNetExpert`, the class the pipeline is documented to use, never actually captures E(0), so Level-2 features can never exist through it
 
-**State:** CLOSED, commit pending · GitHub pending
+**State:** CLOSED, commits `9842b25`, `c1640d5` · GitHub [#89](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/89)
 
 **Problem.** `pipeline/infer.py`'s own docstring names `SRCorrNetExpert` as the required `expert` argument type. `SRCorrNetExpert._register_hooks` only installs its E(0) hook (Patch B) and decoder-feature hooks (Patch C) if `hasattr(model, "encoder")`, where `model = self._inner_model()`. `_inner_model()` only checked one level of nesting (`self._model.model` / `.net` / `.separator` / `._model` directly). The real `SSInference` object nests two levels deep: `SSInference.engine.model`, where `engine` is a plain orchestration object, not itself an `nn.Module`. `train/stage1_single.py::_get_inner_module` already handles this correctly, with an explicit second, nested loop. `SRCorrNetExpert._inner_model` never had that second loop, so for a real `SSInference` object it always returned `None`, `_register_hooks` always returned early, and `self._e0` stayed `None` on every call, forever.
 
@@ -1473,6 +1474,32 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Validation.** `pytest tests/test_srcorrnet_wrapper.py -q`, 12 passed, including three new regression tests, covering both fixes in isolation. An end-to-end rerun on the GPU box is queued as the next step.
 
 **Dependencies.** Blocks a meaningful I-003/I-042 measurement: without this fix, the "Level-2 forced to zero" and "real Level-2" arms of that diagnostic could never have differed.
+
+---
+
+### I-052 `[BUG]` P1 `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life
+
+**State:** CLOSED, commit pending · GitHub pending
+
+**Problem.** The module's own docstring and code claimed BUT ReverbDB is "OpenSLR resource 17" and built its download URL from `https://www.openslr.org/resources/17/`. That resource is MUSAN, an unrelated music/speech/noise corpus; BUT ReverbDB has never been hosted there. Both filenames the code tried, `BUT_ReverbDB_rel_19_06_RIR.tgz` and `reverb_data_but.zip`, returned HTTP 404 at that host. Even the filename itself was wrong: the real archive is named `BUT_ReverbDB_rel_19_06_RIR-Only.tgz`, with an `-Only` suffix the code never had.
+
+**Evidence.** Running `python -m coralsep.data.prepare.but_reverbdb` on the GPU box this session: both download attempts returned `HTTP Error 404: Not Found`. Fetching `https://www.openslr.org/17/` directly confirms it lists only `musan.tar.gz`, no BUT ReverbDB content at all. The real host and filename were confirmed against `lhotse.recipes.but_reverb_db.BUT_REVERB_DB_URL`, a working reference implementation: `http://merlin.fit.vutbr.cz/ReverbDB/BUT_ReverbDB_rel_19_06_RIR-Only.tgz`.
+
+**Impact.** The `but_reverb` evaluation tier (BLUEPRINT 7.4's mandated sim-to-real check against measured, not simulated, RIRs) could never have been generated by anyone who ran this script as written, at any point in the project's history. `fixed_eval_generator.py` hard-requires a populated `--but-reverbdb-dir` and refuses to run without one, so this bug alone would have blocked generating the entire fixed evaluation matrix, not just the one BUT tier.
+
+**Suspected cause.** Whoever wrote this module either misremembered the OpenSLR resource number or copied a URL pattern from a different, correctly-OpenSLR-hosted dataset (SLR17 in the docstring's own numbering matches nothing this project uses) without ever actually running the download to confirm it worked. Zero test coverage meant nothing caught it.
+
+**Scope.** Point the download at the real host and filename. Rename the misleading `download_slr17` function and its user-facing messages to name BUT ReverbDB and its real host instead of a resource number that was never correct.
+
+**Acceptance criteria.**
+- [x] The download URL points at `merlin.fit.vutbr.cz`, not `openslr.org`.
+- [x] The filename matches the real published archive name, including the `-Only` suffix.
+- [x] `download_slr17` and every OpenSLR-17 reference in this module is renamed or corrected to say what is actually true.
+- [x] A regression test asserts the URL and filename, so a future edit cannot silently reintroduce the wrong host.
+
+**Validation.** `pytest tests/test_but_reverbdb.py -q`, 3 passed. Running the corrected download for real on the GPU box is the immediate next step; see WORKLOG for the outcome.
+
+**Dependencies.** Blocks generating the fixed evaluation matrix (`fixed_eval_generator.py`), which in turn is the concrete answer to needing evaluation at N up to 5 without a public LibriMix substitute (none exists, see the same WORKLOG entry).
 
 ---
 
