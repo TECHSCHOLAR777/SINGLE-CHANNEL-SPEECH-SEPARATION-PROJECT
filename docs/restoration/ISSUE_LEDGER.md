@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 56 tickets. 39 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 57 tickets. 39 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -90,6 +90,7 @@
 | I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | [#92](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/92) |
 | I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, confirmed on three reruns | [#93](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/93) |
 | I-056 | `[BUG]` | 🔴 P0 | CI has never once passed on this repository | 🟡 fix landed, next run unconfirmed | [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94) |
+| I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟡 INVESTIGATING, diagnostic written | pending |
 
 ---
 
@@ -1621,6 +1622,31 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Validation.** Confirmed the fix will address the actual observed failure by re-running the exact import-sweep script from the workflow file locally with `gradio` installed and POSIX-style module-path construction (this restoration machine is Windows, so `path.as_posix()` was needed to match CI's Linux behavior); zero failures. Did not fabricate a "CI passed" claim without a real subsequent run; the last acceptance criterion stays open until the next push's Actions run is checked.
 
 **Dependencies.** Independent of I-011 (wrong branch watched) but compounds it: fixing I-011 only made this ticket's failure visible, it did not cause it.
+
+---
+
+### I-057 `[MODEL]` P1 The noise and codec LoRA adapters have never been independently evaluated for harm or benefit
+
+**State:** INVESTIGATING, diagnostic written, GPU run pending · commit pending
+
+**Problem.** I-025 found the reverb adapter harmful in its shipped configuration. `docs/restoration/DATA_AND_MODEL_INVENTORY.md` CKPT-002 (noise) and CKPT-003 (codec) show both checkpoints were downloaded and loaded this session, but only for the I-043 co-activation diagnostic, which measures the cost of running all three adapters together at deployment gate values; neither has ever been scored on its own against the frozen backbone the way the reverb adapter was.
+
+**Evidence.** `DATA_AND_MODEL_INVENTORY.md` rows for CKPT-002 and CKPT-003 read "used only for the I-043 co-activation diagnostic, not independently evaluated" and "[CLAIMED], not independently evaluated." No `eval_noise_adapter.py` or `eval_codec_adapter.py` existed before this ticket; `src/coralsep/eval/` had only `eval_reverb_adapter.py`, which is reverb-specific (RIR bank, wet-reference target). I-003 already established the gate blends all three adapters near 0.5 in deployment, so an undiagnosed noise or codec adapter would be contributing to every output exactly as the reverb adapter was found to.
+
+**Impact.** If either adapter is also harmful, the assembled pipeline's real quality is worse than any number currently in `RESULTS.md`, none of which isolate the noise or codec adapter's individual contribution. If both are neutral or helpful, that is also new information nobody has confirmed yet; either way, this is an evidence gap, not an assumption to build on in either direction.
+
+**Suspected cause.** The reverb adapter got a dedicated diagnostic because I-025's evidence table (originally a stale n=1 log entry) made it the visible squeaky wheel. Nothing forced the same scrutiny onto the other two adapters once the pipeline moved on.
+
+**Scope.** Wrote `src/coralsep/eval/eval_degradation_adapter.py`, generalizing `eval_reverb_adapter.py`'s pattern for adapters whose damage does not touch the reference (noise, codec), so there is no wet/anechoic ambiguity to resolve, only a direct SI-SNR comparison at clean, mild, and severe settings for each. Not yet run against the real checkpoints.
+
+**Acceptance criteria.**
+- [x] A diagnostic exists that scores the noise adapter's own SI-SNR effect independent of the other two adapters.
+- [x] The same for the codec adapter.
+- [ ] Both are run against the real Kaggle checkpoints (CKPT-002, CKPT-003) on a GPU and a verdict is recorded here, not assumed.
+
+**Validation.** `pytest tests/ -q`, 604 passed, 11 skipped, unaffected (no test file yet for the new script; it is a diagnostic tool, not library code, matching the precedent set by `eval_reverb_adapter.py` itself). Ruff and black clean.
+
+**Dependencies.** Extends I-025's finding to the other two adapters. Feeds I-043 if either turns out harmful, since I-043's co-activation number assumed all three inputs were reasonable on their own.
 
 ---
 
