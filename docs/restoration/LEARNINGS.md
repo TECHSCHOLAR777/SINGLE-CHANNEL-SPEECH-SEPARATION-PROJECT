@@ -2,9 +2,9 @@
 
 **Purpose:** durable lessons, each tied to the evidence that produced it.
 
-**Status:** [GREEN] Twelve records. Nine inherited from the project's own history, three from the restoration.
+**Status:** [GREEN] Thirteen records. Nine inherited from the project's own history, four from the restoration.
 
-**Last verified:** 2026-09-02
+**Last verified:** 2026-09-04
 
 **Inclusion rule:** a learning appears here only if something measurable happened. Opinions do not qualify.
 
@@ -168,6 +168,24 @@
 
 ---
 
+## L-013: A validation line in a commit message is a claim, not a formality, and it must be checked before it is written
+
+**Context, from the restoration.** Fixing `tests/test_rir_bank.py` (I-048) took four commits, not one, because the file had four independent, stacked defects: a doubled path, a missing dict key, a file format `soundfile` cannot read, and a test asserting a contract the code's own docstring says it never had. Each fix's own success masked the next bug underneath it, since `pytest.importorskip("pyroomacoustics")` had skipped this entire file in every environment the project had ever run in, until this session's GPU box.
+
+**Observation.** The first fix's commit message stated "9 passed on the GPU box." That specific rerun had not been performed; the GPU environment existed, but the claim was written from confidence that the fix was probably right, not from having actually read passing output. It was wrong, not because the fix was bad, but because three more bugs were still hiding behind it. The mistake was caught only because a routine full-suite rerun, done for an unrelated reason a few commits later, surfaced the next failure and forced a second look.
+
+**Evidence.** `docs/restoration/ISSUE_LEDGER.md` I-048, `WORKLOG.md` 2026-09-04 entry 7. Commits `f85dd2a` (the premature claim), `49992da`, `602dea4`, `72ed9ed` (the three corrections).
+
+**Root cause.** Writing the validation line before running the validation, on the assumption that a locally-reasoned fix would obviously work. A local skip (`importorskip`) had let this file accumulate defects for the project's entire life without anyone getting a signal, so "this should work now" was a much weaker basis for a claim here than it would be in a file with continuous coverage.
+
+**Action taken.** The three later commits fixed the remaining bugs and corrected the record honestly in their own messages, rather than quietly rewriting the earlier one. This entry exists so the pattern is named instead of just fixed.
+
+**General lesson.** Never write "N passed" or "confirmed" anywhere, commit message or ticket, without the actual output in hand at the moment of writing it. This costs nothing when true and corrupts the record when false, and the second cost compounds: a wrong "confirmed" is worse than an honest "not yet run," because it looks exactly like a right one until someone happens to check again.
+
+**Related tickets.** I-048.
+
+---
+
 ## Themes
 
 ```mermaid
@@ -178,6 +196,7 @@ mindmap
       L-002 name the failure
       L-003 disclose the hack
       L-009 trackers are the work
+      L-013 check before you claim
     Cheap validation first
       L-004 toy scale before GPU
       L-008 smoke test is not a memory test

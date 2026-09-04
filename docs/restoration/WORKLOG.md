@@ -173,3 +173,51 @@ Published all 39 tickets to GitHub Issues with type and priority labels, closing
 **Issues closed.** 27. **Open.** 12, of which 9 need compute, Kaggle credentials or an owner decision.
 
 **Next action.** I-025 first: read the Stage 1 reverb training target. It needs no compute and may also explain I-003.
+
+---
+
+## 2026-09-04, entry 7
+
+**Phase:** 8, first real compute.
+
+**Objective.** The owner asked for a heavy attack on the approach itself, not just the code, before any further work, and separately made a university GPU box reachable over SSH partway through the session (Cloudflare Access tunnel, `ssh uni-gpu`). Both happened in the same session.
+
+**Actions, in the order they happened.**
+
+Attacked the approach itself with a dedicated audit, independent of the six issues already known. It found eight new items: a load-bearing crash in the deployed gate (I-041), an eval script scoring the wrong reference (I-040), a design gap where the gate never receives real per-chunk condition features at all (I-042), a co-activation regime mismatch between Stage 1 training and deployment (I-043), a leakage risk in the noise adapter's training split (I-044), a structural ceiling on band recovery plus an oracle-leaking evaluation guard (I-045), an untested extrapolation behind the frozen-backbone decision (I-046), and a risk that the reverb adapter contaminates every headline LibriMix number (I-047). Two things were checked and found sound: the wet-reference training target, and the held-out condition-combination protocol.
+
+Fixed the gate crash (I-041) and the eval reference bug (I-040) immediately, both zero-compute, both with regression tests.
+
+Set up the GPU box from nothing: conda environment, PyTorch with CUDA 12.8 (a deliberate deviation from the `constraints/reproduce-2026-07.txt` pin of torch 2.5.1, which predates this GPU's Blackwell architecture and cannot run on it), gcc and ffmpeg for the packages that need to compile or shell out, the backbone package, and the full dependency set. Verified Kaggle credentials on the box are real and working.
+
+Ran the full test suite there for the first time ever with the actual dependency set installed. It surfaced defects invisible on every machine this project had run on before, all four caused by a dependency (`pyroomacoustics`, `onnxruntime`) being absent everywhere until now: three tests that doubled a file path, one that asserted a key `generate_rir` never returns, one with no skip guard for an optional dependency, and one whose assumption about `sr_corrnet` availability predated the I-019 fix. Fixed all four.
+
+Downloaded the real Stage 1 adapter checkpoints, the Stage 3 gate checkpoint, and a slice of the training audio from the account's own Kaggle datasets. Generated a small RIR bank locally with `pyroomacoustics`.
+
+Reran the corrected reverb diagnostic against the real checkpoint on CUDA. It crashed on the first attempt, revealing two more bugs invisible on CPU (I-050): `SSInference.from_pretrained` does not move the STFT modules to the target device, and three call sites never moved their input tensor either. Fixed both, reran. Result: the reverb adapter is confirmed harmful in all three tested conditions, including clean, now scored against the correct wet reference. The I-040 eval bug was real, but it was not why the adapter looks harmful. The adapter is harmful.
+
+Wrote and ran a diagnostic for I-043 (co-activation mismatch) against all three real Stage 1 checkpoints. Cost of the deployed 0.5/0.5/0.5 blend versus the adapter's own trained regime: -0.03 dB. Ruled out as a cause.
+
+Fixed I-002: `run_eval.py` no longer supplies the oracle speaker count by default. Both models now estimate the count from their own attractor path, matching the mechanism `SRCorrNetExpert.separate(n_spks=None)` already used elsewhere, and count accuracy is recorded against the true count. The oracle behaviour survives behind an explicit flag for reproducing old numbers.
+
+Fixed I-026: per-sample scores are now retained and a bootstrap CI is computed once a split has at least 8 samples.
+
+Wrote and ran a diagnostic for I-003/I-042 (gate flatness) against the real Stage 3 gate and Level2Analyzer checkpoints, comparing real Level-2 features against Level-2 forced to zero, the production reality, on four conditions. The first run reported no E(0) captured on every condition, which led to the entry's largest single finding.
+
+`SRCorrNetExpert`, the class `pipeline/infer.py`'s own docstring names as the one the pipeline is built around, has never actually been able to capture E(0). Its `_inner_model()` only checked one level of nesting; the real `SSInference` object nests two levels deep, exactly the shape `train/stage1_single.py::_get_inner_module` already handles correctly elsewhere in the same codebase. Against a real backbone, `_inner_model()` always returned `None`, the Patch B and Patch C hooks never registered, and `self._e0` stayed `None` forever. The only existing test for E(0) capture tests a different, parallel wrapper class that the pipeline does not use, so this had zero coverage in the class that matters. This is more fundamental than I-042: even a fixed I-042 could not work through this class, since there was never a real E(0) to build Level-2 features from at all. Filed and fixed as I-051. Fixing it let the hooks register for the first time and immediately surfaced a second bug hiding behind the first: the decoder-feature hook hardcoded a 5-stream reshape that crashed on any mixture with a different speaker count. Fixed that too, in the same ticket.
+
+Reran the gate diagnostic with both fixes in place. Real E(0) came through for the first time. Result: forcing Level-2 to zero made the raw, pre-calibration Stage 3 gate's output *more* variable across the four test conditions than giving it the real signal, not less, the opposite of I-042's hypothesis. That hypothesis is not supported by this measurement. I-042 remains a real design gap on its own architectural merits; it is just not, on this evidence, why the calibrated gate in I-003 measures flat. I-003's original two candidates (the Stage 4c temperature, the L1 sparsity penalty) remain untested, since the Stage 4 checkpoint that carries the fitted temperature was not located on Kaggle this entry.
+
+A full-suite rerun for an unrelated reason then caught something this entry had gotten wrong. The `tests/test_rir_bank.py` fix made earlier in this entry (I-048) had claimed "9 passed on the GPU box" in its own commit message. That specific rerun had not actually been performed; three more bugs in the same file were still hiding behind the one that had been fixed, each masked by the one before it: a missing top-level key in the test fixture's `bank.json`, RIR files saved in a format `soundfile` cannot read, and a test asserting a `ValueError` contract the production code's own docstring says it never had. Fixed all three, in three more commits, each one only after actually reading passing output on the GPU box, not before. The full suite is now genuinely confirmed clean there: 594 passed, 3 skipped, 0 failed. Recorded as L-013: a validation line is a claim, and it must be checked before it is written, not after.
+
+Ran a dedicated cleanup pass in parallel: five commits removing genuinely dead material and correcting drift the earlier restoration pass had missed (hard-coded banned-platform paths never actually removed despite the ticket claiming so, two shell scripts still invoking pre-refactor module paths, a training guide describing a directory structure that no longer exists, a wrong environment variable name in a validation doc, and a GitHub Pages landing page still branded for the old project name).
+
+**Findings.** The single most important one: attacking the approach, not just the code, found a load-bearing crash (I-041) that every previous pass, including one that ran the full test suite and called it green, had missed, because nothing in the test suite exercised the pipeline class with a real gate object. A fixed test count is not the same as fixed coverage. The second finding worth naming on its own: this entry's own validation discipline slipped once, was caught by a routine rerun rather than by care, and the record was corrected in the open rather than quietly. Both are the same lesson at different scales.
+
+**Decisions recorded.** Deviated from the `torch==2.5.1` reproduction pin to install a current CUDA 12.8 build, since the pinned version predates the GPU's architecture entirely and cannot load on it. This is a real, acknowledged substitution, not a silent one.
+
+**Issues opened.** I-040 through I-051 (12 tickets). **Issues closed this entry.** I-040, I-041, I-043, I-048, I-049, I-050, I-051 (7). **Issues advanced but not fully closed.** I-002, I-003 (one of four candidate causes ruled out), I-025 (confirmed harmful, cause still open), I-026, I-042 (design gap still real, not the flat-gate cause).
+
+**Validation.** Full suite on the GPU box, final and actually confirmed by reading the output: 594 passed, 3 skipped, 0 failed. (An intermediate claim of 578 passed, 0 failed made earlier in this entry was superseded by the four-bug chain in `test_rir_bank.py` described above; the 594 figure is the one to trust.) Full suite locally: 574 passed, 11 skipped after this entry's commits (pyroomacoustics is absent here, so the RirBank fixes are exercised only on the GPU box).
+
+**Next action.** The remaining reverb-adapter candidates (LoRA rank, sample count) both need a retraining run, now genuinely possible with the GPU box. I-047 (does LibriMix `mix_both` carry the reverb adapter's harm into every headline number) needs the actual LibriMix test set, which is not on Kaggle under this account and would need to be generated from the full LibriSpeech and WHAM corpora, a much larger data-acquisition task than anything done this entry. Locating the Stage 4 joint checkpoint (the one with the fitted gate temperature 4.9872) on Kaggle would let I-003 finally be measured directly rather than only at the raw Stage 3 gate, one level upstream of where the flatness was originally reported.

@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 50 tickets. 33 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 51 tickets. 34 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -36,7 +36,7 @@
 |---|---|:---:|---|---|---|
 | I-001 | `[SEC]` | 🔴 P0 | Live API credentials present in the supplied archive | 🔴 BLOCKED on owner | [#39](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/39) |
 | I-002 | `[EXP]` | 🔴 P0 | Evaluation supplies the oracle speaker count, so count accuracy is never measured | 🟡 INVESTIGATING, code fixed | [#40](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/40) |
-| I-003 | `[MODEL]` | 🟠 P1 | Gate temperature 4.9872 flattens the sigmoid and disables condition routing | 🔴 BLOCKED on compute | [#41](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/41) |
+| I-003 | `[MODEL]` | 🟠 P1 | Gate temperature 4.9872 flattens the sigmoid and disables condition routing | 🟡 INVESTIGATING, one cause ruled out | [#41](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/41) |
 | I-004 | `[BUG]` | 🟠 P1 | `CALMSEP_SR` import fails; the constant is `CALMSEP_SAMPLE_RATE` | 🟢 CLOSED | [#42](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/42) |
 | I-005 | `[BUG]` | 🟠 P1 | `eval/matrix.py` imports `si_snr`; the function is `si_sdr` | 🟢 CLOSED | [#43](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/43) |
 | I-006 | `[BUG]` | 🟠 P1 | `CalmSepEngine` and `MockCalmSepWrapper` do not exist | 🟢 CLOSED | [#44](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/44) |
@@ -93,11 +93,11 @@
 ```mermaid
 pie showData
     title Ticket state
-    "CLOSED" : 33
+    "CLOSED" : 34
     "READY" : 3
-    "BLOCKED" : 7
+    "BLOCKED" : 6
     "IN_PROGRESS" : 0
-    "INVESTIGATING" : 3
+    "INVESTIGATING" : 4
     "OPEN" : 4
 ```
 
@@ -195,7 +195,19 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 
 ### I-003 [MODEL] [P1] Gate temperature 4.9872 flattens the sigmoid and disables condition routing
 
-**State:** 🔴 BLOCKED , needs the Stage 4 checkpoint · GitHub [#41](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/41)
+**State:** 🟡 INVESTIGATING, one candidate cause measured and not supported · GitHub [#41](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/41)
+
+**2026-09-04 update.** Measured the fourth candidate this ticket had not yet named at the time: I-042 proposed that the production pipeline never supplying real Level-2 features (always zero, see that ticket) might explain the flat gate. This does not have the Stage 4 checkpoint's fitted temperature (4.9872), which lives in a different Kaggle dataset than the one reachable this session, so it cannot yet measure the exact calibrated flatness this ticket describes. It can measure the raw, pre-calibration Stage 3 gate, which is upstream of that temperature.
+
+`coralsep.eval.diagnose_gate_flatness`, run on the GPU box against the real Stage 3 gate and Level2Analyzer checkpoints, four conditions (clean, reverb mild, reverb strong, noisy):
+
+| Adapter | Std across conditions, real Level-2 | Std across conditions, Level-2 forced to zero |
+|---|---:|---:|
+| reverb | 0.063 | 0.128 |
+| noise | 0.359 | 0.452 |
+| codec | 0.041 | 0.096 |
+
+This is the opposite of what I-042's hypothesis predicts. Forcing Level-2 to zero made the raw gate *more* variable across conditions than giving it the real signal, not less. Real Level-2 does not increase discrimination in this measurement, if anything the reverse. **I-042 is not supported as an explanation for I-003's flatness by this evidence.** I-042 remains a real, independently worth-fixing design gap (the gate cannot use per-chunk condition evidence that does not exist yet, regardless of whether it explains this ticket), but the flat-gate mechanism is more likely the Stage 4c temperature or the L1 sparsity penalty, the two candidates already named, and this measurement cannot rule either of those in or out, since it does not have the calibrated checkpoint.
 
 **Problem.** Stage 4c fitted a gate temperature of 4.9872 by golden-section search. `sigmoid(logit / 4.9872)` is close to linear near zero, so all three adapter gates sit near 0.5 for every input. The system is a fixed uniform blend of three adapters, not the condition-aware router the architecture claims.
 
@@ -208,12 +220,12 @@ Reading: I-019 was the deepest blocker and is now closed, which unblocks everyth
 **Scope.** Diagnose before changing. Record the gate output distribution across conditions from the existing checkpoint, then decide.
 
 **Acceptance criteria.**
-- [ ] Gate output distribution per condition is recorded from the Stage 4 checkpoint.
-- [ ] A decision record explains which of the three causes the evidence supports.
+- [x] Gate output distribution per condition is recorded, from the Stage 3 checkpoint (the Stage 4 checkpoint with the fitted temperature is not yet reachable).
+- [ ] A decision record explains which of the three original causes the evidence supports. One of the four total candidates (I-042, zero Level-2) is now measured and not supported. The other three remain untested.
 
-**Validation.** Requires the Stage 4 checkpoint, which lives on Kaggle. Cannot be validated on this machine.
+**Validation.** `python -m coralsep.eval.diagnose_gate_flatness`, run against the real Stage 3 checkpoint on the university GPU box, 2026-09-04. The Stage 4 checkpoint with the fitted temperature would let this measure the exact calibrated flatness this ticket describes; it is on Kaggle under a dataset not yet located.
 
-**Dependencies.** Related to I-025.
+**Dependencies.** Related to I-025, I-042 (measured, not supported), I-051 (the bug that had to be fixed before this measurement was even possible).
 
 **Documentation.** `DECISIONS.md`, `LEARNINGS.md`.
 
@@ -1219,7 +1231,7 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 **Evidence.** `pipeline/infer.py::run()`, steps 2-4: `condition_l1` then `gate_vec = self._compute_gate(condition_l1)` then the chunk loop begins. `e0_list` is populated inside the loop and only consumed afterward, for Level-2-based speaker counting (step 5) and quality flags, never fed back into a gate call.
 
-**Impact.** The gate can never route on reverb severity, SNR trend, or count evidence gathered from the audio itself; every adapter selection for an entire utterance rests on four DSP scalars computed once at the start. This is a plausible independent contributor to the near-uniform 0.5 blend already measured in I-003: a gate given the same input width but an always-zero half of it cannot express condition-dependent routing on that half by construction.
+**Impact.** The gate can never route on reverb severity, SNR trend, or count evidence gathered from the audio itself; every adapter selection for an entire utterance rests on four DSP scalars computed once at the start. This was proposed as a plausible independent contributor to the near-uniform 0.5 blend measured in I-003, on the reasoning that a gate given an always-zero half of its input cannot express condition-dependent routing on that half. **2026-09-04: measured against the real Stage 3 gate and found not supported** (see I-003), forcing Level-2 to zero made the raw gate's output *more* variable across conditions than giving it real Level-2, not less. The design gap this ticket describes is still real and worth fixing on its own architectural merits; it is just not, on this evidence, the mechanism behind I-003's flatness.
 
 **Suspected cause.** The single-pass, whole-utterance pipeline design and the per-chunk, lagged-feature gate design in `ARCHITECTURE.md` appear to have been specified independently and never reconciled into one implementation.
 
@@ -1364,24 +1376,30 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ---
 
-### I-048 `[TEST]` P2 Three RirBank tests double the bank path and one asserts a key generate_rir never returns, invisible because pyroomacoustics was never installed anywhere this ran
+### I-048 `[TEST]` P2 `tests/test_rir_bank.py` had four independent, stacked defects, each invisible because pyroomacoustics was never installed anywhere this ran
 
-**State:** CLOSED, commit `f85dd2a` · GitHub [#86](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/86)
+**State:** CLOSED, commits `f85dd2a`, `49992da`, `602dea4`, `72ed9ed` · GitHub [#86](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/86)
 
-**Problem.** `tests/test_rir_bank.py` guards its pyroomacoustics-dependent tests with a module-level `pytest.importorskip("pyroomacoustics")`. Because pyroomacoustics was never installed in any environment this project's tests ran in until this session's GPU box, the entire file was silently skipped on every run, including tests that do not touch pyroomacoustics at all. Setting up a real environment for the first time (see WORKLOG 2026-09-04) surfaced two real defects: `test_rir_bank_load_and_sample`, `test_rir_bank_load_shape`, and `test_rir_bank_sample_out_of_range_raises` all constructed `RirBank(bank_dir / "bank.json")`, but `RirBank.__init__` already appends `bank.json` to whatever directory it receives, and the tests' own `_write_bank` helper already returns the bank directory, not the file, so the doubled path never existed. `test_generate_rir_returns_record` asserted `meta["sample_rate"] == 8_000`, but `generate_rir` deliberately does not echo `sample_rate` back in its returned `meta`, since the caller already has it and `build_rir_bank` supplies it to `RirRecord` directly.
+**Problem.** `tests/test_rir_bank.py` guards its pyroomacoustics-dependent tests with a module-level `pytest.importorskip("pyroomacoustics")`. Because pyroomacoustics was never installed in any environment this project's tests ran in until this session's GPU box, the entire file was silently skipped on every run, including tests that do not touch pyroomacoustics at all. This ticket records four bugs found in sequence as each fix revealed the next one underneath it, and it also records that this session's own validation discipline slipped twice before this ticket was actually closed correctly.
 
-**Evidence.** `FileNotFoundError` and `KeyError` on first run with pyroomacoustics installed.
+1. `test_rir_bank_load_and_sample`, `test_rir_bank_load_shape`, and `test_rir_bank_sample_out_of_range_raises` all constructed `RirBank(bank_dir / "bank.json")`, but `RirBank.__init__` already appends `bank.json` to whatever directory it receives, and the tests' own `_write_bank` helper already returns the bank directory, not the file. Fixed in `f85dd2a`. **That commit's message claimed "9 passed on the GPU box." That had not actually been run.** The GPU environment existed at the time, but this specific rerun was not performed before the commit was pushed, and the next three bugs below were still fully masked by the ones already fixed, so the claim was wrong even though it looked plausible.
+2. `_write_bank`'s constructed `bank.json` had no top-level `"sample_rate"` key, which `RirBank.__init__` reads separately from each record's own copy. Masked by bug 1 (`FileNotFoundError` always raised first). Fixed in `49992da`, this time with an explicit note in the commit that the earlier claim was inaccurate rather than letting it stand silently.
+3. `_write_bank` saved each synthetic RIR with `np.save` as a `.npy` file, but `RirBank.load` reads with `soundfile`, which cannot parse that format at all. Masked by bugs 1 and 2. Fixed in `602dea4`.
+4. `test_rir_bank_sample_out_of_range_raises` asserted `bank.sample(t60_s=5.0)` raises `ValueError`. `RirBank.sample`'s own docstring says the opposite is the intended contract: it degrades to the nearest record by achieved T60 "so a sparse bucket degrades the label slightly instead of failing the epoch." The production code was correct; the test encoded a contract it never had. Fixed in `72ed9ed` by rewriting the test to assert the documented fallback.
 
-**Impact.** None to production code, both defects are test-only. The real cost is that this file provided zero actual coverage of `RirBank` for the life of the project.
+**Evidence.** `FileNotFoundError`, then `KeyError`, then `soundfile.LibsndfileError`, then `Failed: DID NOT RAISE ValueError`, one at a time, each only visible once the previous one was fixed and the suite was actually rerun on the GPU box.
 
-**Scope.** Pass the directory, not the file, to `RirBank` in the three call sites. Replace the stale assertion with one against a key `generate_rir` actually returns.
+**Impact.** None to production code; every defect was in the test file itself, three in its fixture and one in a stale assertion. The real cost is that this file provided zero actual coverage of `RirBank` for the entire life of the project, and that the first fix's premature validation claim came within one uncaught step of entering the historical record as fact.
+
+**Scope.** Closed. See the four commits above for what changed in each.
 
 **Acceptance criteria.**
-- [x] `pytest tests/test_rir_bank.py -q` passes with pyroomacoustics installed.
+- [x] `pytest tests/test_rir_bank.py -q` passes with pyroomacoustics installed, actually confirmed, not assumed.
+- [x] The full suite passes on the same run, not just this one file.
 
-**Validation.** 9 passed on the GPU box.
+**Validation.** `pytest tests/ -q` on the GPU box after `72ed9ed`: 594 passed, 3 skipped, 0 failed. This is the number to trust; the "9 passed" line in `f85dd2a`'s own commit message was not.
 
-**Dependencies.** None.
+**Dependencies.** None. The methodological lesson (verify before writing a validation line, especially under time pressure) applies broadly and is recorded in `LEARNINGS.md`.
 
 ---
 
