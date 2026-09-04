@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 55 tickets. 38 closed, 17 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 55 tickets. 39 closed, 16 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -58,7 +58,7 @@
 | I-022 | `[DATA]` | 🟡 P2 | Two sources give different Stage 1 noise adapter epoch counts | 🔴 BLOCKED on Kaggle | [#59](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/59) |
 | I-023 | `[EXP]` | 🟠 P1 | Libri4Mix was never evaluated and every split used only 30 samples | 🔴 BLOCKED on compute | [#60](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/60) |
 | I-024 | `[EXP]` | 🟠 P1 | The Stage 2 universal adapter was never trained | 🔴 BLOCKED on compute | [#61](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/61) |
-| I-025 | `[MODEL]` | 🔴 P0 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition, confirmed on a corrected GPU run | 🔴 P0, cause still open | [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) |
+| I-025 | `[MODEL]` | 🔴 P0 | The Stage 1 reverb adapter degrades SI-SNR in every tested condition, confirmed on a corrected GPU run | 🟢 CLOSED, cause found (undertraining, not architecture) | [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62) |
 | I-026 | `[TEST]` | 🟡 P2 | No confidence interval or significance test has been run on any result | 🟡 INVESTIGATING, code done | [#63](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/63) |
 | I-027 | `[CLEANUP]` | ⚪ P3 | `.gitignore` repeats `outputs/` and `pretrained_models/` | 🟢 CLOSED | [#64](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/64) |
 | I-028 | `[ARCH]` | 🟡 P2 | Flat top-level packages shadow standard library and third-party names | 🟢 CLOSED | [#65](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/65) |
@@ -88,7 +88,7 @@
 | I-052 | `[BUG]` | 🟠 P1 | `data/prepare/but_reverbdb.py` downloaded from the wrong host under the wrong name; the URL had 404'd for the project's entire life | 🟢 CLOSED | [#90](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/90) |
 | I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
 | I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | [#92](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/92) |
-| I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, rerun pending | pending |
+| I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, confirmed on three reruns | pending |
 
 ---
 
@@ -808,7 +808,19 @@ The 7.4M figure in `CONTEXT.md` matches nothing and is an error.
 
 ### I-025 [MODEL] [P1] The Stage 1 reverb adapter degrades SI-SNR in every tested condition
 
-**State:** 🔴 P0, confirmed harmful on a corrected measurement · commit `8f0c5ca` · GitHub [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62)
+**State:** 🟢 CLOSED, root cause found and a fix direction confirmed on real ablation runs · commit pending · GitHub [#62](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/62)
+
+**2026-09-04, third update: both remaining hypotheses tested with real retraining runs, on a reproducible measurement.**
+
+The two candidates this ticket left open, LoRA rank 8 too small and 500 samples/epoch too few, were each tested by retraining the reverb adapter with one variable changed: rank 32 (samples/epoch unchanged at 500), and samples/epoch 2000 (rank unchanged at 8). Both ablations, plus a rerun of the original rank 8/500-sample checkpoint, were scored with `eval_reverb_adapter.py` after fixing I-055 (the RIR draw was not seeded, so the three runs would otherwise have been scored against different, incomparable reverb conditions). All three runs below share the identical mixture and RIR draw (T60 0.54 s), confirmed by identical base-model SI-SNR across all three (14.60 dB clean, 1.11 dB reverb mild, -1.89 dB reverb strong):
+
+| Config | Clean Δ | Reverb mild Δ | Reverb strong Δ |
+|---|---:|---:|---:|
+| Original (rank 8, 500 samples/epoch) | -0.90 dB | -0.84 dB | -0.70 dB |
+| Rank 32 (500 samples/epoch) | +1.61 dB | +8.16 dB | +6.44 dB |
+| Rank 8 (2000 samples/epoch) | +6.23 dB | +9.36 dB | +7.06 dB |
+
+Both changes independently turn the adapter from harmful to helpful, and 2000 samples/epoch alone outperforms rank 32 alone on every condition. This does not prove which factor matters more in general, since only one ablation per factor was run and they were not combined, but it does answer this ticket's open question: the original configuration was undertrained on both axes at once, not architecturally broken. A follow-up ticket should decide whether to retrain the shipped checkpoint at the better of these two settings (or both together) before this adapter is used in the assembled pipeline; that is deliberately left open here rather than assumed, since neither ablation checkpoint has been evaluated against the fuller condition matrix I-025 originally used (only clean and two reverb severities), and neither has been checked for co-activation with the noise and codec adapters together (I-043 covers only the original checkpoint).
 
 **2026-09-04, second update: reran the corrected diagnostic against the real Stage 1 checkpoint, on a GPU, for the first time.**
 
@@ -853,7 +865,7 @@ The real defect is in the diagnostic that produced the table above. `eval/eval_r
 - [x] A decision record states whether the target was wrong: it was not; the diagnostic script's scoring was.
 - [x] `eval/eval_reverb_adapter.py` is fixed to score reverberant conditions against the wet reference (I-040).
 - [x] The fixed diagnostic is rerun against the Stage 1 reverb checkpoint and a trustworthy verdict is recorded: harmful in all three conditions, table above.
-- [ ] The remaining why (rank, sample count, or co-activation mismatch, I-043) is diagnosed and, if fixable, a retraining ticket is opened.
+- [x] The remaining why (rank, sample count, or co-activation mismatch, I-043) is diagnosed: I-043 ruled out; rank and sample count each independently fix the harm, see table above. A retraining decision is left to a follow-up ticket rather than assumed here.
 
 **Validation.** `python src/coralsep/eval/eval_reverb_adapter.py --checkpoint best_reverb.pt --librispeech-8k <slice> --rir-bank <bank> --device cuda`, run on the university GPU box against the real `rishig777/calmsep-stage1-adapters` Kaggle checkpoint, 2026-09-04.
 
@@ -1573,10 +1585,10 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 **Acceptance criteria.**
 - [x] `RirBank` is constructed with the same seeded `rng` the rest of `main()` uses.
-- [ ] Two full runs of the script with the same `--seed` and the same checkpoint produce identical `reverb_mild`/`reverb_strong` base-model SI-SNR values, confirmed on the GPU box.
-- [ ] The I-025 rank/sample-count ablation is rerun with this fix in place before its result is treated as final.
+- [x] Two full runs of the script with the same `--seed` and the same checkpoint produce identical `reverb_mild`/`reverb_strong` base-model SI-SNR values, confirmed on the GPU box: all three reruns below (different checkpoints, same seed) report identical base-model scores of 14.60 dB / 1.11 dB / -1.89 dB (clean / reverb mild / reverb strong) and identical T60 0.54 s.
+- [x] The I-025 rank/sample-count ablation is rerun with this fix in place before its result is treated as final. See I-025's third update for the resulting table.
 
-**Validation.** Fix applied locally; rerun against all three checkpoints (baseline rank8/500, rank32, samples2000) pending on the GPU box.
+**Validation.** `python src/coralsep/eval/eval_reverb_adapter.py --seed 42 ...` rerun on the GPU box against three different checkpoints (original rank8/500, rank32, samples2000); all three now agree on the base model's score and the drawn T60, confirming the fix. `pytest tests/ -q`, 604 passed, 11 skipped, unaffected by this change.
 
 **Dependencies.** Discovered while comparing I-025's two ablation runs. Blocks a trustworthy final answer to I-025's rank-vs-sample-count question until the reruns land.
 

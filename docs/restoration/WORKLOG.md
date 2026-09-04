@@ -303,3 +303,35 @@ Launched the full-scale run (`--n-per-cell 100`) against `~/coralsep-restoration
 **Validation.** Full suite locally: 604 passed, 11 skipped. The smoke-test manifest's own hash (`set_hash`) was written successfully both times, confirming the generator's own internal consistency checks passed.
 
 **Next action.** This project now has, for the first time, a real N=2..5 evaluation set: run I-002's non-oracle counting fix and I-026's confidence intervals against it, replacing the archived n=30 oracle-count results, which is the direct answer to I-023's evidence gap. This needs an inference pipeline that can actually run against the real backbone plus checkpoints, not yet wired to this manifest format. Both ablation training runs (rank 32, samples-per-epoch 2000) continue in parallel; rank32 finished (`final_reverb.pt`, best loss 11.2308), samples2000 is at roughly epoch 24 of 40.
+
+---
+
+## 2026-09-04, entry 11
+
+**Phase:** 8 continued, I-025's remaining question closed with real retraining ablations, one more bug found comparing them.
+
+**Objective.** Both ablation trainings from entry 10 (rank 32, samples-per-epoch 2000) finished. Score both against `eval_reverb_adapter.py` and decide whether either explains, and fixes, the reverb adapter's harm.
+
+**Actions and findings, in the order they happened.**
+
+First pass, before the bug below was found: ran the diagnostic against both ablation checkpoints. Both looked like large improvements over the original harmful checkpoint (rank32: reverb mild +6.21 dB, reverb strong +3.49 dB; samples2000: reverb mild +5.84 dB, reverb strong +8.72 dB, both relative to their own base-model score in that run). Before writing this into the ledger, noticed the three runs' own base-model numbers (the same frozen backbone, scored on what should be an identically-seeded mixture in every run) disagreed: reverb mild base SI-SNR came back 4.15 dB in the original I-025 measurement, -0.02 dB in the rank32 run, and 4.76 dB in the samples2000 run, all with the default `--seed 42`. That should be impossible for a script that is actually seeded end to end.
+
+Traced it: `eval_reverb_adapter.py::main` builds a seeded `np.random.default_rng(args.seed)` and threads it through the mixture builder and both SI-SNR passes, but constructs `RirBank(rir_dir)` with no `rng` argument, even though `RirBank.__init__` takes one specifically so RIR draws are reproducible. Left unset, it falls back to its own unseeded generator, so every run draws a different RIR (a different actual T60) regardless of `--seed`. Filed and fixed as I-055: pass `rng=rng` at the one call site. Confirmed the fix by rerunning all three checkpoints (original, rank32, samples2000) with the same seed: all three now report the identical base-model score (14.60 / 1.11 / -1.89 dB across clean / reverb mild / reverb strong) and the identical drawn T60 (0.54 s), which was not true before.
+
+With the comparison now genuinely apples-to-apples, reran the SI-SNR deltas:
+
+| Config | Clean Δ | Reverb mild Δ | Reverb strong Δ |
+|---|---:|---:|---:|
+| Original (rank 8, 500 samples/epoch) | -0.90 dB | -0.84 dB | -0.70 dB |
+| Rank 32 (500 samples/epoch) | +1.61 dB | +8.16 dB | +6.44 dB |
+| Rank 8 (2000 samples/epoch) | +6.23 dB | +9.36 dB | +7.06 dB |
+
+Both single-variable ablations flip the adapter from harmful to helpful in every condition, and 2000 samples/epoch alone slightly outperforms rank 32 alone. I-025 is closed on this evidence: the root cause was undertraining (rank and/or sample count), not a structural defect in the reverb-adapter design. Which of the two matters more, or whether combining them helps further, was not tested (only one ablation per factor was run), and neither ablation checkpoint has been checked against the fuller condition matrix or for co-activation alongside the other two adapters (I-043's diagnostic covered only the original checkpoint). Left as an open follow-up rather than assumed.
+
+**Findings.** The seeding gap in I-055 is the same class of defect as I-051, I-052, I-053: code that reads as complete and has a `--seed` flag that looks like it does what it says, never exercised against a second comparable run until this session actually needed one. A single run of this diagnostic looks perfectly deterministic; the bug is invisible until two runs are placed side by side.
+
+**Issues opened and closed this entry.** I-055 (opened and closed). I-025 closed.
+
+**Validation.** Full suite locally: 604 passed, 11 skipped, unaffected by the one-line fix. Three real GPU reruns of `eval_reverb_adapter.py --seed 42` against three different checkpoints, all agreeing on the base model's score and the drawn RIR, confirm the fix rather than assume it.
+
+**Next action.** Decide whether to retrain the shipped Stage 1 reverb checkpoint at rank 32, 2000 samples/epoch, or both, before I-003's gate or I-043's co-activation numbers are re-measured against a non-harmful reverb adapter. The dataset-search and README-consolidation threads from earlier this session (LibriMix N>3 substitute search, `README_DO_NOT_DELETE.txt`) remain as recorded in entries 9 and 10; nothing new on those in this entry.
