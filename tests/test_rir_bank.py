@@ -153,7 +153,14 @@ def _write_bank(tmp_path: Path, n: int = 4) -> Path:
         )
         records.append(rec.to_dict())
     bank_path = tmp_path / "bank.json"
-    bank_path.write_text(json.dumps({"records": records}))
+    # RirBank.__init__ reads a top-level "sample_rate" key from the index,
+    # not just from each record (build_rir_bank writes both). Omitting it
+    # here was a second bug in this fixture, masked by the double-path bug
+    # fixed alongside it (I-048): the FileNotFoundError from the wrong path
+    # always raised before this line was ever reached, so this half of the
+    # fixture was never actually exercised until pyroomacoustics was
+    # installed somewhere and the first bug stopped hiding it.
+    bank_path.write_text(json.dumps({"sample_rate": 8_000, "records": records}))
     return tmp_path
 
 
