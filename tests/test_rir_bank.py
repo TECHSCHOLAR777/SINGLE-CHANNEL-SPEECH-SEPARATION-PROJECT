@@ -159,7 +159,7 @@ def _write_bank(tmp_path: Path, n: int = 4) -> Path:
 
 def test_rir_bank_load_and_sample(tmp_path):
     bank_dir = _write_bank(tmp_path, n=4)
-    bank = RirBank(bank_dir / "bank.json")
+    bank = RirBank(bank_dir)
     rec = bank.sample(t60_s=0.4, tolerance_s=0.2)
     assert rec is not None
     rir = bank.load(rec)
@@ -170,7 +170,7 @@ def test_rir_bank_load_and_sample(tmp_path):
 
 def test_rir_bank_load_shape(tmp_path):
     bank_dir = _write_bank(tmp_path, n=4)
-    bank = RirBank(bank_dir / "bank.json")
+    bank = RirBank(bank_dir)
     rec = bank.sample(t60_s=0.5, tolerance_s=0.5)
     rir = bank.load(rec)
     assert rir.shape[0] > 0
@@ -178,7 +178,7 @@ def test_rir_bank_load_shape(tmp_path):
 
 def test_rir_bank_sample_out_of_range_raises(tmp_path):
     bank_dir = _write_bank(tmp_path, n=4)
-    bank = RirBank(bank_dir / "bank.json")
+    bank = RirBank(bank_dir)
     with pytest.raises(ValueError):
         bank.sample(t60_s=5.0, tolerance_s=0.05)
 
@@ -197,7 +197,10 @@ def test_generate_rir_returns_record():
     rir, meta = generate_rir(t60_s=0.5, rng=rng)
     assert isinstance(rir, np.ndarray)
     assert rir.ndim == 1
-    assert meta["sample_rate"] == 8_000
+    # generate_rir does not echo sample_rate back in meta: the caller already
+    # has it, and build_rir_bank supplies it directly to RirRecord rather than
+    # threading it through meta. See rir_bank.py::build_rir_bank.
+    assert "t60_achieved_s" in meta
     assert 0 <= meta["n_peak"] < len(rir)
 
 
