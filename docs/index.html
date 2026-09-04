@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>CoRAL-Sep, Condition-Aware LoRA Mixture Speech Separation</title>
+<title>CoRAL-Sep, Condition-Routed Adapter Library for Speech Separation</title>
 <meta name="description" content="CoRAL-Sep achieves +1.76 dB SI-SDR over SR-CorrNet baseline by dynamically routing speech mixtures through condition-specific LoRA adapters.">
 <style>
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -423,7 +423,7 @@ footer {
 <!-- ── Nav ── -->
 <header class="nav">
   <div class="nav-inner">
-    <a href="#" class="nav-logo">CALM<span>·Sep</span></a>
+    <a href="#" class="nav-logo">CoRAL<span>·Sep</span></a>
     <nav class="nav-links">
       <a href="#results">Results</a>
       <a href="#architecture">Architecture</a>
@@ -579,8 +579,8 @@ footer {
         <p style="font-family:'SF Mono','Fira Code',monospace;font-size:0.8rem;color:#00D4B8;line-height:1.9;">
           git clone https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT<br>
           cd SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT<br>
-          pip install -r requirements.txt<br>
-          python demo.py
+          pip install -e ".[dev]"<br>
+          coralsep-demo
         </p>
       </div>
       <div class="demo-card-actions">
@@ -594,7 +594,7 @@ footer {
 <!-- ── Footer ── -->
 <footer>
   <div class="footer-inner">
-    <span class="footer-logo">CALM<span>·Sep</span></span>
+    <span class="footer-logo">CoRAL<span>·Sep</span></span>
     <nav class="footer-links">
       <a href="#results">Results</a>
       <a href="#architecture">Architecture</a>
