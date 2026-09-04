@@ -106,9 +106,33 @@ def si_snr_mixture(mixture: np.ndarray, references: list[np.ndarray]) -> float:
 HF_CKPT = "shinuh/sr-corrnet-ss-1ch-wsj-var-2-5spk"
 
 
+def _move_stft_to_device(ss: SSInference, device: str) -> None:
+    """Move engine.stft / engine.istft to device.
+
+    SSInference.from_pretrained(device=...) does not move these: the STFT
+    kernel is a plain buffer created at construction time, not part of the
+    checkpoint state dict, so it stays wherever it was built regardless of
+    the device argument. train/stage1_single.py already learned this
+    (`_move_stft_to_device`'s counterpart there, lines around
+    train_single_adapter's "Also move engine.stft to device" comment); this
+    script never did, so it worked on CPU (its only device until now) and
+    crashed on CUDA with a device-mismatch RuntimeError in engine.stft's
+    conv1d. See I-050.
+    """
+    engine = getattr(ss, "engine", None)
+    if engine is None:
+        return
+    for attr in ("stft", "istft"):
+        mod = getattr(engine, attr, None)
+        if mod is not None and hasattr(mod, "to"):
+            mod.to(device)
+
+
 def load_base(device: str) -> SSInference:
     print(f"  Loading base SR-CorrNet ({HF_CKPT}) on {device} ...")
-    return SSInference.from_pretrained(checkpoint_path=HF_CKPT, device=device)
+    ss = SSInference.from_pretrained(checkpoint_path=HF_CKPT, device=device)
+    _move_stft_to_device(ss, device)
+    return ss
 
 
 def load_adapted(checkpoint: Path, device: str) -> tuple[SSInference, LoRALibrary]:
@@ -119,6 +143,7 @@ def load_adapted(checkpoint: Path, device: str) -> tuple[SSInference, LoRALibrar
     lib = LoRALibrary(inner)
     lib.freeze_base()
     inner.to(device)
+    _move_stft_to_device(ss, device)
 
     ckpt = torch.load(checkpoint, map_location=device, weights_only=True)
     state = ckpt["state_dict"]
@@ -140,9 +165,15 @@ def load_adapted(checkpoint: Path, device: str) -> tuple[SSInference, LoRALibrar
     return ss, lib
 
 
+def _model_device(ss: SSInference) -> torch.device:
+    """The device the model's own parameters live on, so callers never have
+    to thread a device string through every diagnostic pass separately."""
+    return next(_get_inner_module(ss).parameters()).device
+
+
 def run_base_model(ss: SSInference, wav_np: np.ndarray, n_spks: int) -> list[np.ndarray]:
     """Run original process_waveform (inference_mode, no LoRA)."""
-    wav = torch.from_numpy(wav_np).float().unsqueeze(0)
+    wav = torch.from_numpy(wav_np).float().unsqueeze(0).to(_model_device(ss))
     with torch.inference_mode():
         out = ss.process_waveform(wav, n_spks=torch.tensor(n_spks))
     return [w.squeeze().cpu().float().numpy() for w in out["waveforms"]]
@@ -154,7 +185,7 @@ def run_adapted_model(
     """Run adapted model with reverb gate set explicitly."""
     lib.set_gates({"reverb": gate, "noise": 0.0, "codec": 0.0})
     lib.inject_gates()
-    wav = torch.from_numpy(wav_np).float().unsqueeze(0)
+    wav = torch.from_numpy(wav_np).float().unsqueeze(0).to(_model_device(ss))
     with torch.inference_mode():
         out = ss.process_waveform(wav, n_spks=torch.tensor(n_spks))
     return [w.squeeze().cpu().float().numpy() for w in out["waveforms"]]
@@ -219,9 +250,10 @@ def diag_sanity(
     base_out = run_base_model(ss_base, mixture, n_spks)
 
     # Gate=0 adapted model via process_waveform, should equal base
+    device = _model_device(ss_adapted)
     lib.set_gates({"reverb": 0.0, "noise": 0.0, "codec": 0.0})
     lib.inject_gates()
-    wav = torch.from_numpy(mixture).float().unsqueeze(0)
+    wav = torch.from_numpy(mixture).float().unsqueeze(0).to(device)
     with torch.inference_mode():
         out_g0 = ss_adapted.process_waveform(wav, n_spks=torch.tensor(n_spks))
     g0_out = [w.squeeze().cpu().float().numpy() for w in out_g0["waveforms"]]
@@ -229,7 +261,7 @@ def diag_sanity(
     # _forward_with_grad with gate=0
     lib.set_gates({"reverb": 0.0, "noise": 0.0, "codec": 0.0})
     lib.inject_gates()
-    wav_t = torch.from_numpy(mixture).float().unsqueeze(0)
+    wav_t = torch.from_numpy(mixture).float().unsqueeze(0).to(device)
     waves_fwg, _ = _forward_with_grad(ss_adapted, wav_t, n_spks=torch.tensor(n_spks))
     fwg_out = waves_fwg.detach().cpu().float().numpy()
 
