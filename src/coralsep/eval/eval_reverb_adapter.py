@@ -370,32 +370,36 @@ def diag_sisnr(
             calmix = CoralSepMixture(sample=sample, recipe=recipe)
             rev = apply_reverb(calmix, rir_bank, rng, t60_s=t60)
             mix = rev.mixture
+            # Score against the wet reference apply_reverb returns, not the dry
+            # source. The reverb adapter is trained to separate but not
+            # dereverberate (data/degradations.py, BLUEPRINT 7.6), so scoring
+            # against the dry source here would grade it on a task it was never
+            # asked to do. See I-025 and I-040.
             refs = [rev.references[i] for i in range(rev.references.shape[0])]
-            refs_anechoic = refs_clean  # original clean refs
 
-        # Mixture baseline
-        snr_mix_anechoic = si_snr_mixture(mix, refs_clean)
-        print(f"  SI-SNR(mixture vs anechoic_ref) = {snr_mix_anechoic:.2f} dB  [lower bound]")
+        # Mixture baseline, against the same reference the model is scored against.
+        snr_mix_ref = si_snr_mixture(mix, refs)
+        print(f"  SI-SNR(mixture vs reference) = {snr_mix_ref:.2f} dB  [lower bound]")
 
         # Base model
         base_out = run_base_model(ss_base, mix, n_spks)
-        snr_base_anechoic = pit_si_snr_np(base_out, refs_clean)
-        snri_base = snr_base_anechoic - snr_mix_anechoic
-        print(f"  Base  → SI-SNR = {snr_base_anechoic:.2f} dB   SI-SNRi = {snri_base:+.2f} dB")
+        snr_base = pit_si_snr_np(base_out, refs)
+        snri_base = snr_base - snr_mix_ref
+        print(f"  Base  → SI-SNR = {snr_base:.2f} dB   SI-SNRi = {snri_base:+.2f} dB")
 
         # Adapted model (reverb gate=1)
         adp_out = run_adapted_model(ss_adapted, lib, mix, n_spks, gate=1.0)
-        snr_adp_anechoic = pit_si_snr_np(adp_out, refs_clean)
-        snri_adp = snr_adp_anechoic - snr_mix_anechoic
-        delta = snr_adp_anechoic - snr_base_anechoic
+        snr_adp = pit_si_snr_np(adp_out, refs)
+        snri_adp = snr_adp - snr_mix_ref
+        delta = snr_adp - snr_base
         print(
-            f"  Adapt → SI-SNR = {snr_adp_anechoic:.2f} dB   SI-SNRi = {snri_adp:+.2f} dB   Δ = {delta:+.2f} dB"
+            f"  Adapt → SI-SNR = {snr_adp:.2f} dB   SI-SNRi = {snri_adp:+.2f} dB   Δ = {delta:+.2f} dB"
         )
 
         results[cond_name] = {
-            "snr_mix": snr_mix_anechoic,
-            "snr_base": snr_base_anechoic,
-            "snr_adp": snr_adp_anechoic,
+            "snr_mix": snr_mix_ref,
+            "snr_base": snr_base,
+            "snr_adp": snr_adp,
             "snri_base": snri_base,
             "snri_adp": snri_adp,
             "delta": delta,

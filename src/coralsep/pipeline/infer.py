@@ -405,10 +405,21 @@ def _level1_condition(proc: CoralSepPreprocessedAudio) -> dict:
 
 
 def _condition_dict_to_tensor(cond: dict) -> torch.Tensor:
-    """Level-1 dict → (4,) float32 tensor in canonical order."""
+    """Level-1 dict → (10,) float32 tensor: 4 Level-1 features + 6 zeroed Level-2 slots.
+
+    GateNetwork expects cat(level1[4], level2[6]) = 10 (models/gate.py). Level-2
+    features come from Level2Analyzer on pooled E(0), which is only available
+    after a chunk has been separated (ARCHITECTURE.md: "a real one-chunk lag in
+    the design, not a defect"). This pipeline computes gate_vec once, before any
+    chunk runs, so there is no prior E(0) to draw Level-2 from; zeros here match
+    the documented first-chunk convention. Feeding real per-chunk Level-2 back
+    into the gate would need the gate to run per chunk instead of once per
+    utterance, which is a larger design change tracked separately (I-042).
+    """
     keys = ["snr_est_db", "codec_bw_ratio", "voiced_density", "total_energy_db"]
-    vals = [float(cond.get(k, 0.0)) for k in keys]
-    return torch.tensor(vals, dtype=torch.float32)
+    l1 = [float(cond.get(k, 0.0)) for k in keys]
+    l2_zeros = [0.0] * 6
+    return torch.tensor(l1 + l2_zeros, dtype=torch.float32)
 
 
 def _pool_e0(e0_list: list[torch.Tensor]) -> torch.Tensor:
