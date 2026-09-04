@@ -279,3 +279,27 @@ Wrote a `README_DO_NOT_DELETE.txt` at the root of the GPU box's working director
 **Validation.** Full suite locally: 598 passed, 11 skipped. `tests/test_but_reverbdb.py`, 3 new tests, pass without needing the network (they assert the constant, not a live download).
 
 **Next action.** Once BUT ReverbDB finishes downloading, run `fixed_eval_generator.py` for real against all four now-real inputs (LibriSpeech test-clean, staged WHAM tt noise, the small diagnostic RIR bank, BUT ReverbDB), producing the project's first genuine N=2..5, 8-condition evaluation set. Then extend the generator's condition matrix past N=5 if the owner still wants N=6 and beyond once N≤5 is confirmed working.
+
+---
+
+## 2026-09-04, entry 10
+
+**Phase:** 8 continued, the fixed evaluation matrix generated for real, three more bugs found by actually running it.
+
+**Objective.** Finish what entry 9 started: get `fixed_eval_generator.py` running against real data for the first time in the project's history, since it is the actual answer to needing evaluation at N up to 5 without a public LibriMix substitute.
+
+**Actions and findings, in the order they happened.**
+
+BUT ReverbDB's staged bank, once the I-052 URL fix let it download at all, reported `t60_mean_s` around 66 and `t60_max_s` around 900, both physically impossible for a real room. Traced it to a second, independent defect: the real archive lays each recording session out as sibling `RIR/` and `silence/` directories. `RIR/` holds a genuine, short (confirmed 1.0 second at 16 kHz, direct-path peak at sample 712) impulse response, despite a filename that names the sweep acquisition method rather than the delivered file's length (`IR_sweep_15s_45Hzto22kHz_FS16kHz.v00.wav`). `silence/` holds a 60-second background noise recording (confirmed RMS 0.0037, no impulse at all), used elsewhere in BUT's own pipeline for SNR estimation, never meant to be treated as an RIR. `_find_rir_wavs` globbed both indiscriminately. A stationary noise recording's Schroeder decay curve is nearly flat, so the T30-to-T60 extrapolation this project's `measure_t60` uses spans most of the 60-second file and produces a "T60" of tens to hundreds of seconds. Fixed by excluding any path with `silence` as a component (I-053). Regenerated the bank: `t60_mean_s` 1.17, range 0.44 to 3.38, both sane; `n_rirs` dropped from 12,307 to the true 2,325 once the roughly 10,000 misclassified silence files were excluded.
+
+With all four real inputs finally in hand (real LibriSpeech `test-clean` resampled to 8 kHz, WHAM `tt`-split noise staged with recorded provenance, the corrected BUT ReverbDB bank, and the existing diagnostic RIR bank), ran `fixed_eval_generator.py` for the first time ever against real data, a small smoke test first (`--n-per-cell 10`). It completed: all 33 condition cells (8 conditions times 4 speaker counts, plus the `but_reverb` tier), 330 files, hashed and written. A third bug surfaced in the log: `ffmpeg codec roundtrip failed for 'amr-nb'; falling back to mu-law simulation`, repeated for every AMR-NB sample (this machine's ffmpeg build has no AMR-NB encoder, a common licensing-driven omission). Loading a sample's own recorded recipe directly showed `"codec_name": "amr-nb"` regardless, a real ground-truth mislabeling: anyone evaluating "AMR-NB robustness" from that manifest would actually be scoring mu-law companding, a materially easier degradation. `apply_codec_roundtrip` returned only the damaged audio, never which method actually ran, and its one caller recorded the request unconditionally. Fixed by returning `(audio, actual_codec)` and recording the real value, with a distinct sentinel label for the fallback case (I-054). Reran the smoke test: zero samples now claim `amr-nb` when the audio is mu-law; 50 correctly recorded as the fallback label.
+
+Launched the full-scale run (`--n-per-cell 100`) against `~/coralsep-restoration/kaggle_data/fixed_eval_real`, in progress at the time of this entry.
+
+**Findings.** Three real, previously-undiscovered bugs surfaced in one evening purely because scripts that had apparently never been run successfully by anyone were actually run: the wrong download host (I-052), noise recordings measured as impulse responses (I-053), and a codec fallback silently mislabeling its own ground truth (I-054). None had any test coverage before tonight. The pattern across all three, and across I-051 two entries ago, is the same: a script that looks complete because it exists and reads plausibly is not the same claim as a script that has been run and checked.
+
+**Issues opened and closed this entry.** I-053, I-054.
+
+**Validation.** Full suite locally: 604 passed, 11 skipped. The smoke-test manifest's own hash (`set_hash`) was written successfully both times, confirming the generator's own internal consistency checks passed.
+
+**Next action.** Confirm the full-scale (`n-per-cell=100`) generation completes cleanly, then this project has, for the first time, a real N=2..5 evaluation set to run I-002's non-oracle counting fix and I-026's confidence intervals against, instead of the archived n=30 oracle-count results. Both ablation training runs (rank 32, samples-per-epoch 2000) continue in parallel; rank32 finished (`final_reverb.pt`, best loss 11.2308), samples2000 is at roughly epoch 24 of 40.
