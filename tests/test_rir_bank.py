@@ -132,15 +132,25 @@ def test_rir_record_to_dict_round_trip():
 
 
 def _write_bank(tmp_path: Path, n: int = 4) -> Path:
-    """Write a minimal bank.json with synthetic .npy RIRs."""
+    """Write a minimal bank.json with synthetic .wav RIRs.
+
+    RirBank.load reads each record's path with soundfile, the same as
+    build_rir_bank writes (rir_bank.py: sf.write(path, rir, sample_rate)).
+    An earlier version of this fixture wrote .npy files instead, which
+    soundfile cannot read; that was masked by two earlier bugs in this same
+    helper (I-048) that both raised before execution ever reached the point
+    where the file was actually loaded, so it was never exercised.
+    """
+    import soundfile as sf
+
     records = []
     for i in range(n):
         rir = _synthetic_rir(t60_s=0.3 + 0.1 * i)
-        rir_path = tmp_path / f"rir_{i:04d}.npy"
-        np.save(str(rir_path), rir)
+        rir_path = tmp_path / f"rir_{i:04d}.wav"
+        sf.write(str(rir_path), rir, 8_000)
         rec = RirRecord(
             rir_id=f"rir_{i:04d}",
-            path=str(rir_path),
+            path=rir_path.name,
             t60_requested_s=0.3 + 0.1 * i,
             t60_achieved_s=0.3 + 0.1 * i,
             room_dim_m=[5.0, 4.0, 3.0],
