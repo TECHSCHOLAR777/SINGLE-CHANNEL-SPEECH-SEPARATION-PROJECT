@@ -32,6 +32,7 @@ import soundfile as sf
 import torch
 
 from coralsep.eval.metrics import count_accuracy, pit_si_sdr
+from coralsep.eval.stats import bootstrap_ci
 
 logging.basicConfig(
     level=logging.INFO,
@@ -319,6 +320,8 @@ def _score_split(
     calm_sisdrs, calm_sisdris = [], []
     base_n_true, base_n_hat = [], []
     calm_n_true, calm_n_hat = [], []
+    base_per_sample: list[dict] = []
+    calm_per_sample: list[dict] = []
     n_true = int(split.replace("Libri", "").replace("Mix", ""))
     n_spks_arg = n_true if oracle_count else None
 
@@ -338,6 +341,15 @@ def _score_split(
             r_b = pit_si_sdr(est_b, refs_a, mix_a)
             base_sisdrs.append(r_b.mean_si_sdr)
             base_sisdris.append(r_b.mean_si_sdri)
+            base_per_sample.append(
+                {
+                    "uid": uid,
+                    "n_true": n_true,
+                    "n_hat": int(est_b.shape[0]),
+                    "si_sdr": r_b.mean_si_sdr,
+                    "si_sdri": r_b.mean_si_sdri,
+                }
+            )
         except Exception as e:
             log.debug("[%s] baseline skip %s: %s", split, uid, e)
 
@@ -361,6 +373,15 @@ def _score_split(
             r_c = pit_si_sdr(est_c, refs_a, mix_a)
             calm_sisdrs.append(r_c.mean_si_sdr)
             calm_sisdris.append(r_c.mean_si_sdri)
+            calm_per_sample.append(
+                {
+                    "uid": uid,
+                    "n_true": n_true,
+                    "n_hat": int(est_c.shape[0]),
+                    "si_sdr": r_c.mean_si_sdr,
+                    "si_sdri": r_c.mean_si_sdri,
+                }
+            )
         except Exception as e:
             log.debug("[%s] coralsep skip %s: %s", split, uid, e)
 
@@ -374,6 +395,13 @@ def _score_split(
                 float(np.mean(calm_sisdris)) if calm_sisdris else 0,
             )
 
+    def _ci(vals: list[float]) -> dict | None:
+        """BCa 95% CI on SI-SDRi, or None below the resample floor (I-026)."""
+        if len(vals) < 8:
+            return None
+        mean, lo, hi = bootstrap_ci(np.array(vals, dtype=np.float64))
+        return {"mean": mean, "ci_low": lo, "ci_high": hi}
+
     return {
         "split": split,
         "n_samples": len(base_sisdrs),
@@ -381,12 +409,16 @@ def _score_split(
         "baseline": {
             "si_sdr": float(np.mean(base_sisdrs)) if base_sisdrs else None,
             "si_sdri": float(np.mean(base_sisdris)) if base_sisdris else None,
+            "si_sdri_ci": _ci(base_sisdris),
             "count_accuracy": (count_accuracy(base_n_true, base_n_hat) if base_n_true else None),
+            "per_sample": base_per_sample,
         },
         "coralsep": {
             "si_sdr": float(np.mean(calm_sisdrs)) if calm_sisdrs else None,
             "si_sdri": float(np.mean(calm_sisdris)) if calm_sisdris else None,
+            "si_sdri_ci": _ci(calm_sisdris),
             "count_accuracy": (count_accuracy(calm_n_true, calm_n_hat) if calm_n_true else None),
+            "per_sample": calm_per_sample,
         },
         "delta_si_sdri": (
             float(np.mean(calm_sisdris)) - float(np.mean(base_sisdris))
