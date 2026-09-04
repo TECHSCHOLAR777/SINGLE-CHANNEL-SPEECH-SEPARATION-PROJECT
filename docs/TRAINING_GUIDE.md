@@ -1,7 +1,7 @@
 # CoRAL-Sep Training Guide
 
 End-to-end training sequence from raw data to a calibrated, deployable pipeline.
-All notebooks are in `notebooks/` and target Kaggle T4/P100 GPUs.
+All notebooks are in `notebooks/launchers/` and target Kaggle T4/P100 GPUs.
 
 ---
 
@@ -32,25 +32,25 @@ Run them locally or in a CPU-only Kaggle session. They do not require GPU.
 ### Step 0.1, LibriSpeech → 8 kHz
 
 ```bash
-python data/prepare_librispeech_8k.py \
+python -m coralsep.data.prepare.librispeech_8k \
     --input-dir  /data/LibriSpeech \
     --output-dir /data/LibriSpeech_8k \
     --splits train-clean-100 train-clean-360 dev-clean test-clean
 ```
 
-Writes `manifest.json` used by the mixer and eval generator.
+Writes a mirrored 8 kHz tree used by the mixer and eval generator.
 
 ### Step 0.2, Stage noise (WHAM! + DNS-4)
 
 ```bash
 # WHAM! + DNS-4 at 8 kHz and 16 kHz side-by-side
-python data/prepare_noise_staging.py \
+python -m coralsep.data.prepare.noise_staging \
     --wham-dir   /data/wham_noise \
     --dns4-dir   /data/dns4 \
     --output-dir /data/calmsep-8k/noise
 
 # DNS-4 stratified subset (optional cap at 20 GB)
-python data/prepare_dns4.py \
+python -m coralsep.data.prepare.dns4 \
     --out-dir /data/calmsep-8k/dns4_subset \
     --target-gb 20
 ```
@@ -58,39 +58,40 @@ python data/prepare_dns4.py \
 ### Step 0.3, BUT ReverbDB (measured RIRs)
 
 ```bash
-python data/prepare_but_reverbdb.py \
+python -m coralsep.data.prepare.but_reverbdb \
     --output-dir /data/calmsep-8k/but_reverbdb
 ```
 
-Downloads SLR17 from OpenSLR, resamples to 8 kHz, writes `but_bank.json`.
+Downloads SLR17 from OpenSLR, resamples to 8 kHz.
 
 ### Step 0.4, Simulated RIR bank
 
 ```bash
 python -c "
-from data.rir_bank import build_rir_bank
+from coralsep.data.rir_bank import build_rir_bank
 build_rir_bank(n_rooms=2000, out_path='data/rirs/bank.json')
 "
 ```
 
 ### Step 0.5, Fixed evaluation manifests
 
-Pre-built JSONL manifests are already committed in `data/fixed_eval/` (16 files).
-If you need to regenerate them:
+Pre-built JSONL manifests are already committed in `datasets/fixed_eval/` (see
+`datasets/README.md`). If you need to regenerate them:
 
 ```bash
-python data/fixed_eval_generator.py \
-    --librispeech-8k /data/LibriSpeech_8k \
-    --noise-dir      /data/calmsep-8k/noise \
-    --rir-bank       data/rirs/bank.json \
-    --out-dir        data/eval
+python -m coralsep.data.fixed_eval_generator \
+    --librispeech-8k-dir /data/LibriSpeech_8k \
+    --noise-dir          /data/calmsep-8k/noise \
+    --rir-bank           data/rirs/bank.json \
+    --but-reverbdb-dir   /data/calmsep-8k/but_reverbdb \
+    --output-dir         data/eval
 ```
 
 ---
 
 ## Phase 1, Stage 1: Single-adapter training
 
-**Notebook:** `notebooks/stage1_train_adapter.ipynb`
+**Notebook:** `notebooks/launchers/stage1_train_adapter.ipynb`
 **Runs:** 3 times (once per adapter)
 **GPU time per run:** ~6–8 hours on T4
 **Config files:** `configs/adapters/{reverb,noise,codec}.yaml`
@@ -123,8 +124,7 @@ Adapter keys: [...]   # should list A and B matrices for each target module
 
 ## Phase 1b, Stage 2: Universal adapter baseline (decision gate)
 
-**Notebook:** `notebooks/stage2_universal.ipynb`  
-  *(also available as `notebooks/P1b_train_universal_adapter.ipynb` for reference)*
+**Notebook:** `notebooks/launchers/stage2_universal.ipynb`
 **GPU time:** ~8–10 hours on T4
 **Prerequisite:** All 3 Stage 1 adapters saved
 
@@ -142,7 +142,7 @@ Record the verdict in `docs/decisions.md`.
 
 ## Phase 2, Stage 3: Gate + Level-2 analyzer
 
-**Notebook:** `notebooks/stage3_gate.ipynb`
+**Notebook:** `notebooks/launchers/stage3_gate.ipynb`
 **GPU time:** ~4–6 hours on T4
 **Prerequisites:** Stage 1 adapters (all 3) in `STAGE1_DIR`
 **Config:** `configs/gate.yaml`
@@ -170,7 +170,7 @@ level2_analyzer.pt: OK
 
 ## Phase 3, Stage 4: Joint fine-tuning
 
-**Notebook:** `notebooks/stage4_joint.ipynb`
+**Notebook:** `notebooks/launchers/stage4_joint.ipynb`
 **GPU time:** ~10–14 hours on T4 / 8–10 hours on P100
 **Prerequisites:** Stage 1 adapters + Stage 3 gate/analyzer checkpoints
 **Config:** `configs/default.yaml`
@@ -203,17 +203,17 @@ joint_level2_analyzer.pt: OK
 
 ## Phase 4, Calibration fitting
 
-**Script:** `train/calibrate.py` (CLI, no notebook)
+**Script:** `coralsep.train.calibrate` (CLI, no notebook)
 **Prerequisites:** Stage 4 joint checkpoints
 **Purpose:** Fit temperature scaling, isotonic confidence calibration, Platt completeness
   calibration, and Mahalanobis OOD detector on held-out logits/labels.
 
 ```bash
 # Dry-run on synthetic data (smoke test)
-python -m train.calibrate --dry-run --out-dir calibration/artifacts
+python -m coralsep.train.calibrate --synthetic --out-dir calibration/artifacts
 
-# Real run, replace synthetic data in calibrate.py with held-out dumps from Stage 4
-python -m train.calibrate --out-dir calibration/artifacts
+# Real run, on a .npz bundle of held-out predictions from Stage 4
+python -m coralsep.train.calibrate --held-out runs/stage4/heldout.npz --out-dir calibration/artifacts
 ```
 
 Writes artifacts to `calibration/artifacts/`:
@@ -226,7 +226,7 @@ Writes artifacts to `calibration/artifacts/`:
 
 ## Phase 5, Evaluation
 
-**Notebook:** `notebooks/eval_matrix.ipynb`
+**Notebook:** `notebooks/launchers/eval_matrix.ipynb`
 **GPU time:** ~2–4 hours on T4
 **Prerequisites:** Stage 4 joint checkpoints; calibration artifacts (optional but
   recommended for calibrated confidence metrics)
@@ -258,31 +258,31 @@ completeness probability, OOD flag rate, cardinality-aware score (§9.2).
 
 ```
 Phase 0  (CPU, once)
-  0.1  prepare_librispeech_8k.py
-  0.2  prepare_noise_staging.py  +  prepare_dns4.py
-  0.3  prepare_but_reverbdb.py
-  0.4  rir_bank.build_rir_bank()
-  0.5  fixed_eval_generator.py   (or use committed data/fixed_eval/ manifests)
+  0.1  coralsep.data.prepare.librispeech_8k
+  0.2  coralsep.data.prepare.noise_staging  +  coralsep.data.prepare.dns4
+  0.3  coralsep.data.prepare.but_reverbdb
+  0.4  coralsep.data.rir_bank.build_rir_bank()
+  0.5  coralsep.data.fixed_eval_generator   (or use committed datasets/fixed_eval/ manifests)
 
 Phase 1  (GPU × 3)
-  stage1_train_adapter.ipynb  [ADAPTER_NAME=reverb]   → adapters/reverb_adapter.pt
-  stage1_train_adapter.ipynb  [ADAPTER_NAME=noise]    → adapters/noise_adapter.pt
-  stage1_train_adapter.ipynb  [ADAPTER_NAME=codec]    → adapters/codec_adapter.pt
+  launchers/stage1_train_adapter.ipynb  [ADAPTER_NAME=reverb]   → adapters/reverb_adapter.pt
+  launchers/stage1_train_adapter.ipynb  [ADAPTER_NAME=noise]    → adapters/noise_adapter.pt
+  launchers/stage1_train_adapter.ipynb  [ADAPTER_NAME=codec]    → adapters/codec_adapter.pt
 
 Phase 1b (GPU × 1, decision gate)
-  stage2_universal.ipynb  →  verdict in docs/decisions.md
+  launchers/stage2_universal.ipynb  →  verdict in docs/decisions.md
 
 Phase 2  (GPU × 1)
-  stage3_gate.ipynb  →  gate_net.pt + level2_analyzer.pt
+  launchers/stage3_gate.ipynb  →  gate_net.pt + level2_analyzer.pt
 
 Phase 3  (GPU × 1)
-  stage4_joint.ipynb  →  joint_*.pt (5 files)
+  launchers/stage4_joint.ipynb  →  joint_*.pt (5 files)
 
 Phase 4  (CPU)
-  python -m train.calibrate  →  calibration/artifacts/
+  python -m coralsep.train.calibrate  →  calibration/artifacts/
 
 Phase 5  (GPU × 1)
-  eval_matrix.ipynb  →  results/
+  launchers/eval_matrix.ipynb  →  results/
 ```
 
 **Total GPU time estimate:** 30–45 hours across all stages on T4.
@@ -325,9 +325,9 @@ After all phases complete, your working directory should look like:
 ## Running the demo after training
 
 ```bash
-python demo/app.py \
-    --joint-dir  /kaggle/working/joint \
-    --calib-dir  calibration/artifacts
+coralsep-demo --coralsep --device cuda
+# or, from a source checkout without the console script installed:
+python -m coralsep.demo.cli --coralsep --device cuda
 ```
 
 The Gradio UI shows gate routing bars, per-stream transcripts (Whisper), and a

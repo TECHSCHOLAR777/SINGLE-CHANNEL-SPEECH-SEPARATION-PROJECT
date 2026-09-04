@@ -46,4 +46,4 @@ Stage 2 is dashed because it has never been run. It exists to justify three cond
 
 ## Before you launch anything
 
-Read [`docs/TRAINING_GUIDE.md`](../docs/TRAINING_GUIDE.md), and in particular the Apple Silicon section if you are training locally. Metal shader compilation on the first forward pass per speaker count looks exactly like a memory leak, and the warm-up loop that fixes it costs eight seconds.
+Read [`docs/TRAINING_GUIDE.md`](../docs/TRAINING_GUIDE.md) for the stage sequence. If you are training locally on Apple Silicon, also read [`docs/restoration/LEARNINGS.md`](../docs/restoration/LEARNINGS.md) L-005: Metal shader compilation on the first forward pass per speaker count looks exactly like a memory leak, and the warm-up loop that fixes it (already in `src/coralsep/train/stage1_single.py`) costs about eight seconds warm.

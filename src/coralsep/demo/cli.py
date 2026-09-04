@@ -11,9 +11,9 @@ The separation engine is injected as a callable for staged rollout:
   --config X    legacy baseline config (SepFormer)
 
 Run:
-    python -m coralsep.demo.app --mock
-    python -m coralsep.demo.app --coralsep --device cuda
-    python -m coralsep.demo.app --config configs/baseline.yaml
+    python -m coralsep.demo.cli --mock
+    python -m coralsep.demo.cli --coralsep --device cuda
+    python -m coralsep.demo.cli --config configs/baseline.yaml
 """
 
 from __future__ import annotations
