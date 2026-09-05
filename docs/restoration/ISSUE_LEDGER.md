@@ -93,7 +93,7 @@
 | I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟢 CLOSED, neither is harmful | [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95) |
 | I-058 | `[BUG]` | 🔴 P0 | Opus codec roundtrip keeps only 1/6 of the decoded audio | 🟢 CLOSED | [#96](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/96) |
 | I-059 | `[RESEARCH]` | 🟠 P1 | Feasibility check: retrain SR-CorrNet itself on real LibriMix | 🟡 INVESTIGATING, pipeline confirmed runnable | [#97](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/97) |
-| I-060 | `[EXP]` | 🟡 P2 | Real fixed evaluation matrix never wired into a scoring pipeline | 🟡 code written and tested, real run pending | pending |
+| I-060 | `[EXP]` | 🟡 P2 | Real fixed evaluation matrix never wired into a scoring pipeline | 🟡 code written and tested, real run pending | [#98](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/98) |
 
 ---
 
@@ -1749,7 +1749,7 @@ Ran a real, small feasibility smoke test rather than trusting any of this from r
 
 ### I-060 `[EXP]` P2 The real fixed evaluation matrix was never wired into a scoring pipeline
 
-**State:** 🟡 code written and unit-tested, real run against the GPU-box dataset not yet done
+**State:** 🟡 code written and unit-tested, real run against the GPU-box dataset not yet done · GitHub [#98](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/98)
 
 **Problem.** `eval/matrix.py::run_eval_matrix` only reads a JSONL manifest with separate on-disk `.wav` files, per its own docstring ("JSONL manifest produced by fixed_eval_generator.py. Each line has {mixture_id, condition, n_true, mixture_path, reference_paths}"). The generator that actually exists and was run for real this session (I-057, I-058, I-059's surrounding work; WORKLOG entries 10 and 12) writes a different format: one `eval_manifest.json` (a single JSON object, not JSONL) listing `{path, sha256}` per sample, each sample a self-contained `.npz` with `mixture`, `references`, `recipe`, and `condition_vector` arrays. Nothing in this repository could score the real 3300-file set against a real pipeline before this ticket.
 
