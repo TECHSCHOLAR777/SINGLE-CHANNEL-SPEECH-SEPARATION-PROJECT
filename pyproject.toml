@@ -42,6 +42,7 @@ dev = [
     "ruff>=0.4",
     "black>=24.0",
     "pre-commit>=3.6",
+    "tomli>=2.0; python_version < '3.11'",
 ]
 demo = [
     "gradio>=4.0",

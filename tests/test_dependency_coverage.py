@@ -15,7 +15,11 @@ import sys
 from pathlib import Path
 
 import pytest
-import tomllib
+
+try:
+    import tomllib
+except ModuleNotFoundError:  # Python < 3.11; project supports 3.10 (pyproject.toml)
+    import tomli as tomllib
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
