@@ -44,6 +44,10 @@ OPTIONAL_WITH_FALLBACK: set[str] = {
     "onnxruntime",  # eval/dnsmos.py degrades when the scorer is unavailable
     "pesq",  # eval/pesq_metric.py is skipped when absent
     "sklearn",  # calibration falls back to a closed-form fit
+    # Stdlib on Python 3.11+; on 3.10 (the project's floor) sys.stdlib_module_names
+    # does not include it, and the declared fallback is "tomli", not "tomllib",
+    # so the plain stdlib/declared checks below never see this name as covered.
+    "tomllib",
 }
 
 
