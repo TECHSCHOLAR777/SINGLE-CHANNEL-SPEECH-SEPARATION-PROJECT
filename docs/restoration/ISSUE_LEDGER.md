@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🔴 61 tickets. 41 closed, 20 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 61 tickets. 42 closed, 19 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -94,7 +94,7 @@
 | I-058 | `[BUG]` | 🔴 P0 | Opus codec roundtrip keeps only 1/6 of the decoded audio | 🟢 CLOSED | [#96](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/96) |
 | I-059 | `[RESEARCH]` | 🟠 P1 | Feasibility check: retrain SR-CorrNet itself on real LibriMix | 🟡 INVESTIGATING, pipeline confirmed runnable | [#97](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/97) |
 | I-060 | `[EXP]` | 🟡 P2 | Real fixed evaluation matrix never wired into a scoring pipeline | 🟡 real run done, blocked on I-061 for usable numbers | [#98](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/98) |
-| I-061 | `[BUG]` | 🔴 P0 | CoralSepPipeline feeds 16kHz streams into an 8kHz-configured stitcher | 🔴 root cause found, fix needs a design decision | [#99](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/99) |
+| I-061 | `[BUG]` | 🔴 P0 | CoralSepPipeline feeds 16kHz streams into an 8kHz-configured stitcher | 🟢 CLOSED, fix confirmed on real GPU hardware | [#99](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/99) |
 
 ---
 
@@ -1774,7 +1774,11 @@ Ran a real, small feasibility smoke test rather than trusting any of this from r
 
 ### I-061 `[BUG]` P0 `CoralSepPipeline.run()` feeds 16 kHz separated streams into an 8 kHz-configured stitcher, corrupting every output
 
-**State:** 🔴 P0, root cause located by direct code inspection and empirical isolation; fix not yet implemented, needs a design decision · GitHub [#99](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/99)
+**State:** 🟢 CLOSED, fix implemented and confirmed on real GPU hardware · commit `7e0d9be` · GitHub [#99](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/99)
+
+**2026-09-05, fix update.** Owner chose the resample-down approach (option 1: keep `ChunkStitcher` at 8 kHz, resample the expert's 16 kHz output back down inside `_separate_chunk`, matching the already-documented `streams_8k`/`streams_16k` split) over reconfiguring the stitcher or exposing a native-rate expert API, since it is self-contained to `pipeline/infer.py` and does not touch `SRCorrNetExpert`'s public contract that every other diagnostic this session depends on. Implemented in `CoralSepPipeline._separate_chunk`/`_to_native_rate`. Also fixed the shared `MockExpert` test fixture (`tests/conftest.py`), which echoed back the input sample rate instead of replicating the real expert's constant-16 kHz-output contract; that gap is exactly why no existing pipeline test had ever caught this. Added a direct unit test (`tests/test_pipeline_smoke.py::test_separate_chunk_resamples_expert_output_back_to_8k`) using a fake expert that reproduces the real rate contract, confirmed to fail without the fix (`16000 == 8000`, streams shaped exactly 2x too long) and pass with it, before committing either change.
+
+Reran the exact same single-chunk, real-audio comparison this ticket's evidence was built on, on the GPU box, after the fix: `pipeline.run()` on the same real 2-second clip now scores 18.54 dB SI-SNR, matching the bare `expert.separate()` baseline (18.5 dB) established during root-causing, not the -35.5 dB the same call gave before the fix.
 
 **Problem.** `pipeline/infer.py::CoralSepPipeline.run()` constructs `ChunkStitcher(n_speakers=..., sample_rate=CORALSEP_SAMPLE_RATE, use_ecapa=True)`, where `CORALSEP_SAMPLE_RATE = 8_000`. `ChunkStitcher.__init__` uses that value to compute `self._step` and `self._chunk_len` in 8 kHz sample counts. But the per-chunk result fed into it, `result.streams` from `SRCorrNetExpert.separate()`, is always returned at `PROJECT_SAMPLE_RATE = 16_000` (the expert's own documented contract: it resamples the model's raw 8 kHz output back up to 16 kHz before returning `SeparationResult(streams=streams, sample_rate=PROJECT_SAMPLE_RATE, ...)`). `stitcher.feed_chunk(result.streams, ...)` receives arrays exactly twice as long, in real time, as the stitcher's own internal `_chunk_len`/`_step` assume. `finalize()`'s overlap-add loop (`chunk[:, :seg_len]`, `output[:, start:clip_end] += chunk[:, :seg_len] * env[:seg_len]`) then takes only the first half (in real time) of each chunk's samples and treats it as covering the chunk's full nominal duration, scrambling the reconstructed timeline.
 
@@ -1797,8 +1801,8 @@ A third possibility, that `SRCorrNetExpert.separate()` should offer (or already 
 **Acceptance criteria.**
 - [x] The corruption is reproduced and isolated to a specific, named code path (`ChunkStitcher` fed 16 kHz data while configured for 8 kHz), not left as a vague "the pipeline seems bad."
 - [x] Every simpler alternative explanation (dynamic vs oracle speaker count, preprocessing, chunk padding, cross-chunk stitching) was tested directly and ruled out before settling on this one, not assumed.
-- [ ] A fix is chosen, deliberately, between the two (or more) candidate designs above, implemented, and the same before/after comparison (bare `expert.separate()` vs full `pipeline.run()` on the same real clip) is rerun to confirm the fix actually closes the gap rather than just changing the symptom.
-- [ ] I-060's real evaluation run is repeated after the fix and its numbers, whatever they are, are recorded as the first trustworthy read on the assembled pipeline's real quality.
+- [x] A fix is chosen, deliberately, between the two (or more) candidate designs above, implemented, and the same before/after comparison (bare `expert.separate()` vs full `pipeline.run()` on the same real clip) is rerun to confirm the fix actually closes the gap rather than just changing the symptom. 18.54 dB after, vs -35.5 dB before, on the identical clip.
+- [ ] I-060's real evaluation run is repeated after the fix and its numbers, whatever they are, are recorded as the first trustworthy read on the assembled pipeline's real quality. Rerun launched; not yet complete.
 
 **Validation.** All six comparison points above were run and their real numbers recorded directly from GPU-box output, not estimated: 0.97, 18.4, 18.4, 18.5, and -35.5 dB across the isolation steps, plus the original -15 to -60 dB range from the full 66-mixture I-060 run. `ChunkStitcher.__init__` and `SRCorrNetExpert.separate()` were read directly, not from memory, to confirm the rate mismatch's exact arithmetic.
 
