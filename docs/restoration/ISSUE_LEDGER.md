@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 57 tickets. 39 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 59 tickets. 41 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -90,7 +90,9 @@
 | I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | [#92](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/92) |
 | I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, confirmed on three reruns | [#93](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/93) |
 | I-056 | `[BUG]` | 🔴 P0 | CI has never once passed on this repository | 🟡 fix landed, next run unconfirmed | [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94) |
-| I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟡 INVESTIGATING, diagnostic written | [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95) |
+| I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟢 CLOSED, neither is harmful | [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95) |
+| I-058 | `[BUG]` | 🔴 P0 | Opus codec roundtrip keeps only 1/6 of the decoded audio | 🟢 CLOSED | [#96](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/96) |
+| I-059 | `[RESEARCH]` | 🟠 P1 | Feasibility check: retrain SR-CorrNet itself on real LibriMix | 🟡 INVESTIGATING, pipeline confirmed runnable | [#97](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/97) |
 
 ---
 
@@ -1627,7 +1629,20 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-057 `[MODEL]` P1 The noise and codec LoRA adapters have never been independently evaluated for harm or benefit
 
-**State:** INVESTIGATING, diagnostic written, GPU run pending · commit `6313324` · GitHub [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95)
+**State:** 🟢 CLOSED, both adapters scored on real GPU runs · commit pending · GitHub [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95)
+
+**2026-09-05 update: both adapters run on the real checkpoints. Neither is harmful.**
+
+| Adapter | Condition | Delta vs base |
+|---|---|---:|
+| Noise | clean | -0.01 dB |
+| Noise | mild (SNR +5 dB) | +2.05 dB |
+| Noise | severe (SNR -6 dB) | +0.55 dB |
+| Codec | clean | +0.26 dB |
+| Codec | opus 16 kbps | +0.09 dB |
+| Codec | AMR-NB 4750 bps | +0.25 dB |
+
+The codec `opus_16k` number above is the corrected one, rerun after I-058 fixed a genuine audio-corruption bug in the codec roundtrip (the first measurement, before that fix, showed a fabricated +5.20 dB against a mixture that had already been silently mangled to 1/6 of its real duration; see I-058). Both adapters are small but consistently positive or neutral, in sharp contrast to the reverb adapter's original harm (I-025). This rules out I-057's original worry: the gate blending near 0.5 across all three adapters (I-003) is not currently distributing harm from the noise or codec side, only the reverb side did (before its own fix, I-025).
 
 **Problem.** I-025 found the reverb adapter harmful in its shipped configuration. `docs/restoration/DATA_AND_MODEL_INVENTORY.md` CKPT-002 (noise) and CKPT-003 (codec) show both checkpoints were downloaded and loaded this session, but only for the I-043 co-activation diagnostic, which measures the cost of running all three adapters together at deployment gate values; neither has ever been scored on its own against the frozen backbone the way the reverb adapter was.
 
@@ -1642,11 +1657,68 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 **Acceptance criteria.**
 - [x] A diagnostic exists that scores the noise adapter's own SI-SNR effect independent of the other two adapters.
 - [x] The same for the codec adapter.
-- [ ] Both are run against the real Kaggle checkpoints (CKPT-002, CKPT-003) on a GPU and a verdict is recorded here, not assumed.
+- [x] Both are run against the real Kaggle checkpoints (CKPT-002, CKPT-003) on a GPU and a verdict is recorded here, not assumed. See table above.
 
-**Validation.** `pytest tests/ -q`, 604 passed, 11 skipped, unaffected (no test file yet for the new script; it is a diagnostic tool, not library code, matching the precedent set by `eval_reverb_adapter.py` itself). Ruff and black clean.
+**Validation.** `pytest tests/ -q`, 604 passed, 11 skipped, unaffected (no test file yet for the new script; it is a diagnostic tool, not library code, matching the precedent set by `eval_reverb_adapter.py` itself). Ruff and black clean. Both diagnostics run on the GPU box against real checkpoints and real staged data (`kaggle_data/stage1_adapters/best_noise.pt`, `best_codec.pt`, `noise_staged_eval_tt`), 2026-09-05.
 
 **Dependencies.** Extends I-025's finding to the other two adapters. Feeds I-043 if either turns out harmful, since I-043's co-activation number assumed all three inputs were reasonable on their own.
+
+---
+
+### I-058 `[BUG]` P0 The Opus codec roundtrip silently keeps only the first sixth of the decoded audio, corrupting every Opus sample
+
+**State:** CLOSED, commit `df85b8d` · GitHub [#96](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/96)
+
+**Problem.** `data/codec_augmentation.py::_ffmpeg_roundtrip_standalone` only resamples the decode step back to the source sample rate when the codec has a mandatory encode-side rate (`_CODEC_REQUIRED_SR`, set for `amr-nb`/`amr-wb`, `None` for `opus`/`aac`). Opus's container always reports its fixed internal clock (48 kHz) on decode regardless of the input rate fed to the encoder, so for an 8 kHz source, `sf.read` on the decoded file returns a 48 kHz, 6x-longer buffer than expected. `_fit_length` then silently crops that buffer to the original sample count, keeping only the first sixth of the real decoded duration and discarding the rest, with no error, warning, or nonzero exit code anywhere in the path.
+
+**Evidence.** Found while running the new noise/codec adapter diagnostic (I-057) for the first time: `codec_opus_16k`'s "SI-SNR(mixture vs reference)" lower bound came back at -52.84 dB, physically implausible for a 16 kbps Opus round trip of speech. Reproduced directly and isolated: `sf.info()` on a decoded 2-second/8kHz-source Opus round trip (no code changes) reported `samplerate: 48000, frames: 96000` while the caller believed it held 16000 frames at 8 kHz. A cross-correlation check against broadband noise input showed near-zero correlation with the original signal (peak ~0.03) before the fix, versus a clean, high-confidence correlation for AAC's already-correct roundtrip (peak 0.95, revealing AAC's own much smaller and already-expected ~1024-sample encoder priming delay, left unaddressed here since it is a real algorithmic delay rather than a rate-mismatch corruption).
+
+**Impact.** Every generated sample where Opus actually ran, not the mu-law fallback, is corrupted this way. The fixed evaluation matrix's own provenance check (WORKLOG entry 10) counted 574 real Opus samples across the 3300-file set; every one of them held roughly 1/6 of a real Opus-damaged clip, silently. Anyone scoring "robustness to Opus" from that manifest was scoring something closer to random noise than a codec artifact. It also means the codec adapter's own I-057 diagnostic result for `codec_opus_16k`, measured before this fix, reported a fabricated +5.20 dB improvement; the corrected rerun after this fix shows +0.09 dB, essentially neutral. The pre-fix number is not trustworthy and is explicitly not used in I-057's final table.
+
+**Suspected cause.** `_CODEC_REQUIRED_SR` was designed around AMR's genuine sample-rate mandate (8 kHz for AMR-NB, 16 kHz for AMR-WB) and reused as the trigger for the decode-side resample, without noticing that Opus and AAC need the decode resample for a different reason (Opus's fixed internal clock) or not at all (AAC preserves the source rate). Opus's case was never tested against real broadband content until this session; a pure sine wave (used implicitly by anyone eyeballing waveform plots) survives the corruption almost perfectly because a truncated, wrong-rate slice of a sine wave still looks like a sine wave.
+
+**Scope.** `_ffmpeg_roundtrip_standalone`'s decode command now always passes `-ar {sr}`, unconditionally, instead of gating it on `required_sr is not None`.
+
+**Acceptance criteria.**
+- [x] The decoded audio is confirmed at the correct sample rate and full duration for Opus, checked directly via `sf.info`, not inferred from exit codes.
+- [x] A cross-correlation check against broadband (non-periodic) input confirms real signal correlation after the fix, not just matching aggregate stats like RMS or peak.
+- [x] The I-057 codec diagnostic is rerun with the fix and its corrected number is what gets recorded, not the pre-fix one.
+- [ ] The already-generated fixed evaluation matrix's 574 real-Opus samples are known to be corrupted; regenerating them is not yet scheduled as its own ticket.
+
+**Validation.** `pytest tests/test_codec_augmentation.py -q`, 31 passed; full suite 604 passed, 11 skipped, unaffected. Direct reproduction and fix confirmation via `sf.info` and cross-correlation, both before and after the fix, on the GPU box with real ffmpeg (`libopus`, confirmed present via `ffmpeg -codecs`).
+
+**Dependencies.** Found while running I-057. Related to, but distinct from, I-054 (which fixed mislabeling of the mu-law fallback path; this ticket is about corruption in the path that succeeds and is labeled correctly). Leaves open whether `datasets/fixed_eval/` or the real generated `fixed_eval_real` set needs regenerating.
+
+---
+
+### I-059 `[RESEARCH]` P1 Feasibility check: can SR-CorrNet itself be retrained on real LibriMix data, for a fair baseline-vs-CoRAL-Sep comparison
+
+**State:** 🟡 INVESTIGATING, pipeline feasibility confirmed on a real smoke test; a full retrain is not yet scoped or launched · GitHub [#97](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/97)
+
+**Problem.** The frozen SR-CorrNet backbone this project builds on was trained on WSJ0-mix, per its own paper, and reports roughly 23 dB SI-SDRi there. Every number in `RESULTS.md` measures that same frozen backbone on LibriMix instead, where it was never trained, scoring 7-11 dB. README.md and RESULTS.md already flag this domain-mismatch honestly, but the owner raised a sharper version of the same concern directly: to compare CoRAL-Sep's adapters fairly against a baseline, the baseline should be trained on the same target-domain data the adapters are fine-tuned on, not just measured on it zero-shot. This ticket is the feasibility gate before committing real GPU time to that retrain.
+
+**Evidence gathered.** The `sr-corrnet-ss` pip package this project depends on (pinned commit `7340365b9cc9a021bf7d400f52fce4b88593b67a`) ships inference-only code; no trainer, no loss module, no dataset class. The full upstream GitHub repository (`github.com/dmlguq456/SR_CorrNet_SS`) does have a complete training pipeline: `sr_corrnet/models/SR_CorrNet_SS/{dataset.py, engine.py, loss.py, model.py}`, invoked via `run.py --engine_mode train`, plus a LibriMix scp-generation helper (`data/create_scp/ss/create_scp_libri_8k.py`) and reference configs including one matching our checkpoint's own family (`1ch_WSJ_var_2_5spk.yaml`).
+
+Ran a real, small feasibility smoke test rather than trusting any of this from reading code alone, in an isolated conda environment (`srcorrnet_train_smoke`, kept fully separate from the `coralsep` environment used for every other verified result in this project, since an editable install of the full repo was briefly and accidentally installed into the shared `coralsep` env mid-investigation and immediately reverted back to the pinned commit once noticed):
+
+1. Generated a genuine, small (20-utterance) Libri2Mix test-clean set using the official `JorisCos/LibriMix` generator against real, already-staged LibriSpeech `test-clean` and WHAM `tt` noise. Two real upstream bugs surfaced immediately: `create_librimix_from_metadata.py` crashes when `types=['mix_clean']` is requested alone, because it always writes a noise file but only creates the `noise/` output directory for other `types` combinations (worked around by requesting `mix_clean` and `mix_both` together).
+2. Wrote scp files and a reduced training config (`smoke_2mix.yaml`) adapted from the reference `1ch_WSJ_var_2_5spk.yaml`. Hit and fixed, in order: the config needs `is_var_spks: true` for the nested `subset_dir`/`2mix` scp layout (the flat, non-nested loader path expects a different, undocumented shape and errors with a bare `KeyError`); scp files must live under `<scp_dir>/<subset_dir>/`, not directly in `scp_dir`; the config's `engine.scheduler` block must include `WarmupConstantSchedule` and `ReduceLROnPlateau` sub-blocks even when a different scheduler (`StepLR`) is active, since `setup_optimizer_and_scheduler` builds all three unconditionally; the `train` pip extra is missing `matplotlib`, `torchinfo`, `ptflops`, `thop`, and `wandb`, none of which install from the base or `train` extras' declared list alone in a clean environment.
+3. First real run completed instantly with zero training steps and no checkpoint, silently. Traced this to `load_last_checkpoint_n_get_epoch` returning `1` (not `0`) when no checkpoint exists, so `range(self.start_epoch, config['engine']['max_epoch'])` with `max_epoch: 1` is `range(1, 1)`, empty. This would have been reported as a false success had the timestamps not been checked (near-zero elapsed time between "start" and "done" log lines was the tell). Fixed by setting `max_epoch: 2`.
+4. Real training then ran: 20 real batches per epoch, loss (`L_se`) genuinely decreasing within the epoch (24.5 to 20.3), followed by a real validation pass computing SI-SNRi (-5.22 dB, expected for a model trained for one real epoch on 20 samples). Hit one more bug, unrelated to LibriMix or training mechanics: `util_writer.py`'s TensorBoard spectrogram logging calls `fig.canvas.tostring_rgb()`, an API matplotlib removed; the environment's default matplotlib (3.11.1, coincidentally not the version pinned anywhere) doesn't have it. Fixed by pinning `matplotlib<3.9`.
+5. Confirmed a real checkpoint was written and is loadable: `sr_corrnet/checkpoints/SS/smoke_2mix/model.pt`, 56,350,279 bytes, loads as a real `OrderedDict` of model weight tensors, not by trusting the "done" log line alone.
+
+**Impact.** The training pipeline is real, reachable, and now demonstrated to run end to end against genuinely generated LibriMix-format data on this project's GPU box, once six real, previously-undocumented environment and config gaps are worked around. None of these gaps were about LibriMix specifically; they would have blocked any first attempt at using this training code at all, on any dataset. A full retrain sized to reach anything like the paper's reported quality (the reference config trains for 200 epochs against 20,000 samples/epoch) is a multi-day undertaking on a shared GPU and needs a real LibriMix train-scale dataset staged, which does not exist yet: only a small evaluation-scale slice (`librispeech_slice`, 1.3 GB) and a small public eval-only LibriMix set (1.5 GB) are staged, nowhere near train-360/train-100 scale.
+
+**Scope.** This ticket covers feasibility only. A full retrain needs its own scoped ticket covering: staging a real LibriMix train-scale dataset (either via the official generator against full LibriSpeech train-360 plus WHAM, or via this project's own dynamic mixing pipeline), choosing a realistic epoch/sample budget given shared-GPU constraints, and deciding whether to target the same `1ch_WSJ_var_2_5spk` architecture family as the shipped checkpoint (for a like-for-like comparison) or a smaller/faster variant given time constraints.
+
+**Acceptance criteria.**
+- [x] The full upstream training pipeline is confirmed runnable, end to end, against real (not synthetic) LibriMix-format data, with a real checkpoint produced and independently verified.
+- [x] Every environment and config gap hit along the way is documented, not silently worked around and forgotten.
+- [ ] A follow-up ticket scopes and, if the owner approves the GPU-time cost, launches an actual full-scale retrain.
+
+**Validation.** Real checkpoint file inspected directly: `torch.load(..., weights_only=True)` returns an `OrderedDict` with real parameter-shaped keys (`encoder.embed.0.weight`, etc.), confirmed on the GPU box, 2026-09-05. The isolated `srcorrnet_train_smoke` conda environment never touched the `coralsep` environment's installed package after the one accidental editable-install was reverted; confirmed by checking `sr_corrnet`'s resolved file path pointed back at `site-packages` with the pinned commit's version, not `/tmp/srcorrnet_full`.
+
+**Dependencies.** Motivated by the same fairness concern already partly captured in I-024 (frozen-backbone-vs-CoRAL-Sep confound). A full retrain, if it happens, would give I-024 a genuinely fair baseline instead of a zero-shot one.
 
 ---
 
