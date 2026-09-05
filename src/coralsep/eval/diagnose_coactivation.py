@@ -103,7 +103,7 @@ def main() -> None:
     ss, lib = load_all_three(args.reverb_ckpt, args.noise_ckpt, args.codec_ckpt, args.device)
 
     print(f"[SETUP] Loading RIR bank from {args.rir_bank} ...")
-    rir_bank = RirBank(args.rir_bank)
+    rir_bank = RirBank(args.rir_bank, rng=rng)
 
     print(f"[SETUP] Building test mixture from {args.librispeech_8k} ...")
     mixture_clean, refs_clean, n_spks = build_test_mixture(args.librispeech_8k, rng)
