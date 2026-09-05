@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 59 tickets. 41 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 60 tickets. 41 closed, 19 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -93,6 +93,7 @@
 | I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟢 CLOSED, neither is harmful | [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95) |
 | I-058 | `[BUG]` | 🔴 P0 | Opus codec roundtrip keeps only 1/6 of the decoded audio | 🟢 CLOSED | [#96](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/96) |
 | I-059 | `[RESEARCH]` | 🟠 P1 | Feasibility check: retrain SR-CorrNet itself on real LibriMix | 🟡 INVESTIGATING, pipeline confirmed runnable | [#97](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/97) |
+| I-060 | `[EXP]` | 🟡 P2 | Real fixed evaluation matrix never wired into a scoring pipeline | 🟡 code written and tested, real run pending | pending |
 
 ---
 
@@ -1743,6 +1744,30 @@ Ran a real, small feasibility smoke test rather than trusting any of this from r
 **Validation.** Real checkpoint file inspected directly: `torch.load(..., weights_only=True)` returns an `OrderedDict` with real parameter-shaped keys (`encoder.embed.0.weight`, etc.), confirmed on the GPU box, 2026-09-05. The isolated `srcorrnet_train_smoke` conda environment never touched the `coralsep` environment's installed package after the one accidental editable-install was reverted; confirmed by checking `sr_corrnet`'s resolved file path pointed back at `site-packages` with the pinned commit's version, not `/tmp/srcorrnet_full`.
 
 **Dependencies.** Motivated by the same fairness concern already partly captured in I-024 (frozen-backbone-vs-CoRAL-Sep confound). A full retrain, if it happens, would give I-024 a genuinely fair baseline instead of a zero-shot one.
+
+---
+
+### I-060 `[EXP]` P2 The real fixed evaluation matrix was never wired into a scoring pipeline
+
+**State:** 🟡 code written and unit-tested, real run against the GPU-box dataset not yet done
+
+**Problem.** `eval/matrix.py::run_eval_matrix` only reads a JSONL manifest with separate on-disk `.wav` files, per its own docstring ("JSONL manifest produced by fixed_eval_generator.py. Each line has {mixture_id, condition, n_true, mixture_path, reference_paths}"). The generator that actually exists and was run for real this session (I-057, I-058, I-059's surrounding work; WORKLOG entries 10 and 12) writes a different format: one `eval_manifest.json` (a single JSON object, not JSONL) listing `{path, sha256}` per sample, each sample a self-contained `.npz` with `mixture`, `references`, `recipe`, and `condition_vector` arrays. Nothing in this repository could score the real 3300-file set against a real pipeline before this ticket.
+
+**Evidence.** `matrix.py`'s only entry point, `run_eval_matrix`, calls `sf.read(item["mixture_path"], ...)` on paths it expects a JSONL line to name; the real manifest has no such lines or paths, only the `{path, sha256}` list under a `"files"` key inside one JSON object. Confirmed directly by loading the real `eval_manifest.json` and a real `.npz` sample from `kaggle_data/fixed_eval_real` on the GPU box and inspecting their actual keys (`['conditions', 'files', ...]` and `['mixture', 'references', 'recipe', 'condition_vector']` respectively), rather than assuming the docstring was still accurate.
+
+**Impact.** This was the direct, named blocker in WORKLOG entry 10's "next action" for finally answering I-023's evidence gap (no confidence interval or real-data run has ever backed a CoRAL-Sep headline number) using real, hash-verified, N up to 5 data instead of the archived n=30 oracle-count LibriMix runs.
+
+**Scope.** Added `run_eval_matrix_npz(pipeline, eval_dir, ...)` to `matrix.py`, reusing the existing `MixtureRecord`/`EvalMatrix`/`_compute_sisdr_sdri` machinery so its output is a drop-in match for the existing JSONL path's. Condition and speaker count are read from each sample's own path (`<condition>/n<N>/mix_XXXX.npz`), since neither is a separate field in the manifest or the recipe, and the real generator's condition names (`all-three`, `but_reverb`) differ from `matrix.py`'s own hardcoded `_CONDITIONS` tuple, which this function does not enforce. Deliberately did not touch `run_eval.py` (a separate script targeting the official LibriMix directory layout directly, `_iter_test_samples`, unrelated to this manifest format) or attempt to merge I-002/I-026's oracle-count and confidence-interval logic into this pass in the same change.
+
+**Acceptance criteria.**
+- [x] A loader exists that reads the real manifest format and scores it through any `CoralSepPipeline`-shaped object.
+- [x] Unit tests cover it against synthetic `.npz` fixtures and a fake pipeline: condition/N parsed correctly from the path, near-perfect SI-SDRi on a perfect-separation fake, `max_per_bucket` limiting, and a per-sample pipeline error not aborting the whole run. `tests/test_matrix.py`, 4 tests, all passing; `matrix.py` had zero test coverage before this ticket.
+- [ ] A real run against the actual `kaggle_data/fixed_eval_real` set on the GPU box, with a real assembled `CoralSepPipeline` (the real reverb/noise/codec/gate checkpoints this session already verified independently), produces a genuine first result. Not yet done; `CoralSepPipeline`'s constructor takes only `expert` as required, everything else (LoRA, gate, counting, band recovery, confidence/completeness/OOD, DNSMOS) is optional and defaults to inert values, so a real run does not require every stage to be assembled at once.
+- [ ] Wiring I-002 (non-oracle counting) and I-026 (bootstrap CIs) into a run against this real data, closing I-023's evidence gap, is left as a separate follow-up rather than assumed complete here.
+
+**Validation.** `pytest tests/test_matrix.py -q`, 4 passed. Full suite: 609 passed, 11 skipped. Ruff and black clean.
+
+**Dependencies.** Feeds I-002, I-023, I-026. Depends on I-057/I-058's real, corruption-free `fixed_eval_real` set existing on the GPU box.
 
 ---
 

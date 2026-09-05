@@ -236,6 +236,101 @@ def run_eval_matrix(
     return matrix
 
 
+def run_eval_matrix_npz(
+    pipeline,
+    eval_dir: str | Path,
+    dnsmos_scorer=None,
+    max_per_bucket: int | None = None,
+    device: str = "cpu",
+) -> EvalMatrix:
+    """
+    Run the CoRAL-Sep pipeline over the real fixed-evaluation set.
+
+    `run_eval_matrix` above targets a JSONL manifest with separate on-disk wav
+    files, the format `fixed_eval_generator.py`'s docstring describes. The
+    generator that actually exists today writes a different, self-contained
+    format instead: one `eval_manifest.json` listing `{path, sha256}` per
+    sample, each sample a single `.npz` holding `mixture`, `references`,
+    `recipe` (JSON string), and `condition_vector` (JSON string). Condition
+    and speaker count are read from the sample's own path
+    (`<condition>/n<N>/mix_XXXX.npz`), since neither is a separate field in
+    the manifest or the recipe. This was never wired up before this ticket
+    (I-002, I-023, I-026's evidence gap); see WORKLOG entry 10 and 12.
+
+    Args:
+        pipeline: CoralSepPipeline instance.
+        eval_dir: Directory containing `eval_manifest.json` and the sample
+            tree, as produced by `data/fixed_eval_generator.py`.
+        dnsmos_scorer: DnsmosScorer for 16 kHz quality scoring.
+        max_per_bucket: Limit mixtures per (condition, N) for quick ablations.
+        device: Torch device.
+
+    Returns:
+        EvalMatrix with one record per mixture.
+    """
+    eval_dir = Path(eval_dir)
+    with open(eval_dir / "eval_manifest.json") as f:
+        manifest = json.load(f)
+
+    matrix = EvalMatrix()
+    bucket_counts: dict[tuple, int] = {}
+
+    for entry in manifest["files"]:
+        rel_path = entry["path"]
+        parts = Path(rel_path).parts
+        condition = parts[0]
+        n_true = int(parts[1].lstrip("n"))
+
+        key = (condition, n_true)
+        if max_per_bucket is not None and bucket_counts.get(key, 0) >= max_per_bucket:
+            continue
+
+        mixture_id = Path(rel_path).stem
+        npz_path = eval_dir / rel_path
+        try:
+            data = np.load(str(npz_path), allow_pickle=True)
+            mix_wav = data["mixture"]
+            refs = [data["references"][i] for i in range(data["references"].shape[0])]
+            recipe = json.loads(str(data["recipe"][0]))
+            sr = int(recipe.get("sample_rate", 8000))
+        except Exception as e:
+            print(f"[eval] skip {mixture_id}: {e}")
+            continue
+
+        try:
+            result = pipeline.run(mix_wav, sr)
+        except Exception as e:
+            print(f"[eval] pipeline error {mixture_id}: {e}")
+            continue
+
+        si_sdri_val, sdri_val = _compute_sisdr_sdri(result.streams_8k, refs, sr, device)
+
+        dnsmos_ovrl = None
+        if dnsmos_scorer is not None and dnsmos_scorer.is_available:
+            try:
+                scores = dnsmos_scorer.score(result.streams_16k.mean(0), sample_rate=16000)
+                dnsmos_ovrl = scores["ovrl"]
+            except Exception:
+                pass
+
+        record = MixtureRecord(
+            mixture_id=mixture_id,
+            condition=condition,
+            n_true=n_true,
+            n_hat=result.speaker_count,
+            si_sdri=si_sdri_val,
+            sdri=sdri_val,
+            dnsmos_ovrl=dnsmos_ovrl,
+            completeness_prob=result.completeness_prob,
+            ood_flag=result.ood_flag,
+            gate_vector=result.gate_vector,
+        )
+        matrix.append(record)
+        bucket_counts[key] = bucket_counts.get(key, 0) + 1
+
+    return matrix
+
+
 def _compute_sisdr_sdri(
     separated: np.ndarray,
     references: list[np.ndarray],
