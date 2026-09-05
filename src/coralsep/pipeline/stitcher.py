@@ -70,6 +70,13 @@ class ChunkStitcher:
         overlap_samples: int | None = None,
     ) -> None:
         self.n_speakers = n_speakers
+        self._n_speakers_init = n_speakers
+        """The constructor's own n_speakers, restored by reset(). `feed_chunk`
+        mutates `self.n_speakers` from `None` to the first chunk's K when no
+        fixed count was given; without tracking the original value, a `reset()`
+        between two feeding passes (CoralSepPipeline's Pass 1 -> Pass 2) leaves
+        Pass 1's stale per-chunk K in place, silently pad/trimming every
+        genuinely-correct Pass 2 stream to match it (I-062)."""
         self.sample_rate = sample_rate
         self.use_ecapa = use_ecapa
         self.overlap_samples = (
@@ -186,6 +193,7 @@ class ChunkStitcher:
         self._chunks.clear()
         self._embeddings.clear()
         self._permutations.clear()
+        self.n_speakers = self._n_speakers_init
 
     # ------------------------------------------------------------------
     # Permutation solving

@@ -105,3 +105,44 @@ def test_separate_chunk_resamples_expert_output_back_to_8k():
 
     assert result.sample_rate == CORALSEP_SAMPLE_RATE
     assert result.streams.shape[1] == CHUNK_SAMPLES_8K
+
+
+def test_stitcher_reset_restores_dynamic_n_speakers_to_none():
+    """Regression for I-062.
+
+    feed_chunk() sets self.n_speakers from the first chunk's K when the
+    stitcher was built without a fixed count (the dynamic-counting case,
+    CoralSepPipeline's Pass 1). Before this fix, reset() cleared the buffered
+    chunks/embeddings/permutations but left that learned n_speakers in place,
+    so CoralSepPipeline's Pass 2 (a real speaker count correction after Pass 1,
+    fed through the same stitcher after reset()) had every one of its
+    genuinely-correctly-separated streams silently pad/trimmed to match Pass
+    1's stale, possibly wrong, per-chunk count. Confirmed on real GPU hardware
+    to explain a real catastrophic quality drop on 3+ speaker mixtures even
+    when the final reported speaker count looked correct.
+    """
+    stitcher = ChunkStitcher(n_speakers=None)
+    stitcher.feed_chunk(np.random.randn(3, CHUNK_SAMPLES_8K).astype(np.float32) * 0.05)
+    assert stitcher.n_speakers == 3
+
+    stitcher.reset()
+
+    assert stitcher.n_speakers is None, "reset() must restore the dynamic (None) count"
+
+    # A second feeding pass at a genuinely different, correct K must not be
+    # force-reshaped to the first pass's stale count.
+    stitcher.feed_chunk(np.random.randn(2, CHUNK_SAMPLES_8K).astype(np.float32) * 0.05)
+    result = stitcher.finalize()
+    assert result.waveforms.shape[0] == 2
+
+
+def test_stitcher_reset_restores_an_explicit_fixed_n_speakers():
+    """A stitcher built with an explicit, fixed n_speakers keeps that value
+    across reset(), not None; only the dynamic (None) case should reset to
+    None."""
+    stitcher = ChunkStitcher(n_speakers=4)
+    stitcher.feed_chunk(np.random.randn(4, CHUNK_SAMPLES_8K).astype(np.float32) * 0.05)
+
+    stitcher.reset()
+
+    assert stitcher.n_speakers == 4
