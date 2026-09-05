@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 61 tickets. 42 closed, 19 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 62 tickets. 42 closed, 20 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -93,7 +93,8 @@
 | I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟢 CLOSED, neither is harmful | [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95) |
 | I-058 | `[BUG]` | 🔴 P0 | Opus codec roundtrip keeps only 1/6 of the decoded audio | 🟢 CLOSED | [#96](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/96) |
 | I-059 | `[RESEARCH]` | 🟠 P1 | Feasibility check: retrain SR-CorrNet itself on real LibriMix | 🟡 INVESTIGATING, pipeline confirmed runnable | [#97](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/97) |
-| I-060 | `[EXP]` | 🟡 P2 | Real fixed evaluation matrix never wired into a scoring pipeline | 🟡 real run done, blocked on I-061 for usable numbers | [#98](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/98) |
+| I-060 | `[EXP]` | 🟡 P2 | Real fixed evaluation matrix never wired into a scoring pipeline | 🟡 N=2 usable, N>=3 blocked on I-062 | [#98](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/98) |
+| I-062 | `[BUG]` | 🟠 P1 | Pipeline output still unusable for N>=3 speakers after I-061 | 🟡 INVESTIGATING, evidence gathered | [#100](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/100) |
 | I-061 | `[BUG]` | 🔴 P0 | CoralSepPipeline feeds 16kHz streams into an 8kHz-configured stitcher | 🟢 CLOSED, fix confirmed on real GPU hardware | [#99](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/99) |
 
 ---
@@ -1763,7 +1764,7 @@ Ran a real, small feasibility smoke test rather than trusting any of this from r
 **Acceptance criteria.**
 - [x] A loader exists that reads the real manifest format and scores it through any `CoralSepPipeline`-shaped object.
 - [x] Unit tests cover it against synthetic `.npz` fixtures and a fake pipeline: condition/N parsed correctly from the path, near-perfect SI-SDRi on a perfect-separation fake, `max_per_bucket` limiting, and a per-sample pipeline error not aborting the whole run. `tests/test_matrix.py`, 4 tests, all passing; `matrix.py` had zero test coverage before this ticket.
-- [x] A real run against the actual `kaggle_data/fixed_eval_real` set on the GPU box, with a real assembled `CoralSepPipeline` (minimal assembly: bare frozen-backbone `expert`, matching the only other real assembly in this codebase, `demo/cli.py`), was executed and produced results. The results are not usable as an evidence gap closer: SI-SDRi came back catastrophically negative (-15 to -60 dB) across every condition, traced to a real, previously-undiscovered pipeline bug, not a data or wiring problem in this ticket's own code. See I-061.
+- [x] A real run against the actual `kaggle_data/fixed_eval_real` set on the GPU box, with a real assembled `CoralSepPipeline` (minimal assembly: bare frozen-backbone `expert`, matching the only other real assembly in this codebase, `demo/cli.py`), was executed and produced results. The first run's results were not usable: SI-SDRi came back catastrophically negative (-15 to -60 dB) across every condition, traced to I-061, a real, previously-undiscovered pipeline bug, not a data or wiring problem in this ticket's own code. After I-061's fix, a second real run shows N=2 is genuinely usable (positive SI-SDRi on correctly-counted mixtures); N=3 and above are still unusable, a second, distinct defect filed as I-062.
 - [ ] Wiring I-002 (non-oracle counting) and I-026 (bootstrap CIs) into a run against this real data, closing I-023's evidence gap, is left as a separate follow-up rather than assumed complete here.
 
 **Validation.** `pytest tests/test_matrix.py -q`, 4 passed. Full suite: 609 passed, 11 skipped. Ruff and black clean.
@@ -1802,11 +1803,35 @@ A third possibility, that `SRCorrNetExpert.separate()` should offer (or already 
 - [x] The corruption is reproduced and isolated to a specific, named code path (`ChunkStitcher` fed 16 kHz data while configured for 8 kHz), not left as a vague "the pipeline seems bad."
 - [x] Every simpler alternative explanation (dynamic vs oracle speaker count, preprocessing, chunk padding, cross-chunk stitching) was tested directly and ruled out before settling on this one, not assumed.
 - [x] A fix is chosen, deliberately, between the two (or more) candidate designs above, implemented, and the same before/after comparison (bare `expert.separate()` vs full `pipeline.run()` on the same real clip) is rerun to confirm the fix actually closes the gap rather than just changing the symptom. 18.54 dB after, vs -35.5 dB before, on the identical clip.
-- [ ] I-060's real evaluation run is repeated after the fix and its numbers, whatever they are, are recorded as the first trustworthy read on the assembled pipeline's real quality. Rerun launched; not yet complete.
+- [x] I-060's real evaluation run is repeated after the fix and its numbers, whatever they are, are recorded as the first trustworthy read on the assembled pipeline's real quality. Done: N=2 is now genuinely usable (positive SI-SDRi on correctly-counted clean N=2 mixtures). N=3 and above are still unusable even when correctly counted, a second, distinct defect, filed separately as I-062 rather than folded into this ticket's own scope.
 
 **Validation.** All six comparison points above were run and their real numbers recorded directly from GPU-box output, not estimated: 0.97, 18.4, 18.4, 18.5, and -35.5 dB across the isolation steps, plus the original -15 to -60 dB range from the full 66-mixture I-060 run. `ChunkStitcher.__init__` and `SRCorrNetExpert.separate()` were read directly, not from memory, to confirm the rate mismatch's exact arithmetic.
 
 **Dependencies.** Blocks I-060's third acceptance criterion and, transitively, I-002/I-023/I-026's evidence-gap closure. Also calls into question I-003's gate measurements and any other diagnostic that assumed `CoralSepPipeline.run()`'s output was trustworthy, though none reviewed this session actually routed through the full pipeline; all used direct model or expert calls instead, which this ticket's own evidence shows are unaffected.
+
+### I-062 `[BUG]` P1 `CoralSepPipeline` output is still unusable for 3 or more speakers after I-061's fix, even with the correct count reported
+
+**State:** 🟡 INVESTIGATING, evidence gathered, root cause not yet located · GitHub [#100](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/100)
+
+**Problem.** I-061 fixed a real sample-rate mismatch between `SRCorrNetExpert.separate()` and `ChunkStitcher`, confirmed on a single-chunk 2-speaker clip (-35.5 dB before, 18.54 dB after, matching the bare expert's own score). Rerunning I-060's full evaluation after that fix, on real multi-chunk clips spanning the actual condition matrix, shows the fix genuinely holds for N=2 but not beyond: N=2 mixtures with the correct speaker count reported now score positively (`clean n=2`: +13.52 dB and +7.86 dB, versus catastrophic negative scores before I-061). N=3 and N=4 mixtures, even in the cases where the pipeline reports the correct speaker count (ruling out a counting error as the explanation for those specific rows), still score deeply negative (`clean n=3 n_hat=3`: -25.01 dB and -13.49 dB; `clean n=4 n_hat=4`: -25.70 dB; `codec n=3 n_hat=3`: -20.77 dB).
+
+**Evidence.** Full per-mixture output from the post-I-061-fix rerun of I-060's evaluation, `~/coralsep-restoration/i060_real_run_fixed.log` on the GPU box, real checkpoints, real `fixed_eval_real` data. The pattern (correctly-counted N=2 good, correctly-counted N=3/4 still bad) rules out the two simplest explanations: it is not the I-061 rate bug (already fixed and independently confirmed), and it is not simply "wrong speaker count causes bad scoring" (several of the bad rows report the exact right count).
+
+**Impact.** I-060's evidence-gap-closing run still cannot report a trustworthy CoRAL-Sep quality number above N=2. Since I-023's whole point was evaluating at N up to 5, this ticket blocks most of the value I-060 was meant to unlock.
+
+**Suspected cause, not yet confirmed.** `ChunkStitcher`'s cross-chunk speaker-identity matching uses ECAPA embeddings (`use_ecapa=True`) to decide which output slot in chunk N+1 corresponds to which slot in chunk N. This is a much harder assignment problem at 3+ simultaneous speakers than at 2 (more candidate permutations, embeddings from a frozen backbone that transfers poorly to LibriMix per I-024 may be less separable at higher speaker counts), so a bug or a genuine reliability limit in that matching specifically at K>=3 is the leading candidate. Not yet isolated to a specific function or line the way I-061 was; this is a hypothesis backed by the N=2-vs-N=3+ pattern, not a confirmed root cause.
+
+**Scope.** Not yet scoped. The next diagnostic step, not yet done: repeat I-061's isolation methodology at K=3 specifically, comparing bare `expert.separate(..., n_spks=3)` (already known reliable from I-061's own isolation work) against `pipeline.run()` restricted to exactly one chunk at K=3 (ruling cross-chunk stitching in or out the same way I-061 ruled it out for K=2), then, if single-chunk K=3 is also sane, testing two chunks specifically to isolate the cross-chunk assignment step.
+
+**Acceptance criteria.**
+- [x] The pattern is confirmed real via a full rerun on real data, not assumed from a hunch.
+- [x] The two simplest alternative explanations (I-061's rate bug recurring; a pure counting error) are checked directly against the evidence and ruled out for at least some of the bad rows.
+- [ ] The isolation methodology from I-061 is repeated at K=3 to locate the actual corruption point.
+- [ ] A fix is implemented and the same before/after real-clip comparison confirms it.
+
+**Validation.** Full per-mixture log read directly from the GPU box, `i060_real_run_fixed.log`, 2026-09-05. No number in this ticket is estimated or assumed.
+
+**Dependencies.** Blocks I-060 for N >= 3. Depends on I-061 being fixed first, which it now is; this is what became visible once I-061 was no longer masking it.
 
 ---
 
