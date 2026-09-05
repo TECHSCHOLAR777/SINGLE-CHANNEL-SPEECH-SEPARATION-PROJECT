@@ -1691,7 +1691,7 @@ The codec `opus_16k` number above is the corrected one, rerun after I-058 fixed 
 - [x] The decoded audio is confirmed at the correct sample rate and full duration for Opus, checked directly via `sf.info`, not inferred from exit codes.
 - [x] A cross-correlation check against broadband (non-periodic) input confirms real signal correlation after the fix, not just matching aggregate stats like RMS or peak.
 - [x] The I-057 codec diagnostic is rerun with the fix and its corrected number is what gets recorded, not the pre-fix one.
-- [ ] The already-generated fixed evaluation matrix's 574 real-Opus samples are known to be corrupted; regenerating them is not yet scheduled as its own ticket.
+- [x] The fixed evaluation matrix has been regenerated with the fix in place. The pre-fix set (574 corrupted Opus samples) was preserved, not deleted, at `kaggle_data/fixed_eval_real_pre_i058_corrupted_opus`, and the new set was generated with the identical seed and identical real inputs (2620 eval-pool utterances, 40 speakers, 3000 noise clips, 320 simulated RIRs, 2325 real BUT ReverbDB RIRs). The new set's 554 real Opus samples were checked directly: durations range 2.74s to 34.96s (mean 12.6s), consistent with genuine multi-speaker mixtures, not the roughly 1/6-duration truncation the bug produced. Codec counts: 554 opus, 549 aac, 497 mulaw-fallback.
 
 **Validation.** `pytest tests/test_codec_augmentation.py -q`, 31 passed; full suite 604 passed, 11 skipped, unaffected. Direct reproduction and fix confirmation via `sf.info` and cross-correlation, both before and after the fix, on the GPU box with real ffmpeg (`libopus`, confirmed present via `ffmpeg -codecs`).
 
