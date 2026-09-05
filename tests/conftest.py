@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from coralsep.models.preprocess import PROJECT_SAMPLE_RATE, resample_audio
 from coralsep.schemas.separation_result import SeparationResult
 
 
@@ -51,6 +52,21 @@ class MockExpert:
                 current, np.array([0.25, 0.5, 0.25], dtype=np.float32), mode="same"
             )
 
+        # SRCorrNetExpert.separate() always upsamples its streams to
+        # PROJECT_SAMPLE_RATE regardless of the input rate (its own documented
+        # contract); a mock that echoed back the input rate instead let a real
+        # sample-rate mismatch between this class and its pipeline callers go
+        # completely untested (I-061). Match the real contract here so a
+        # pipeline test exercises the same resampling seam production code does.
+        if sample_rate != PROJECT_SAMPLE_RATE:
+            streams = np.stack(
+                [resample_audio(s, sample_rate, PROJECT_SAMPLE_RATE) for s in streams],
+                axis=0,
+            ).astype(np.float32)
+            wav_out = resample_audio(wav, sample_rate, PROJECT_SAMPLE_RATE).astype(np.float32)
+        else:
+            wav_out = wav
+
         probs = self._attractor_probs
         if probs is None:
             probs = np.zeros(5, dtype=np.float32)
@@ -58,9 +74,9 @@ class MockExpert:
 
         return SeparationResult(
             streams=streams,
-            sample_rate=sample_rate,
+            sample_rate=PROJECT_SAMPLE_RATE,
             speaker_count=k,
-            mixture=wav,
+            mixture=wav_out,
             expert_used="mock",
             attractor_probs=probs,
         )

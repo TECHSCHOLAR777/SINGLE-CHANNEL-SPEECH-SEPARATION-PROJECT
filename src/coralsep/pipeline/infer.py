@@ -16,7 +16,7 @@ Orchestrates:
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import numpy as np
 import torch
@@ -26,6 +26,7 @@ from coralsep.models.preprocess import (
     CORALSEP_SAMPLE_RATE,
     CoralSepPreprocessedAudio,
     coralsep_preprocess,
+    resample_audio,
 )
 from coralsep.pipeline.chunker import AudioChunk, Chunker
 from coralsep.pipeline.stitcher import ChunkStitcher, StitchedOutput
@@ -272,7 +273,19 @@ class CoralSepPipeline:
         gate_vec: dict[str, float],
         n_spks: int | None,
     ) -> SeparationResult:
-        """Run SR-CorrNet on one chunk with LoRA gate applied."""
+        """Run SR-CorrNet on one chunk with LoRA gate applied.
+
+        `expert.separate()` always returns its streams upsampled to
+        PROJECT_SAMPLE_RATE (16 kHz, its own documented contract), but every
+        downstream consumer here (ChunkStitcher, three-vote counting) is built
+        and configured around CORALSEP_SAMPLE_RATE (8 kHz): ChunkStitcher's
+        `_step`/`_chunk_len` are computed in 8 kHz sample counts. Feeding it
+        16 kHz-length arrays without resampling first silently reconstructs
+        only the first half, in real time, of every chunk (see I-061). Resample
+        back down here, once, so everything from this point on in the pipeline
+        is self-consistently at 8 kHz, matching the streams_8k/streams_16k
+        split the rest of this module already assumes.
+        """
         wav = chunk.waveform_8k
         if self.lora is not None:
             # Apply the routed gate vector, then inject it for the duration of
@@ -280,8 +293,33 @@ class CoralSepPipeline:
             # gate mapping, so the vector goes through set_gates first.
             self.lora.set_gates(gate_vec)
             with self.lora.forward_context():
-                return self.expert.separate(wav, sample_rate=CORALSEP_SAMPLE_RATE, n_spks=n_spks)
-        return self.expert.separate(wav, sample_rate=CORALSEP_SAMPLE_RATE, n_spks=n_spks)
+                result = self.expert.separate(wav, sample_rate=CORALSEP_SAMPLE_RATE, n_spks=n_spks)
+        else:
+            result = self.expert.separate(wav, sample_rate=CORALSEP_SAMPLE_RATE, n_spks=n_spks)
+        return self._to_native_rate(result, chunk)
+
+    def _to_native_rate(self, result: SeparationResult, chunk: AudioChunk) -> SeparationResult:
+        """Resample a SeparationResult's streams back to CORALSEP_SAMPLE_RATE.
+
+        Also swaps `mixture` for the chunk's own native 8 kHz waveform rather
+        than resampling `result.mixture` down, since the exact input the
+        expert saw is already available and needs no resampling of its own.
+        """
+        if result.sample_rate == CORALSEP_SAMPLE_RATE:
+            return result
+        streams_lo = np.stack(
+            [
+                resample_audio(result.streams[i], result.sample_rate, CORALSEP_SAMPLE_RATE)
+                for i in range(result.streams.shape[0])
+            ],
+            axis=0,
+        ).astype(np.float32)
+        return replace(
+            result,
+            streams=streams_lo,
+            sample_rate=CORALSEP_SAMPLE_RATE,
+            mixture=chunk.waveform_8k,
+        )
 
     def _compute_gate(self, condition: dict) -> dict[str, float]:
         """Level-1 DSP features → gate values via GateNetwork (or oracle 1.0 s)."""

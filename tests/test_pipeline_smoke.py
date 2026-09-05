@@ -54,3 +54,54 @@ def test_stitcher_two_chunks_shape():
     result = stitcher.finalize()
     assert result.waveforms.shape[0] == K
     assert result.waveforms.ndim == 2
+
+
+def test_separate_chunk_resamples_expert_output_back_to_8k():
+    """Regression for I-061.
+
+    SRCorrNetExpert.separate() always returns streams at PROJECT_SAMPLE_RATE
+    (16 kHz) regardless of the input rate, its own documented contract, but
+    ChunkStitcher is built and configured around CORALSEP_SAMPLE_RATE (8 kHz).
+    Before the fix, CoralSepPipeline._separate_chunk fed the stitcher 16 kHz
+    data directly, silently reconstructing only half of each chunk's real
+    duration. A fake expert here reproduces the exact contract (echoing input
+    length unchanged, but always labeling and sizing output as 16 kHz), which
+    is the one behavior the shared conftest MockExpert did not replicate
+    before this same ticket's fix, and which is why no earlier test caught
+    this. Asserts the length CoralSepPipeline actually feeds the stitcher
+    matches CHUNK_SAMPLES_8K exactly, not double it.
+    """
+    from coralsep.models.preprocess import PROJECT_SAMPLE_RATE
+    from coralsep.pipeline.chunker import AudioChunk
+    from coralsep.pipeline.infer import CoralSepPipeline
+    from coralsep.schemas.separation_result import SeparationResult
+
+    class FixedRateFakeExpert:
+        """Always returns PROJECT_SAMPLE_RATE-length streams, like the real expert."""
+
+        def separate(self, waveform, sample_rate, n_spks=None):
+            k = n_spks or 2
+            # The real expert's output length tracks the *upsampled* input
+            # length, not the raw sample count it was called with.
+            out_len = int(round(len(waveform) * PROJECT_SAMPLE_RATE / sample_rate))
+            streams = np.random.randn(k, out_len).astype(np.float32) * 0.05
+            return SeparationResult(
+                streams=streams,
+                sample_rate=PROJECT_SAMPLE_RATE,
+                speaker_count=k,
+                expert_used="fixed-rate-fake",
+            )
+
+    pipeline = CoralSepPipeline(expert=FixedRateFakeExpert())
+    chunk = AudioChunk(
+        waveform_8k=np.random.randn(CHUNK_SAMPLES_8K).astype(np.float32) * 0.1,
+        stft_16k=None,
+        chunk_index=0,
+        start_sample_8k=0,
+        is_last=True,
+    )
+
+    result = pipeline._separate_chunk(chunk, gate_vec={}, n_spks=2)
+
+    assert result.sample_rate == CORALSEP_SAMPLE_RATE
+    assert result.streams.shape[1] == CHUNK_SAMPLES_8K
