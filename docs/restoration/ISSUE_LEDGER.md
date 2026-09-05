@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 59 tickets. 41 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 59 tickets. 40 closed, 19 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -76,7 +76,7 @@
 | I-040 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` scored reverberant conditions against the wrong reference | 🟢 CLOSED | [#78](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/78) |
 | I-041 | `[BUG]` | 🔴 P0 | The deployed gate crashed on every call once a real gate network was attached | 🟢 CLOSED | [#79](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/79) |
 | I-042 | `[ARCH]` | 🟠 P1 | The gate runs once per utterance from Level-1 only; the documented per-chunk Level-2 lag was never implemented | ⚪ OPEN | [#80](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/80) |
-| I-043 | `[MODEL]` | 🟡 P2 | Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference | 🟢 CLOSED, ruled out | [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) |
+| I-043 | `[MODEL]` | 🟡 P2 | Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference | 🟡 REOPENED, real cost found on the fixed reverb adapter | [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81) |
 | I-044 | `[DATA]` | 🟡 P2 | The noise adapter's WHAM split is never checked against the LibriMix test split, a leakage risk | 🟡 INVESTIGATING, guard done | [#82](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/82) |
 | I-045 | `[MODEL]` | 🟡 P2 | Band recovery masks the shared 16 kHz mixture, not a separated signal, and its evaluation guard can see ground truth deployment never has | 🟠 READY | [#83](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/83) |
 | I-046 | `[RESEARCH]` | ⚪ P3 | Freezing the backbone entirely rests on an analogy from a different experiment, not a direct ablation | ⚪ OPEN | [#84](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/84) |
@@ -877,7 +877,7 @@ The real defect is in the diagnostic that produced the table above. `eval/eval_r
 
 **Validation.** `python src/coralsep/eval/eval_reverb_adapter.py --checkpoint best_reverb.pt --librispeech-8k <slice> --rir-bank <bank> --device cuda`, run on the university GPU box against the real `rishig777/calmsep-stage1-adapters` Kaggle checkpoint, 2026-09-04.
 
-**Dependencies.** I-043 (co-activation mismatch) has since been tested and ruled out, cost measured at -0.03 dB. The remaining candidates are the two this ticket already named: LoRA rank 8 too small, or 500 samples per epoch too few. Both need a retraining run.
+**Dependencies.** I-043 (co-activation mismatch) was tested against the original harmful checkpoint and initially ruled out (cost measured at -0.03 dB), but that measurement does not hold on the fixed reverb checkpoint (-3.85 dB cost, real); I-043 is reopened. Rank and sample count still each independently fix the base harm regardless, per the table above; co-activation is now a live, separate follow-up on top of that fix, not a ruled-out alternative to it.
 
 **Dependencies.** Feeds I-003.
 
@@ -1274,9 +1274,21 @@ The comment refers to a task assignment from the three-developer phase in early 
 
 ### I-043 `[MODEL]` P2 Stage 1 adapters train under 0 to 20 percent co-activation but run under roughly 50 percent at inference
 
-**State:** CLOSED, ruled out as a cause · commit `776ac3a` · GitHub [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81)
+**State:** 🟡 REOPENED, the "ruled out" verdict does not survive using a non-harmful reverb checkpoint · commit pending · GitHub [#81](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/81)
 
-**2026-09-04 update.** Ran the diagnostic this ticket's own scope called for (`coralsep.eval.diagnose_coactivation`), against the real Stage 1 checkpoints for all three adapters, on the university GPU box, at T60 0.54s:
+**2026-09-05 update: reran with the fixed reverb adapter; the original verdict does not hold.**
+
+The 2026-09-04 measurement below used the original, harmful reverb checkpoint (I-025, before its root cause was found). `diagnose_coactivation.py` also had its own independent copy of I-055's unseeded-`RirBank` bug (fixed in this update, `RirBank(args.rir_bank, rng=rng)`), so that original run's exact T60 draw cannot even be reproduced. Rerunning with the samples2000 ablation checkpoint (I-025's fix, rank 8 so it loads into this script's single shared-rank `LoRALibrary` without changes, unlike the rank32 checkpoint) instead of the harmful one:
+
+| Regime | SI-SNR | vs off |
+|---|---:|---:|
+| All gates off (frozen backbone) | 2.07 dB | |
+| Trained regime (1.0, 0.0, 0.0) | 9.39 dB | +7.32 dB |
+| Deployed regime (0.5, 0.5, 0.5) | 5.54 dB | +3.47 dB |
+
+Co-activation cost, deployed regime versus trained regime: -3.85 dB, real and substantial, the opposite of the earlier "not a meaningful difference" finding. The most likely explanation: the original measurement's floor effect. A harmful adapter has little room to get further degraded by co-activation, so a near-zero delta on that checkpoint said less than it appeared to. A genuinely helpful adapter has real headroom to lose, and loses a lot of it here. This reopens the question I-043 originally asked: adapters trained under 0-20 percent co-activation and run under roughly 50 percent may be leaving real quality on the table, on top of whatever rank/sample-count fix I-025 applies. Single mixture, single T60 draw (0.51s), same caveat every other n=1 diagnostic in this project carries; not yet checked against the rank32 or combined rank32+2000-sample checkpoints, since those need per-adapter rank support this script does not have.
+
+**2026-09-04 update (superseded above).** Ran the diagnostic this ticket's own scope called for (`coralsep.eval.diagnose_coactivation`), against the real Stage 1 checkpoints for all three adapters, on the university GPU box, at T60 0.54s:
 
 | Regime | SI-SNR | vs off |
 |---|---:|---:|
@@ -1285,6 +1297,8 @@ The comment refers to a task assignment from the three-developer phase in early 
 | Deployed regime (0.5, 0.5, 0.5) | -2.22 dB | -1.25 dB |
 
 Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not a meaningful difference. The hypothesis is ruled out: whatever makes the reverb adapter harmful (I-025, confirmed independently the same session), it is not primarily a mismatch between the co-activation load it trained under and the load it runs under. The remaining candidates are the two I-025 already named, LoRA rank 8 too small or 500 samples per epoch too few, both of which need a retraining run to test.
+
+**This conclusion turned out to depend on which reverb checkpoint was used; see the 2026-09-05 update above, which supersedes it.**
 
 **Problem.** `train/stage1_single.py` trains one adapter at gate 1.0 with the other two co-activated at `U(0.0, 0.2)` (module docstring: "Co-activation warm-up is always on: other adapters are active at U(0.0, 0.2)"). I-003 measures the deployed gate applying roughly 0.5 to all three adapters simultaneously, regardless of condition. No adapter was ever trained under a co-activation load anywhere near what it runs under.
 
@@ -1298,9 +1312,9 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 **Acceptance criteria.**
 - [x] A diagnostic records each adapter's SI-SNR delta under its trained co-activation range versus a fixed 0.5/0.5/0.5 blend.
-- [x] A decision record states whether the training range needs to change: no, this was not the cause, so the co-activation range does not need widening on this evidence.
+- [ ] A decision record states whether the training range needs to change: reopened. The 2026-09-04 answer (no) was measured on a checkpoint since found harmful and superseded; the 2026-09-05 rerun on the fixed checkpoint shows a real -3.85 dB co-activation cost. Whether the training range should widen needs a second seed/mixture at minimum before it is a settled recommendation, not just a reversed one.
 
-**Validation.** `python -m coralsep.eval.diagnose_coactivation`, run against the real Stage 1 checkpoints on the university GPU box, 2026-09-04.
+**Validation.** `python -m coralsep.eval.diagnose_coactivation`, run against the real Stage 1 checkpoints on the university GPU box, 2026-09-04 (superseded) and 2026-09-05 (current, fixed reverb checkpoint, seeded RIR draw).
 
 **Dependencies.** I-003, I-025, I-042.
 
