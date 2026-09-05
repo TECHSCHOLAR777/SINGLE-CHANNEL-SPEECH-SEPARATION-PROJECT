@@ -2,7 +2,7 @@
 
 **Purpose:** the master index of every independently actionable problem found during restoration.
 
-**Status:** 🟠 59 tickets. 40 closed, 19 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
+**Status:** 🟠 59 tickets. 41 closed, 18 open or blocked. All of them are filed on [GitHub Issues](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues) with type and priority labels; [`ISSUES.md`](../../ISSUES.md) is the plain-language companion.
 
 **Last verified:** 2026-09-04
 
@@ -89,7 +89,7 @@
 | I-053 | `[BUG]` | 🟠 P1 | `but_reverbdb.py` measured T60 on 60-second background noise recordings as if they were impulse responses | 🟢 CLOSED | [#91](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/91) |
 | I-054 | `[BUG]` | 🔴 P0 | A codec sample's recorded ground truth said `amr-nb`; the audio was mu-law | 🟢 CLOSED | [#92](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/92) |
 | I-055 | `[BUG]` | 🟠 P1 | `eval_reverb_adapter.py` accepts `--seed` but never seeds the RIR draw | 🟢 CLOSED, confirmed on three reruns | [#93](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/93) |
-| I-056 | `[BUG]` | 🔴 P0 | CI has never once passed on this repository | 🟡 fix landed, next run unconfirmed | [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94) |
+| I-056 | `[BUG]` | 🔴 P0 | CI has never once passed on this repository | 🟢 CLOSED, first green run confirmed | [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94) |
 | I-057 | `[MODEL]` | 🟠 P1 | Noise and codec LoRA adapters never independently evaluated | 🟢 CLOSED, neither is harmful | [#95](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/95) |
 | I-058 | `[BUG]` | 🔴 P0 | Opus codec roundtrip keeps only 1/6 of the decoded audio | 🟢 CLOSED | [#96](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/96) |
 | I-059 | `[RESEARCH]` | 🟠 P1 | Feasibility check: retrain SR-CorrNet itself on real LibriMix | 🟡 INVESTIGATING, pipeline confirmed runnable | [#97](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/97) |
@@ -1618,7 +1618,9 @@ Co-activation cost, deployed regime versus trained regime: -0.03 dB. This is not
 
 ### I-056 `[BUG]` P0 CI has never once passed on this repository; the `Test` job fails on every commit reachable in the visible run history
 
-**State:** 🟡 three real causes found and fixed, next CI run unconfirmed · commit pending · GitHub [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94)
+**State:** 🟢 CLOSED, CI green on `master` for the first time · commit pending · GitHub [#94](https://github.com/TECHSCHOLAR777/SINGLE-CHANNEL-SPEECH-SEPARATION-PROJECT/issues/94)
+
+**2026-09-05, final update: CI green.** Run `33958227401` on `master`: Credential scan, Lint, and Test on Python 3.10, 3.11, and 3.12 all passed. Four real, independent causes were found and fixed in total across this ticket: the missing `demo` extra (gradio), the `tomllib`/3.10 gap plus its own dependency-coverage false positive, a live Hugging Face Hub network dependency with no network-failure skip, and a cross-module `from conftest import` that does not reliably resolve under this project's pytest path configuration (found only because the previous fix's own CI run surfaced it). Each was invisible until the one before it was fixed and a fresh run actually happened.
 
 **2026-09-05 update: two more real causes found, one per CI run, each only visible after the previous one was fixed.**
 
@@ -1641,7 +1643,7 @@ Each of these three causes was invisible until the one before it was fixed and a
 **Acceptance criteria.**
 - [x] The install step in `.github/workflows/ci.yml` includes the `demo` extra.
 - [x] The import sweep script, rerun locally with `gradio` installed and CI's own path-normalization behavior simulated, reports zero failures against the real dependency set CI installs.
-- [ ] A CI run on `master` after this fix lands is confirmed green, not just predicted green.
+- [x] A CI run on `master` after this fix lands is confirmed green, not just predicted green: run `33958227401`, all five jobs passed.
 
 **Validation.** Confirmed the fix will address the actual observed failure by re-running the exact import-sweep script from the workflow file locally with `gradio` installed and POSIX-style module-path construction (this restoration machine is Windows, so `path.as_posix()` was needed to match CI's Linux behavior); zero failures. Did not fabricate a "CI passed" claim without a real subsequent run; the last acceptance criterion stays open until the next push's Actions run is checked.
 
