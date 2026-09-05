@@ -106,8 +106,13 @@ class TestE0HookLive:
 
     @pytest.fixture(scope="class")
     def wrapper(self) -> SRCorrNetWrapper:
+        from conftest import hub_network_errors
+
         w = SRCorrNetWrapper(device="cpu")
-        w.load()
+        try:
+            w.load()
+        except hub_network_errors() as exc:
+            pytest.skip(f"could not reach the model hub to load the checkpoint: {exc}")
         return w
 
     def test_e0_not_none_after_forward(self, wrapper: SRCorrNetWrapper) -> None:

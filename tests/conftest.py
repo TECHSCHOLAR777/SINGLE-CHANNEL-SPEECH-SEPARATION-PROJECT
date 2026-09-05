@@ -86,3 +86,24 @@ def two_tone_mixture() -> tuple[np.ndarray, int]:
     s1 = 0.3 * np.sin(2 * np.pi * 220 * t)
     s2 = 0.3 * np.sin(2 * np.pi * 440 * t)
     return (s1 + s2).astype(np.float32), sr
+
+
+def hub_network_errors() -> tuple[type[Exception], ...]:
+    """Exception types that mean 'could not reach the model hub', not a code bug.
+
+    Used by tests that load the real, live SR-CorrNet checkpoint (attractor_test.py
+    TestPkCountAccuracy, e0_hook_test.py TestE0HookLive): their `sr_corrnet`-installed
+    skipif guard does not catch a transient Hub rate limit or outage at load time,
+    which previously failed CI outright (I-056) whenever huggingface.co rate-limited
+    the shared GitHub Actions runner IP pool. Imported lazily so a huggingface_hub
+    version without one of these names still degrades to a smaller, still-useful tuple
+    rather than an ImportError.
+    """
+    errors: list[type[Exception]] = [ConnectionError, TimeoutError]
+    try:
+        from huggingface_hub.errors import HfHubHTTPError, LocalEntryNotFoundError
+
+        errors += [HfHubHTTPError, LocalEntryNotFoundError]
+    except ImportError:
+        pass
+    return tuple(errors)
