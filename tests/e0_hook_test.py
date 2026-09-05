@@ -105,13 +105,11 @@ class TestE0HookLive:
     """Confirm exact E(0) shape on real checkpoint (BLUEPRINT §15.2)."""
 
     @pytest.fixture(scope="class")
-    def wrapper(self) -> SRCorrNetWrapper:
-        from conftest import hub_network_errors
-
+    def wrapper(self, hub_network_errors: tuple[type[Exception], ...]) -> SRCorrNetWrapper:
         w = SRCorrNetWrapper(device="cpu")
         try:
             w.load()
-        except hub_network_errors() as exc:
+        except hub_network_errors as exc:
             pytest.skip(f"could not reach the model hub to load the checkpoint: {exc}")
         return w
 

@@ -88,6 +88,7 @@ def two_tone_mixture() -> tuple[np.ndarray, int]:
     return (s1 + s2).astype(np.float32), sr
 
 
+@pytest.fixture(scope="session")
 def hub_network_errors() -> tuple[type[Exception], ...]:
     """Exception types that mean 'could not reach the model hub', not a code bug.
 
@@ -95,9 +96,13 @@ def hub_network_errors() -> tuple[type[Exception], ...]:
     TestPkCountAccuracy, e0_hook_test.py TestE0HookLive): their `sr_corrnet`-installed
     skipif guard does not catch a transient Hub rate limit or outage at load time,
     which previously failed CI outright (I-056) whenever huggingface.co rate-limited
-    the shared GitHub Actions runner IP pool. Imported lazily so a huggingface_hub
-    version without one of these names still degrades to a smaller, still-useful tuple
-    rather than an ImportError.
+    the shared GitHub Actions runner IP pool. A pytest fixture, not a plain importable
+    function: `from conftest import ...` inside a test module is not reliably on
+    sys.path across pytest's rootdir/pythonpath configurations (confirmed by a real
+    CI failure, `ModuleNotFoundError: No module named 'conftest'`, that a purely local
+    check did not catch because the class-level skipif never let the import line run
+    locally either). Imported lazily so a huggingface_hub version without one of these
+    names still degrades to a smaller, still-useful tuple rather than an ImportError.
     """
     errors: list[type[Exception]] = [ConnectionError, TimeoutError]
     try:
